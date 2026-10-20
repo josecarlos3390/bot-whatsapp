@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   Link,
   Navigate,
@@ -14,18 +14,63 @@ import {
   Clock,
   Inbox as InboxIcon,
   LogOut,
+  Moon,
   Paperclip,
   RefreshCw,
   Search,
   Send,
   ShieldCheck,
   StickyNote,
+  Sun,
   Users,
   X
 } from "lucide-react";
 import { api, onUnauthorized } from "./api";
 import { Badge, Button, Card, Dialog, Input, Skeleton, Textarea, cn } from "./ui";
 import type { Advisor, AdvisorMetric, Handoff, HandoffDetail } from "./types";
+
+const ThemeContext = createContext<{ dark: boolean; toggle: () => void } | null>(null);
+
+function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const [dark, setDark] = useState(() => {
+    const saved = window.localStorage.getItem("roho-theme");
+    if (saved) return saved === "dark";
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  });
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", dark);
+    document.documentElement.style.colorScheme = dark ? "dark" : "light";
+    window.localStorage.setItem("roho-theme", dark ? "dark" : "light");
+  }, [dark]);
+
+  return (
+    <ThemeContext.Provider value={{ dark, toggle: () => setDark((value) => !value) }}>
+      {children}
+    </ThemeContext.Provider>
+  );
+}
+
+function useTheme() {
+  const value = useContext(ThemeContext);
+  if (!value) throw new Error("useTheme debe usarse dentro de ThemeProvider");
+  return value;
+}
+
+function ThemeToggle({ className = "" }: { className?: string }) {
+  const { dark, toggle } = useTheme();
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      className={`rounded-full border border-slate-700 p-2 text-slate-300 transition hover:bg-slate-800 hover:text-white ${className}`}
+      aria-label={dark ? "Activar modo claro" : "Activar modo oscuro"}
+      title={dark ? "Modo claro" : "Modo oscuro"}
+    >
+      {dark ? <Sun size={16} /> : <Moon size={16} />}
+    </button>
+  );
+}
 
 const dateFmt = new Intl.DateTimeFormat("es-BO", {
   hour: "2-digit",
@@ -98,7 +143,10 @@ function Login({ onLogin }: { onLogin: (me: Advisor) => void }) {
   }
 
   return (
-    <div className="grid min-h-screen place-items-center bg-[radial-gradient(circle_at_top,#7f1d1d,#020617)] px-4">
+    <div className="relative grid min-h-screen place-items-center bg-[radial-gradient(circle_at_top,#7f1d1d,#020617)] px-4">
+      <div className="absolute right-4 top-4">
+        <ThemeToggle />
+      </div>
       <form onSubmit={submit} className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-2xl">
         <div className="mb-6 flex items-center gap-3">
           <div className="grid h-11 w-11 place-items-center rounded-xl bg-red-600 font-black text-white">R</div>
@@ -198,6 +246,7 @@ function Header({
             <ShieldCheck size={13} />
             {duty.length ? `Guardia: ${duty.join(", ")}` : "Sin guardia"}
           </span>
+          <ThemeToggle />
           <button onClick={onNotify} className="relative rounded-full border border-slate-700 p-2 text-slate-300 hover:bg-slate-800 hover:text-white" title="Notificaciones">
             <Bell size={16} />
             {count > 0 && (
@@ -205,7 +254,10 @@ function Header({
             )}
           </button>
           <span className="hidden text-slate-300 sm:inline">{me.display_name}</span>
-          <a href="/advisor/logout" className="inline-flex items-center gap-1.5 text-slate-400 hover:text-white">
+          <a
+            href="/advisor/logout"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-red-400/50 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-100 transition hover:bg-red-500/20"
+          >
             <LogOut size={14} /> Salir
           </a>
         </div>
@@ -642,6 +694,20 @@ function Inbox({ me }: { me: Advisor }) {
   }, [load]);
 
   useEffect(() => {
+    function focusSearch(event: KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        document.getElementById("handoff-search")?.focus();
+      }
+      if (event.key === "Escape") {
+        (document.activeElement as HTMLElement | null)?.blur();
+      }
+    }
+    window.addEventListener("keydown", focusSearch);
+    return () => window.removeEventListener("keydown", focusSearch);
+  }, []);
+
+  useEffect(() => {
     if (!selectedId) {
       setDetail(null);
       return;
@@ -802,6 +868,7 @@ function Inbox({ me }: { me: Advisor }) {
             <div className="relative mb-2">
               <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <Input
+                id="handoff-search"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Buscar por nombre, número o motivo…"
@@ -1135,12 +1202,14 @@ export default function App() {
   }
 
   return (
-    <Routes>
+    <ThemeProvider>
+      <Routes>
       <Route path="/login" element={me ? <Navigate to="/inbox" replace /> : <Login onLogin={setMe} />} />
       <Route path="/inbox" element={me ? <Inbox me={me} /> : <Navigate to="/login" replace />} />
       <Route path="/agents" element={me?.is_admin ? <Agents me={me} /> : <Navigate to="/inbox" replace />} />
       <Route path="/metrics" element={me && (me.is_admin || me.role === "supervisor") ? <MetricsPage me={me} /> : <Navigate to="/inbox" replace />} />
       <Route path="*" element={<Navigate to={me ? "/inbox" : "/login"} replace />} />
-    </Routes>
+      </Routes>
+    </ThemeProvider>
   );
 }
