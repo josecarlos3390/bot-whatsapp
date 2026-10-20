@@ -95,6 +95,9 @@ http://127.0.0.1:8000/console/
 - En móvil, al elegir un caso la consola hace scroll al panel de conversación.
 - Navegación interna con `Link` para respetar `base=/console/`.
 - Command palette con `Ctrl+K` para ir a Bandeja, Agentes, Métricas o cerrar sesión.
+- Modo oscuro/claro desde la topbar, con preferencia persistida por Mantine.
+- Lista de handoffs con scroll propio y contador en el encabezado del panel.
+- Contexto del cliente en panel lateral con scroll independiente.
 
 ## Layout
 

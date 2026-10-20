@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActionIcon,
   AppShell,
   Avatar,
   Burger,
+  Button as MantineButton,
   Drawer,
   Group,
   Kbd,
@@ -11,7 +13,9 @@ import {
   Stack,
   Text,
   TextInput,
-  UnstyledButton
+  Tooltip,
+  UnstyledButton,
+  useMantineColorScheme
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import {
@@ -39,6 +43,7 @@ import {
   Inbox as InboxIcon,
   LockKeyhole,
   LogOut,
+  Moon,
   PanelRight,
   Paperclip,
   RefreshCw,
@@ -46,6 +51,7 @@ import {
   Send,
   ShieldCheck,
   StickyNote,
+  Sun,
   Users,
   X
 } from "lucide-react";
@@ -257,6 +263,8 @@ function ConsoleShell({
   children: React.ReactNode;
 }) {
   const [opened, { toggle, close }] = useDisclosure();
+  const { colorScheme, setColorScheme } = useMantineColorScheme();
+  const dark = colorScheme === "dark";
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteQuery, setPaletteQuery] = useState("");
   const navigate = useNavigate();
@@ -343,6 +351,16 @@ function ConsoleShell({
             </div>
           </Group>
           <Group gap="sm" wrap="nowrap">
+            <Tooltip label={dark ? "Modo claro" : "Modo oscuro"}>
+              <ActionIcon
+                variant="subtle"
+                color="gray"
+                onClick={() => setColorScheme(dark ? "light" : "dark")}
+                aria-label={dark ? "Activar modo claro" : "Activar modo oscuro"}
+              >
+                {dark ? <Sun size={17} /> : <Moon size={17} />}
+              </ActionIcon>
+            </Tooltip>
             <UnstyledButton
               onClick={() => setPaletteOpen(true)}
               className="hidden items-center gap-2 rounded-lg border border-white/15 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-white/10 hover:text-white sm:inline-flex"
@@ -365,15 +383,18 @@ function ConsoleShell({
                 {me.role}
               </Text>
             </div>
-            <UnstyledButton
+            <MantineButton
               component="a"
               href="/advisor/logout"
-              className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs text-slate-400 hover:bg-white/10 hover:text-white"
+              variant="outline"
+              color="red"
+              size="xs"
+              leftSection={<IconLogout size={14} />}
+              className="border-red-400/60 bg-red-500/10 text-red-100 hover:bg-red-500/20"
               aria-label="Cerrar sesión"
             >
-              <IconLogout size={16} />
-              <span className="hidden sm:inline">Salir</span>
-            </UnstyledButton>
+              Salir
+            </MantineButton>
           </Group>
         </Group>
       </AppShell.Header>
@@ -1053,13 +1074,18 @@ function Inbox({ me }: { me: Advisor }) {
   return (
     <>
       <ToastStack toasts={toasts} />
-      <div className="mx-auto grid max-w-[1600px] gap-4 p-4 xl:grid-cols-[360px_minmax(0,1fr)_300px] xl:p-6">
-        <aside className="space-y-2">
+      <div className="mx-auto grid max-w-[1600px] gap-4 p-4 xl:h-[calc(100vh-92px)] xl:min-h-0 xl:grid-cols-[360px_minmax(0,1fr)_300px] xl:p-6">
+        <aside className="flex min-h-0 flex-col gap-2">
           <div className="flex items-center justify-between px-1">
             <div>
-              <h1 className="text-lg font-bold text-slate-900">Handoffs abiertos</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg font-bold text-slate-900">Bandeja</h1>
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">
+                  {counts.all}
+                </span>
+              </div>
               <p className="text-xs text-slate-500">
-                Tiempo real + respaldo cada 30 s
+                Tiempo real · respaldo cada 30 s
               </p>
               <p className={`mt-1 text-[11px] font-semibold ${duty.length ? "text-blue-700" : "text-red-600"}`}>
                 {duty.length ? `Guardia: ${duty.join(", ")}` : "Sin guardia"}
@@ -1098,27 +1124,29 @@ function Inbox({ me }: { me: Advisor }) {
               ))}
             </div>
           </div>
-          {loading && (
-            <div className="space-y-2">
-              <Skeleton className="h-20 w-full" />
-              <Skeleton className="h-20 w-full" />
-              <Skeleton className="h-20 w-full" />
-            </div>
-          )}
-          {!loading && !filtered.length && (
-            <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
-              <InboxIcon className="mx-auto mb-2 text-slate-300" size={28} />
-              {handoffs.length ? "No hay casos con ese filtro." : "No hay handoffs abiertos"}
-            </div>
-          )}
-          {filtered.map((handoff) => (
-            <HandoffCard
-              key={handoff.id}
-              handoff={handoff}
-              active={selected?.id === handoff.id}
-              onClick={() => setSelected(handoff)}
-            />
-          ))}
+          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+            {loading && (
+              <div className="space-y-2">
+                <Skeleton className="h-20 w-full" />
+                <Skeleton className="h-20 w-full" />
+                <Skeleton className="h-20 w-full" />
+              </div>
+            )}
+            {!loading && !filtered.length && (
+              <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
+                <InboxIcon className="mx-auto mb-2 text-slate-300" size={28} />
+                {handoffs.length ? "No hay casos con ese filtro." : "No hay handoffs abiertos"}
+              </div>
+            )}
+            {filtered.map((handoff) => (
+              <HandoffCard
+                key={handoff.id}
+                handoff={handoff}
+                active={selected?.id === handoff.id}
+                onClick={() => setSelected(handoff)}
+              />
+            ))}
+          </div>
         </aside>
         {detail ? (
           <DetailPanel
@@ -1139,12 +1167,20 @@ function Inbox({ me }: { me: Advisor }) {
           </div>
         )}
         {detail && (
-          <aside className="hidden xl:block">
-            <div className="sticky top-[76px] rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-              <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">
-                Contexto del cliente
+          <aside className="hidden min-h-0 xl:block">
+            <div className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="mb-3 flex items-center justify-between border-b border-slate-100 pb-3">
+                <div>
+                  <div className="text-sm font-bold text-slate-900">Contexto</div>
+                  <div className="text-[11px] text-slate-500">Datos del cliente</div>
+                </div>
+                <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase text-blue-700">
+                  Cliente
+                </span>
               </div>
-              <ContextPanel detail={detail} />
+              <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                <ContextPanel detail={detail} />
+              </div>
             </div>
           </aside>
         )}

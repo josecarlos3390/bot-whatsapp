@@ -18,3 +18,80 @@ body { margin: 0; min-width: 320px; }
 
 .scrollbar-thin::-webkit-scrollbar { width: 8px; }
 .scrollbar-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
+
+/* Dark mode bridge for the existing Tailwind-based content. */
+[data-mantine-color-scheme="dark"] body {
+  background: #141517;
+  color: #e9ecef;
+}
+
+[data-mantine-color-scheme="dark"] [class~="bg-[#f4f6f8]"],
+[data-mantine-color-scheme="dark"] [class~="bg-white"],
+[data-mantine-color-scheme="dark"] [class~="bg-white/80"],
+[data-mantine-color-scheme="dark"] [class~="bg-white/60"],
+[data-mantine-color-scheme="dark"] [class~="bg-slate-50"],
+[data-mantine-color-scheme="dark"] [class~="bg-slate-50/60"] {
+  background-color: #1f2124 !important;
+}
+
+[data-mantine-color-scheme="dark"] [class~="bg-slate-100"] {
+  background-color: #2a2d31 !important;
+}
+
+[data-mantine-color-scheme="dark"] [class~="text-slate-900"],
+[data-mantine-color-scheme="dark"] [class~="text-slate-800"],
+[data-mantine-color-scheme="dark"] [class~="text-slate-700"] {
+  color: #f1f3f5 !important;
+}
+
+[data-mantine-color-scheme="dark"] [class~="text-slate-600"],
+[data-mantine-color-scheme="dark"] [class~="text-slate-500"] {
+  color: #aeb4bd !important;
+}
+
+[data-mantine-color-scheme="dark"] [class~="text-slate-400"] {
+  color: #8b929c !important;
+}
+
+[data-mantine-color-scheme="dark"] [class~="border-slate-200"],
+[data-mantine-color-scheme="dark"] [class~="border-slate-100"],
+[data-mantine-color-scheme="dark"] [class~="border-slate-300"] {
+  border-color: #34383d !important;
+}
+
+[data-mantine-color-scheme="dark"] [class~="bg-blue-50"],
+[data-mantine-color-scheme="dark"] [class~="bg-blue-100"] {
+  background-color: #1b2a3d !important;
+}
+
+[data-mantine-color-scheme="dark"] [class~="text-blue-900"],
+[data-mantine-color-scheme="dark"] [class~="text-blue-800"],
+[data-mantine-color-scheme="dark"] [class~="text-blue-700"] {
+  color: #9ec5fe !important;
+}
+
+[data-mantine-color-scheme="dark"] [class~="bg-red-50"],
+[data-mantine-color-scheme="dark"] [class~="bg-red-100"] {
+  background-color: #3a2022 !important;
+}
+
+[data-mantine-color-scheme="dark"] [class~="text-red-700"],
+[data-mantine-color-scheme="dark"] [class~="text-red-600"] {
+  color: #ffb3b8 !important;
+}
+
+[data-mantine-color-scheme="dark"] [class~="bg-emerald-100"] {
+  background-color: #173529 !important;
+}
+
+[data-mantine-color-scheme="dark"] [class~="text-emerald-700"] {
+  color: #8ce99a !important;
+}
+
+[data-mantine-color-scheme="dark"] input,
+[data-mantine-color-scheme="dark"] textarea,
+[data-mantine-color-scheme="dark"] select {
+  background-color: #25282c;
+  color: #f1f3f5;
+  border-color: #3b4046;
+}
