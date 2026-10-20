@@ -1589,21 +1589,34 @@ class Agent:
             )
         product = result["product"]
         stock = sum((product.get("stock_by_store") or {}).values())
-        lines = [
-            f"*{product['name']}*",
-            f"Precio: *Bs {product['final_price']}*",
-        ]
-        if product["discount_percent"] not in {"0", "0.0", "0.00"}:
-            lines.append(
-                f"Antes Bs {product['base_price']} "
-                f"(-{product['discount_percent']}%)"
+        base = product["base_price"]
+        final = product["final_price"]
+        discount = str(product.get("discount_percent") or "0")
+        lines = [f"*{product['name']}*"]
+        if product.get("is_promotion"):
+            lines.extend(
+                [
+                    f"Precio de lista: Bs {base}",
+                    f"Precio con descuento: *Bs {final}*",
+                    f"Descuento: {discount}%",
+                ]
             )
+        elif product.get("is_special_price"):
+            lines.extend(
+                [
+                    f"Precio de lista: Bs {base}",
+                    f"Precio especial vigente: *Bs {final}*",
+                ]
+            )
+        else:
+            lines.append(f"Precio: *Bs {final}*")
         if product.get("period_to"):
             lines.append(f"Vigente hasta {product['period_to']}")
-        if product.get("tier_quantity"):
-            lines.append(
-                f"Precio especial por {product['tier_quantity']} unidades"
-            )
+        for tier in product.get("tiers") or []:
+            if tier.get("quantity") and tier.get("price"):
+                lines.append(
+                    f"Por {tier['quantity']} unidades: Bs {tier['price']} c/u"
+                )
         lines.append(f"Stock: {stock}")
         buttons = [
             {"id": "catalog", "title": "Otra opción"},

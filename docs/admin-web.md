@@ -85,6 +85,12 @@ http://127.0.0.1:8000/console/
 - Administración de agentes: crear, activar, guardia, admin.
 - Tiempo real por SSE (`/advisor/events`), con respaldo cada 30 s.
 - Estado leído/no leído por asesor.
+- Filtros Todos, Pendientes, Míos, Sin asignar, SLA y Cerrados.
+- Empty state con acción para limpiar filtros.
+- Botón Volver en la conversación en móvil.
+- Modo claro/oscuro persistido en `localStorage`.
+- Atajo `Ctrl+K` para enfocar la búsqueda de la bandeja.
+- Botón **Salir** visible en la barra superior.
 - En móvil, al elegir un caso la consola hace scroll al panel de conversación.
 - Navegación interna con `Link` para respetar `base=/console/`.
 
