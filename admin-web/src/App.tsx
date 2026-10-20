@@ -3,6 +3,7 @@ import {
   AppShell,
   Avatar,
   Burger,
+  Drawer,
   Group,
   NavLink,
   Text,
@@ -30,6 +31,7 @@ import {
   Clock,
   Inbox as InboxIcon,
   LogOut,
+  PanelRight,
   Paperclip,
   RefreshCw,
   Search,
@@ -420,6 +422,26 @@ const RESOLUTION_CATEGORIES = [
   ["otro", "Otro"]
 ] as const;
 
+function ContextPanel({ detail }: { detail: HandoffDetail }) {
+  return (
+    <div className="space-y-2">
+      <ContextBox title="Cliente">
+        {detail.profile.city || "Sin ciudad"}
+        <br />
+        {detail.profile.preferred_store || "Sin tienda preferida"}
+      </ContextBox>
+      <ContextBox title="Carrito">
+        {detail.cart ? `${detail.cart.count} ítems · Bs ${detail.cart.total}` : "Vacío"}
+      </ContextBox>
+      <ContextBox title="Pedidos">
+        {detail.orders.length
+          ? detail.orders.map((order) => `#${order.number} · ${order.status} · Bs ${order.total}`).join(" | ")
+          : "Sin pedidos"}
+      </ContextBox>
+    </div>
+  );
+}
+
 function DetailPanel({
   detail,
   onTake,
@@ -429,7 +451,8 @@ function DetailPanel({
   onAttach,
   onTransfer,
   onReturn,
-  onReopen
+  onReopen,
+  onOpenContext
 }: {
   detail: HandoffDetail;
   onTake: () => void;
@@ -440,6 +463,7 @@ function DetailPanel({
   onTransfer: () => void;
   onReturn: () => void;
   onReopen: () => void;
+  onOpenContext: () => void;
 }) {
   const [reply, setReply] = useState("");
   const [note, setNote] = useState("");
@@ -499,7 +523,7 @@ function DetailPanel({
   }
 
   return (
-    <section id="handoff-detail" className="flex min-h-[70vh] flex-col rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <section id="handoff-detail" className="flex min-h-[70vh] flex-col rounded-2xl border border-slate-200 bg-white shadow-sm lg:h-[calc(100vh-92px)] lg:min-h-[620px]">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 p-4">
         <div>
           <h2 className="text-lg font-bold text-slate-900">{detail.contact.name || detail.contact.wa_id}</h2>
@@ -544,14 +568,10 @@ function DetailPanel({
         </div>
       )}
 
-      <div className="grid gap-2 border-b border-slate-100 p-4 sm:grid-cols-3">
-        <ContextBox title="Cliente">{detail.profile.city || "Sin ciudad"}<br />{detail.profile.preferred_store || "Sin tienda preferida"}</ContextBox>
-        <ContextBox title="Carrito">{detail.cart ? `${detail.cart.count} ítems · Bs ${detail.cart.total}` : "Vacío"}</ContextBox>
-        <ContextBox title="Pedidos">
-          {detail.orders.length
-            ? detail.orders.map((order) => `#${order.number} · ${order.status} · Bs ${order.total}`).join(" | ")
-            : "Sin pedidos"}
-        </ContextBox>
+      <div className="border-b border-slate-100 px-4 py-2 xl:hidden">
+        <Button variant="secondary" size="sm" onClick={onOpenContext}>
+          <PanelRight size={15} /> Ver contexto
+        </Button>
       </div>
 
       <details className="border-b border-slate-100 px-4 py-2">
@@ -585,7 +605,7 @@ function DetailPanel({
         </div>
       </details>
 
-      <div className="scrollbar-thin flex-1 space-y-3 overflow-y-auto bg-slate-50/60 p-4" style={{ maxHeight: "46vh" }}>
+      <div className="scrollbar-thin min-h-0 flex-1 space-y-3 overflow-y-auto bg-slate-50/60 p-4">
         {detail.messages.map((message, index) => (
           <div key={`${message.created_at}-${index}`} className={`flex ${message.direction === "out" ? "justify-end" : "justify-start"}`}>
             <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${message.direction === "out" ? "bg-slate-900 text-white" : "border border-slate-200 bg-white text-slate-800"}`}>
@@ -703,6 +723,7 @@ function Inbox({ me }: { me: Advisor }) {
   const [transferTo, setTransferTo] = useState("");
   const [returnOpen, setReturnOpen] = useState(false);
   const [returnReason, setReturnReason] = useState("El asesor devolvió el caso al bot.");
+  const [contextOpen, setContextOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const known = useRef<Set<string> | null>(null);
   const selectedId = selected?.id;
@@ -929,7 +950,7 @@ function Inbox({ me }: { me: Advisor }) {
   return (
     <>
       <ToastStack toasts={toasts} />
-      <div className="mx-auto grid max-w-[1500px] gap-4 p-4 lg:grid-cols-[380px_1fr] lg:p-6">
+      <div className="mx-auto grid max-w-[1600px] gap-4 p-4 xl:grid-cols-[360px_minmax(0,1fr)_300px] xl:p-6">
         <aside className="space-y-2">
           <div className="flex items-center justify-between px-1">
             <div>
@@ -952,6 +973,7 @@ function Inbox({ me }: { me: Advisor }) {
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Buscar por nombre, número o motivo…"
+                aria-label="Buscar handoffs"
                 className="pl-9"
               />
             </div>
@@ -1006,13 +1028,34 @@ function Inbox({ me }: { me: Advisor }) {
             onTransfer={openTransfer}
             onReturn={() => setReturnOpen(true)}
             onReopen={reopen}
+            onOpenContext={() => setContextOpen(true)}
           />
         ) : (
           <div className="grid min-h-[50vh] place-items-center rounded-2xl border border-dashed border-slate-300 bg-white/60 text-sm text-slate-500">
             Elegí un handoff para ver la conversación
           </div>
         )}
+        {detail && (
+          <aside className="hidden xl:block">
+            <div className="sticky top-[76px] rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+              <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                Contexto del cliente
+              </div>
+              <ContextPanel detail={detail} />
+            </div>
+          </aside>
+        )}
       </div>
+
+      <Drawer
+        opened={contextOpen}
+        onClose={() => setContextOpen(false)}
+        title="Contexto del cliente"
+        position="right"
+        size="sm"
+      >
+        {detail && <ContextPanel detail={detail} />}
+      </Drawer>
       <Dialog
         open={resolveOpen}
         onClose={() => setResolveOpen(false)}

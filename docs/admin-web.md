@@ -75,6 +75,9 @@ http://127.0.0.1:8000/console/
 - Toasts y notificaciones del navegador.
 - Badge de pendientes.
 - Guardia visible.
+- Inbox de tres paneles en escritorio: lista, conversación y contexto.
+- Contexto del cliente en `Drawer` en tablet/móvil.
+- Composer dentro del panel de conversación, sin desplazarse con la página.
 - Detalle con conversación, carrito y pedidos.
 - Tomar, responder y resolver.
 - Composer con Enter para enviar, Shift+Enter para salto.
@@ -97,6 +100,14 @@ La consola usa `AppShell` de Mantine:
 - sidebar con Bandeja, Agentes y Métricas según rol,
 - navegación responsive con burger en móvil,
 - contenido dentro de `AppShell.Main`.
+
+El inbox usa tres columnas en escritorio:
+
+```text
+lista (360px) | conversación (flexible) | contexto (300px)
+```
+
+En pantallas menores el contexto se abre en un `Drawer`.
 
 La lógica de bandeja, handoffs y conversación sigue en los componentes React
 existentes.

@@ -5,6 +5,21 @@ import tailwindcss from "@tailwindcss/vite";
 export default defineConfig({
   base: process.env.VITE_BASE ?? "/",
   plugins: [react(), tailwindcss()],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ["react", "react-dom", "react-router-dom"],
+          mantine: [
+            "@mantine/core",
+            "@mantine/hooks",
+            "@mantine/notifications"
+          ],
+          icons: ["lucide-react", "@tabler/icons-react"]
+        }
+      }
+    }
+  },
   server: {
     port: 5173,
     proxy: {
