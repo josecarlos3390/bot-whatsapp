@@ -69,6 +69,9 @@ http://127.0.0.1:8000/console/
 ## Funciones
 
 - Login/logout con cookie.
+- Login con mostrar/ocultar contraseña, bloqueo de envío y mensaje de error accesible.
+- Logout redirige a `/console/login`, no a la página heredada.
+- Cookie `Secure` automática cuando la consola se sirve por HTTPS.
 - Bandeja con handoffs abiertos.
 - Filtros: todos, pendientes, tomados, SLA.
 - Búsqueda por nombre, número o motivo.

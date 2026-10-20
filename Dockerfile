@@ -2,10 +2,11 @@
 
 FROM node:22-slim AS web
 WORKDIR /web
+RUN npm install -g pnpm@11.24.0
 COPY admin-web/package.json admin-web/pnpm-lock.yaml ./
-RUN npm install --no-audit --no-fund
-COPY admin-web/ ./
-RUN npm run build:console
+RUN pnpm install --frozen-lockfile --ignore-scripts
+COPY admin-web/ ./ 
+RUN pnpm build:console
 
 FROM python:3.12-slim AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \

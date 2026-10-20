@@ -46,7 +46,28 @@ https://tu-servicio.onrender.com/webhooks/whatsapp
 
 Verificar el token con `WA_VERIFY_TOKEN`.
 
-## Docker en un VPS
+## Docker
+
+El `Dockerfile` es multi-stage:
+
+1. `web`: instala `admin-web`, ejecuta `pnpm build:console` y genera `dist`.
+2. `runtime`: instala Python, copia `admin-web/dist` y sirve la consola en
+   `/console/`.
+
+La imagen no necesita Node en producción.
+
+```powershell
+docker compose up --build
+```
+
+La consola queda en:
+
+```text
+http://localhost:8000/console/
+```
+
+`PUBLIC_BASE_URL` debe ser la URL pública real para que los links de pago y el
+webhook funcionen detrás de un túnel o proxy. en un VPS
 
 ```bash
 docker compose up -d --build

@@ -163,7 +163,9 @@ document.getElementById('form').addEventListener('submit', async (e) => {
 
 @router.post("/advisor/login")
 async def advisor_login(
-    payload: LoginIn, session: AsyncSession = Depends(get_session)
+    request: Request,
+    payload: LoginIn,
+    session: AsyncSession = Depends(get_session)
 ):
     advisor = await advisor_service.authenticate(
         session, payload.username, payload.password
@@ -175,15 +177,17 @@ async def advisor_login(
         "advisor_session",
         advisor_service.make_session(advisor.username),
         httponly=True,
+        secure=request.url.scheme == "https",
         samesite="lax",
         max_age=settings.advisor_session_hours * 3600,
     )
+    response.headers["Cache-Control"] = "no-store"
     return response
 
 
 @router.get("/advisor/logout")
 async def advisor_logout() -> RedirectResponse:
-    response = RedirectResponse(url="/advisor/login", status_code=303)
+    response = RedirectResponse(url="/console/login", status_code=303)
     response.delete_cookie("advisor_session")
     return response
 

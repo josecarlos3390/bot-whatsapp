@@ -34,7 +34,10 @@ import {
   BarChart3,
   Check,
   Clock,
+  Eye,
+  EyeOff,
   Inbox as InboxIcon,
+  LockKeyhole,
   LogOut,
   PanelRight,
   Paperclip,
@@ -98,11 +101,13 @@ function Login({ onLogin }: { onLogin: (me: Advisor) => void }) {
   const navigate = useNavigate();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
+    if (busy) return;
     setBusy(true);
     setError("");
     try {
@@ -148,12 +153,19 @@ function Login({ onLogin }: { onLogin: (me: Advisor) => void }) {
         <input
           id="advisor-password"
           className="mb-2 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-600"
-          type="password"
+          type={showPassword ? "text" : "password"}
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           autoComplete="current-password"
           required
         />
+        <button
+          type="button"
+          onClick={() => setShowPassword((value) => !value)}
+          className="mb-2 text-xs font-semibold text-blue-700 hover:underline"
+        >
+          {showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+        </button>
         {error && (
           <p role="alert" className="mb-2 text-sm text-red-600">
             {error}
