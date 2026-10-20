@@ -22,4 +22,7 @@ admin-web/dist/
 
 *.log
 .tools/
+demo-local.db
+version-unica.bundle
+patches/
 NONE
