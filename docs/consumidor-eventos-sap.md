@@ -27,7 +27,7 @@ SAP_EVENT_QUEUE_ENABLED=true
 RABBITMQ_URL=amqp://usuario:clave@host:5672/
 SAP_EVENT_EXCHANGE=sap.events
 SAP_EVENT_QUEUE=chatbot.sap.events
-SAP_EVENT_TENANT=tenant-001
+SAP_EVENT_TENANT=RETAIL_QA5
 ```
 
 En el integrador:

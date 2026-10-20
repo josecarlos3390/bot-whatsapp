@@ -3,6 +3,7 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+pytest-of-*/
 .ruff_cache/
 .mypy_cache/
 coverage.xml
@@ -20,4 +21,5 @@ admin-web/node_modules/
 admin-web/dist/
 
 *.log
+.tools/
 NONE

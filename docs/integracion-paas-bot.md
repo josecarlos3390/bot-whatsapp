@@ -2,14 +2,16 @@
 
 ## Estado
 
-- PaaS local en `http://127.0.0.1:5000`.
+- PaaS local en `http://127.0.0.1:5050` (la API corre como servicio de Windows).
 - Tenant local `chatbot`, empresa `RETAIL_QA5`.
 - Service Layer: `https://hanaroda25.gruporoda.com:50000`.
 - Prueba real OK: `AIRACCE010005`, precio `149`, stock `1`.
-- Bot en `SAP_MODE=paas`.
-- Endpoints de lectura agregados.
+- Bot en `SAP_MODE=paas` con `SAP_WRITE_ENABLED=true`.
+- Lecturas: artículos, precios y socios.
+- Escrituras: alta de socio y alta de pedido (síncrona, con DocEntry).
+- Factura y pago: el integrador todavía no los expone; el bot deja el pedido
+  `paid` con la factura pendiente anotada en `orders.notes`.
 - Eventos: publisher del worker activado y consumer del bot activo.
-- Escrituras SAP (factura/pago) todavía pendientes.
 
 ## API PaaS usada
 
@@ -38,9 +40,9 @@ El PaaS gestiona la sesión SAP; el bot no recibe credenciales SAP.
 
 ```env
 SAP_MODE=paas
-SAP_PAAS_URL=http://127.0.0.1:5000
+SAP_PAAS_URL=http://127.0.0.1:5050
 SAP_PAAS_API_KEY=...
-SAP_PAAS_TENANT=tenant-001
+SAP_PAAS_TENANT=RETAIL_QA5
 ```
 
 ## Eventos
@@ -52,7 +54,7 @@ SAP_EVENT_EXCHANGE=sap.events
 SAP_EVENT_QUEUE=chatbot.sap.events
 SAP_EVENT_DLQ=chatbot.sap.events.dlq
 SAP_EVENT_DLX=chatbot.sap.events.dlx
-SAP_EVENT_TENANT=tenant-001
+SAP_EVENT_TENANT=RETAIL_QA5
 ```
 
 PaaS:
@@ -90,32 +92,55 @@ Recomendaciones:
 
 ## Escrituras
 
-El endpoint `/api/crm/orders` existe y crea pedidos en SAP. Para el bot falta:
+El bot escribe por el integrador, sin credenciales SAP propias:
 
-1. endpoint de factura,
-2. endpoint de pago,
-3. mapeo de `Order` del bot al `CrmOrderPayload`,
-4. idempotencia por `order.number`.
+| Acción | Endpoint | Respuesta |
+|---|---|---|
+| Alta de socio | `POST /api/sap/business-partners` | `{cardCode}` |
+| Alta de pedido | `POST /api/crm/orders` | `{sapDocEntry, sapDocNum}` |
 
-Mientras tanto:
+Detalles de la implementación:
+
+- `PaasSap.create_sales_order` mapea `Order` → `CrmOrderPayload` con
+  `crmOrderId = order.number` (idempotencia por `NumAtCard` en SAP).
+- Cada línea envía `costingCode`/`costingCode2`/`costingCode3` y `taxCode`
+  (obligatorios en la localización chilena; sin ellos SAP responde
+  `(17) Falta Centro de Costo en la línea`).
+- El socio se crea con `WA<teléfono>` y el RUT del contacto
+  (`federalTaxId`). Si el cliente no tiene RUT se usa `SAP_DEFAULT_CARD_CODE`;
+  sin ese valor el checkout pide identificar al cliente.
+- `create_invoice_from_order` y `create_incoming_payment` siguen sin endpoint:
+  el pago se registra igual y la factura queda pendiente en `orders.notes`.
+
+Pendiente en el integrador (requiere republicar `Integration.Api`):
+
+1. endpoint de factura (`POST /Invoices` desde pedido) — además SAP bloquea hoy
+   al usuario `jdiaz` con `-1116` por autorización de almacén;
+2. endpoint de pago (`POST /IncomingPayments`).
+
+Mientras la facturación no exista, dejarlo así:
 
 ```env
-SAP_WRITE_ENABLED=false
+SAP_WRITE_ENABLED=true
+SAP_DEFAULT_CARD_CODE=<socio consumidor final>
 ```
 
 ## Prueba
 
 ```powershell
-# API PaaS
-dotnet run --project D:\ProyectosPython\integrator-paas\src\Integration.Api
+# API PaaS (instancia de desarrollo en el 5051)
+dotnet run --project C:\ProyectosPython\integrator-paas\src\Integration.Api -- --urls http://127.0.0.1:5051
 
-# Bot
-SAP_MODE=paas .\.venv\Scripts\python.exe -m uvicorn app.main:app --port 8000
+# Bot apuntando a esa instancia
+$env:SAP_PAAS_URL="http://127.0.0.1:5051"
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --port 8010
 ```
 
 Verificar:
 
 ```http
-GET http://127.0.0.1:5000/health/ready
-GET http://127.0.0.1:5000/api/sap/items/{sku}
+GET http://127.0.0.1:5050/health/ready
+GET http://127.0.0.1:5050/api/sap/items/{sku}
+POST http://127.0.0.1:5050/api/sap/business-partners
+POST http://127.0.0.1:5050/api/crm/orders
 ```

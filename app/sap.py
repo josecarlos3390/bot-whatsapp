@@ -857,21 +857,116 @@ class PaasSap:
         )
         return build_offer(item, periods, quantity)
 
+    async def post(self, path: str, payload: dict) -> dict:
+        response = await self._client.post(path.lstrip("/"), json=payload)
+        if response.status_code >= 400:
+            detail = response.text[:400]
+            try:
+                body = response.json()
+                detail = str(body.get("error") or body.get("Error") or detail)
+            except Exception:  # noqa: BLE001 - respuesta no JSON
+                pass
+            raise SapError(f"PaaS {response.status_code}: {detail}")
+        return response.json()
+
+    async def _ensure_bp(self, contact: Contact) -> str:
+        """CardCode del cliente: existente, creado con su RUT o genérico."""
+        if contact.sap_card_code:
+            return contact.sap_card_code
+        digits = "".join(ch for ch in contact.phone_e164 if ch.isdigit())
+        card_code = ("WA" + digits)[:15]
+        if contact.tax_id:
+            data = await self.post(
+                "api/sap/business-partners",
+                {
+                    "cardCode": card_code,
+                    "cardName": (contact.name or "Cliente WhatsApp")[:100],
+                    "phone": contact.phone_e164,
+                    "federalTaxId": contact.tax_id,
+                },
+            )
+            card_code = data.get("cardCode") or data.get("CardCode") or card_code
+        elif settings.sap_default_card_code.strip():
+            card_code = settings.sap_default_card_code.strip()
+        else:
+            raise SapError(
+                "El cliente no está identificado en SAP: falta RUT o CardCode. "
+                "Pedile el RUT/NIT o configurá SAP_DEFAULT_CARD_CODE."
+            )
+        contact.sap_card_code = card_code
+        return card_code
+
     async def create_sales_order(self, order: Order) -> SapOrderResult:
-        raise SapError(
-            "Escritura SAP vía integration-paas todavía no está habilitada."
+        if not settings.sap_write_enabled:
+            raise SapError(
+                "La escritura en SAP está deshabilitada "
+                "(SAP_WRITE_ENABLED=false)."
+            )
+        contact = await self.session.get(Contact, order.contact_id)
+        if contact is None:
+            raise SapError("No se encontró el contacto del pedido.")
+        card_code = await self._ensure_bp(contact)
+
+        lines = []
+        for item in order.items:
+            line = {
+                "sku": item.sku,
+                "quantity": item.quantity,
+                "price": float(item.unit_price),
+                "warehouse": item.store_code or settings.sap_warehouse,
+            }
+            if settings.sap_costing_code:
+                line["costingCode"] = settings.sap_costing_code
+                if settings.sap_costing_code2:
+                    line["costingCode2"] = settings.sap_costing_code2
+                if settings.sap_costing_code3:
+                    line["costingCode3"] = settings.sap_costing_code3
+            if settings.sap_tax_code:
+                line["taxCode"] = settings.sap_tax_code
+            lines.append(line)
+
+        today = date.today().isoformat()
+        try:
+            data = await self.post(
+                "api/crm/orders",
+                {
+                    "crmOrderId": order.number,
+                    "customerId": card_code,
+                    "orderDate": today,
+                    "dueDate": today,
+                    "warehouse": settings.sap_warehouse,
+                    "lines": lines,
+                },
+            )
+        except SapError as exc:
+            if "Centro de Costo" in str(exc) or "Costing" in str(exc):
+                raise SapError(
+                    f"{exc} — el integrador parece desactualizado: hay que "
+                    "republicar Integration.Api para que envíe CostingCode/TaxCode."
+                ) from exc
+            raise
+        doc_entry = data.get("sapDocEntry") or data.get("SapDocEntry") or 0
+        doc_num = data.get("sapDocNum") or data.get("SapDocNum") or 0
+        logger.info(
+            "Pedido %s creado vía PaaS (DocEntry=%s)", order.number, doc_entry
+        )
+        return SapOrderResult(
+            doc_entry=int(doc_entry),
+            doc_num=int(doc_num),
+            total=Decimal(str(order.total)),
         )
 
     async def create_invoice_from_order(self, order: Order) -> SapInvoiceResult:
         raise SapError(
-            "Facturación SAP vía integration-paas todavía no está habilitada."
+            "El integrador todavía no expone facturación: el pedido queda "
+            "pagado y pendiente de facturar en SAP."
         )
 
     async def create_incoming_payment(
         self, order: Order, invoice: SapInvoiceResult
     ) -> SapPaymentResult:
         raise SapError(
-            "Pagos SAP vía integration-paas todavía no están habilitados."
+            "El integrador todavía no expone el registro de pagos en SAP."
         )
 
 

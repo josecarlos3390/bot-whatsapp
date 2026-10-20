@@ -32,6 +32,9 @@ services:
       REDIS_URL: redis://redis:6379/0
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8000}
       QUEUE_ENABLED: "false"
+    # Permite llegar al integration-paas y a RabbitMQ del host desde el contenedor.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       db:
         condition: service_healthy

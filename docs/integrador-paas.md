@@ -120,7 +120,7 @@ Envelope sugerido:
 ```json
 {
   "event_id": "550e8400-e29b-41d4-a716-446655440000",
-  "tenant_id": "tenant-001",
+  "tenant_id": "RETAIL_QA5",
   "event_type": "Created",
   "object_type": "13",
   "aggregate_id": "260191954",

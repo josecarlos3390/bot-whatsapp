@@ -148,23 +148,39 @@ async def confirm_payment(
     order.status = "paid"
     order.paid_at = payment.paid_at
 
+    invoice = None
+    sap_payment = None
+    invoice_error: str | None = None
     try:
         invoice = await sap.create_invoice_from_order(order)
         sap_payment = await sap.create_incoming_payment(order, invoice)
-    except Exception:
-        await session.rollback()
-        raise
+    except Exception as exc:  # noqa: BLE001 - el cobro ya se realizó
+        # No se revierte el pago: se registra como pagado y la factura queda
+        # pendiente (SAP puede rechazarla por permisos, o el integrador puede
+        # no exponer todavía el endpoint).
+        invoice_error = str(exc)[:300]
+        logger.error(
+            "Pago %s confirmado sin factura SAP: %s", payment.id, invoice_error
+        )
 
-    order.status = "invoiced"
-    order.invoice_doc_entry = invoice.doc_entry
-    order.invoice_doc_num = invoice.doc_num
-    order.sap_payment_doc_entry = sap_payment.doc_entry
-    payment.invoice_doc_entry = invoice.doc_entry
-    payment.raw = {
-        "invoice_doc_entry": invoice.doc_entry,
-        "invoice_doc_num": invoice.doc_num,
-        "payment_doc_entry": sap_payment.doc_entry,
-    }
+    if invoice is not None:
+        order.status = "invoiced"
+        order.invoice_doc_entry = invoice.doc_entry
+        order.invoice_doc_num = invoice.doc_num
+        order.sap_payment_doc_entry = (
+            sap_payment.doc_entry if sap_payment else None
+        )
+        payment.invoice_doc_entry = invoice.doc_entry
+        payment.raw = {
+            "invoice_doc_entry": invoice.doc_entry,
+            "invoice_doc_num": invoice.doc_num,
+            "payment_doc_entry": sap_payment.doc_entry if sap_payment else None,
+        }
+    else:
+        order.notes = (
+            f"{order.notes}\n" if order.notes else ""
+        ) + f"Factura SAP pendiente: {invoice_error}"
+
     await feedback.create_feedback_request(session, order)
     try:
         await session.commit()
@@ -176,22 +192,27 @@ async def confirm_payment(
         contact = await session.get(Contact, order.contact_id)
         if contact is not None:
             try:
-                await whatsapp.send_text(
-                    contact.wa_id,
-                    (
+                if invoice is not None:
+                    text = (
                         f"✅ Pago confirmado por {order.total} {order.currency}.\n"
                         f"Pedido {order.number} · Factura SAP {invoice.doc_num}.\n"
                         "Te avisamos cuando salga a despacho."
-                    ),
-                )
+                    )
+                else:
+                    text = (
+                        f"✅ Pago confirmado por {order.total} {order.currency}.\n"
+                        f"Pedido {order.number}. Estamos generando la factura "
+                        "y te avisamos cuando salga a despacho."
+                    )
+                await whatsapp.send_text(contact.wa_id, text)
             except Exception:  # no romper el cobro por un fallo de mensajería
                 logger.exception("No se pudo notificar el pago %s", payment.id)
 
     logger.info(
         "Pago %s confirmado; factura SAP %s; pago SAP %s",
         payment.id,
-        invoice.doc_entry,
-        sap_payment.doc_entry,
+        invoice.doc_entry if invoice else "pendiente",
+        sap_payment.doc_entry if sap_payment else "pendiente",
     )
     return payment
 

@@ -257,13 +257,13 @@ async def search_items(
 ) -> list[CatalogItem]:
     """Búsqueda con filtros para armar un catálogo dinámico."""
 
-    def base():
+    def base(apply_category: bool = True):
         stmt = select(CatalogItem).where(CatalogItem.active.is_(True))
         if only_available:
             stmt = stmt.where(
                 CatalogItem.stock > 0, CatalogItem.price > 0
             )
-        if category:
+        if category and apply_category:
             patterns = [_like(v) for v in _variants(category)]
             starts = [f"{v}%" for v in _variants(category)]
             stmt = stmt.where(
@@ -329,18 +329,23 @@ async def search_items(
     size_phrase = (
         size_match.group(1).replace(",", ".") if size_match else None
     )
+    explicit_category = category is not None
     intent_category = None
-    if not category:
+    if not explicit_category:
         for term in terms:
             intent_category = INTENT_CATEGORY.get(_fold(term))
             if intent_category:
-                category = intent_category
                 break
-    rank_terms = terms + ([category] if category else [])
+    # La categoría deducida del término es una pista para ordenar, no un
+    # filtro: forzarla descartaba coincidencias reales por nombre cuando el
+    # grupo del artículo en SAP no coincide con INTENT_CATEGORY.
+    rank_terms = terms + ([intent_category] if intent_category else [])
     fetch_limit = max(int(limit) * 5, int(limit))
 
-    async def run(expanded: bool) -> list[CatalogItem]:
-        stmt = base()
+    async def run(
+        expanded: bool, apply_category: bool = True
+    ) -> list[CatalogItem]:
+        stmt = base(apply_category)
         if size_phrase:
             stmt = stmt.where(
                 CatalogItem.name.ilike(f"%{size_phrase} plazas%")
@@ -359,22 +364,31 @@ async def search_items(
 
     rows = await run(expanded=False)
     if terms and len(rows) < min(3, int(limit)):
-        expanded = await run(expanded=True)
+        expanded_rows = await run(expanded=True)
         seen = {item.sku for item in rows}
-        rows.extend(item for item in expanded if item.sku not in seen)
+        rows.extend(
+            item for item in expanded_rows if item.sku not in seen
+        )
     if not rows and terms:
         corrected = _correct_terms(terms)
         if corrected != terms:
             terms = corrected
             intent_category = None
-            if not category:
+            if not explicit_category:
                 for term in terms:
                     intent_category = INTENT_CATEGORY.get(_fold(term))
                     if intent_category:
-                        category = intent_category
                         break
-            rank_terms = terms + ([category] if category else [])
+            rank_terms = terms + (
+                [intent_category] if intent_category else []
+            )
             rows = await run(expanded=True)
+    if not rows and intent_category:
+        # Ningún nombre coincidió: mostramos la categoría deducida del término
+        # en lugar de dejar al cliente sin opciones.
+        category = intent_category
+        rows = await run(expanded=False)
+        category = None
     if not rows and terms:
         # Último intento: cualquier término, manteniendo los filtros.
         stmt = base().where(or_(*_match_all(terms[:4])))

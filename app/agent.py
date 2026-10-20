@@ -1322,16 +1322,19 @@ class Toolbox:
         order = await orders.latest_order(self.session, self.contact_id)
         if order is None:
             return {"ok": False, "error": "No hay pedidos para este cliente"}
+        label = {
+            "pending_payment": "pendiente de pago",
+            "paid": "pagado",
+            "invoiced": "facturado",
+            "cancelled": "cancelado",
+        }.get(order.status, order.status)
+        if order.status == "paid" and order.notes:
+            label = "pagado, factura pendiente"
         return {
             "ok": True,
             "order_number": order.number,
             "status": order.status,
-            "status_label": {
-                "pending_payment": "pendiente de pago",
-                "paid": "pagado",
-                "invoiced": "facturado",
-                "cancelled": "cancelado",
-            }.get(order.status, order.status),
+            "status_label": label,
             "total": str(order.total),
             "currency": order.currency,
             "invoice_doc_num": order.invoice_doc_num,
@@ -1366,6 +1369,16 @@ CHECKOUT_RE = re.compile(
 CLEAR_CART_RE = re.compile(
     r"\b(vac[ií]a(?:r|me)?|limpi(?:a|ar)|borr(?:a|ar))\b.*\bcarrito\b|"
     r"\bcarrito\b.*\b(vac[ií]a(?:r|me)?|limpi(?:a|ar)|borr(?:a|ar))\b",
+    re.IGNORECASE,
+)
+# El estado del pedido se responde de forma determinista: si va al LLM, tiende
+# a repetir el estado anterior de la conversación en vez de consultarlo.
+STATUS_RE = re.compile(
+    r"\b(estado|estatus|seguimiento)\b"
+    r"|\b(c[oó]mo|como)\s+va\s+(el|mi)\s+(pedido|orden)\b"
+    r"|\bmi\s+(pedido|orden|compra)\s+(ya|est[aá]|sali[oó]|lleg[oó]|fue|aparece)\b"
+    r"|\bya\s+pagu[eé]\b"
+    r"|\b(factura|comprobante)\b",
     re.IGNORECASE,
 )
 FRIENDLY_CATEGORIES = [
@@ -1734,9 +1747,13 @@ class Agent:
             error = str(result.get("error") or "error de stock o precio")
             if any(
                 token in error.lower()
-                for token in ("getaddrinfo", "connect", "sap", "timeout", "httpx")
+                for token in ("getaddrinfo", "connect", "timeout", "httpx")
             ):
-                error = "no pude validar precio y stock con SAP en este momento"
+                error = "no pude comunicarme con SAP en este momento"
+            elif error.startswith("PaaS "):
+                # Quitamos el prefijo técnico y mostramos el motivo de SAP.
+                _, _, detail = error.partition(": ")
+                error = detail or error
             return AgentReply(
                 [
                     Outbound(
@@ -1766,6 +1783,51 @@ class Agent:
                         {"id": "human", "title": "Asesor"},
                     ],
                 ),
+            ]
+        )
+
+    async def _status_reply(
+        self, session: AsyncSession, contact: Contact
+    ) -> AgentReply:
+        toolbox = Toolbox(session, contact, self.wa)
+        result = await toolbox.tool_order_status()
+        if not result.get("ok"):
+            return AgentReply(
+                [
+                    Outbound(
+                        kind="buttons",
+                        text=(
+                            "Todavía no tenés pedidos registrados. "
+                            "¿Arrancamos con algo?"
+                        ),
+                        buttons=[
+                            {"id": "catalog", "title": "Ver catálogo"},
+                            {"id": "human", "title": "Asesor"},
+                        ],
+                    )
+                ]
+            )
+
+        lines = [
+            f"Pedido *{result['order_number']}* — "
+            f"Total {result.get('currency', 'BOB')} "
+            f"{Decimal(result['total']):,.2f}",
+            f"Estado: *{result['status_label']}*",
+        ]
+        if result.get("invoice_doc_num"):
+            lines.append(f"Factura SAP: {result['invoice_doc_num']}")
+        elif result.get("status") == "paid":
+            lines.append("La factura se está generando en SAP.")
+        return AgentReply(
+            [
+                Outbound(
+                    kind="buttons",
+                    text="\n".join(lines),
+                    buttons=[
+                        {"id": "cart", "title": "Ver carrito"},
+                        {"id": "human", "title": "Asesor"},
+                    ],
+                )
             ]
         )
 
@@ -1848,6 +1910,9 @@ class Agent:
 
         if CLEAR_CART_RE.search(raw):
             return await self._clear_cart_reply(session, contact)
+
+        if STATUS_RE.search(raw):
+            return await self._status_reply(session, contact)
 
         if CHECKOUT_RE.search(raw) and normalized not in {
             "formas de pago",

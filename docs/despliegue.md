@@ -60,6 +60,90 @@ http://IP-DEL-VPS:8000/console/
 
 Para HTTPS, poner Caddy o Nginx delante y apuntar el webhook al dominio.
 
+## Integrador SAP (integration-paas)
+
+El bot no habla con SAP: escribe y lee por el integrador (`SAP_MODE=paas`).
+
+```env
+SAP_MODE=paas
+SAP_PAAS_URL=http://127.0.0.1:5050
+SAP_PAAS_API_KEY=<api key del tenant>
+SAP_PAAS_TENANT=RETAIL_QA5
+SAP_WRITE_ENABLED=true
+SAP_DEFAULT_CARD_CODE=<socio consumidor final>
+```
+
+Dos avisos:
+
+- **Docker:** `127.0.0.1` dentro del contenedor es el propio contenedor. Usar
+  `SAP_PAAS_URL=http://host.docker.internal:5050` (el `docker-compose.yml` ya
+  declara `extra_hosts`). Lo mismo vale para `RABBITMQ_URL`.
+- **Orden de despliegue:** primero el integrador (expone
+  `/api/sap/business-partners` y el alta de pedido con centros de costo),
+  después el bot. Con un integrador viejo, SAP responde
+  `(17) Falta Centro de Costo en la línea`.
+
+Republicar el integrador (PowerShell **como administrador**):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File C:\ProyectosPython\integrator-paas\scripts\redeploy.ps1
+```
+
+Verificar: `curl http://localhost:5050/health/ready`.
+
+## Windows sin permisos de administrador
+
+Instalación actual: API en el puerto **8010** (el 8000 lo usa PeopleCounter) con
+un quick tunnel de Cloudflare y reinicio automático.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\serve.ps1
+powershell -ExecutionPolicy Bypass -File scripts\serve.ps1 -Port 8010
+powershell -ExecutionPolicy Bypass -File scripts\serve.ps1 -NoTunnel
+```
+
+El script:
+
+- levanta uvicorn y cloudflared, y reinicia cualquiera que se caiga;
+- escribe la URL del túnel en `.tools\tunnel-url.txt`;
+- cuando el túnel estrena URL, actualiza `PUBLIC_BASE_URL` en `.env` y reinicia
+  la API para que los links de pago sigan siendo válidos.
+
+Arranque al iniciar sesión: acceso directo `ROHO Bot.lnk` en
+`shell:startup`. Logs en `.tools\bot.out.log`, `.tools\bot.err.log` y
+`.tools\cloudflared.log`.
+
+Parar todo:
+
+```powershell
+Get-Process cloudflared | Stop-Process -Force
+Get-CimInstance Win32_Process -Filter "Name='python.exe'" |
+  Where-Object { $_.CommandLine -like '*port 8010*' } |
+  ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+```
+
+### Como servicio (requiere administrador)
+
+Con NSSM, disponible en este servidor:
+
+```powershell
+nssm install ROHO-Bot "C:\ProyectosPython\chatbot-whatsapp\.venv\Scripts\python.exe" `
+  "-m uvicorn app.main:app --host 127.0.0.1 --port 8010"
+nssm set ROHO-Bot AppDirectory "C:\ProyectosPython\chatbot-whatsapp"
+nssm set ROHO-Bot AppEnvironmentExtra "SAP_PAAS_URL=http://127.0.0.1:5050"
+nssm start ROHO-Bot
+```
+
+Con un servicio de Windows el bot sobrevive al cierre de sesión, que es lo
+recomendado para producción.
+
+### Endurecer antes de publicar
+
+- `APP_ENV=production` desactiva `/dev/simulate` (hoy permite inyectar mensajes
+  y crear pedidos a cualquiera que conozca la URL).
+- Con quick tunnel la URL cambia en cada reinicio: para un webhook estable usar
+  un túnel con nombre sobre un dominio propio, o publicar detrás de Nginx/Caddy.
+
 ## PostgreSQL
 
 El proyecto usa `asyncpg`. En Docker Compose ya hay un PostgreSQL con volumen.

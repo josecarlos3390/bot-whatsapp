@@ -96,7 +96,10 @@ async def run() -> None:
                 "x-dead-letter-routing-key": "failed",
             },
         )
-        await queue.bind(exchange, routing_key="#")
+        # Only this tenant's events (routing key {schema}.{objectType}.{eventType}).
+        await queue.bind(
+            exchange, routing_key=f"{settings.sap_event_tenant}.#"
+        )
         logger.info(
             "Consumiendo %s desde %s",
             settings.sap_event_queue,

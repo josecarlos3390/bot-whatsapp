@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     sap_event_dlq: str = "chatbot.sap.events.dlq"
     sap_event_dlx: str = "chatbot.sap.events.dlx"
     sap_event_prefetch: int = 10
-    sap_event_tenant: str = "tenant-001"
+    sap_event_tenant: str = "RETAIL_QA5"
 
     # WhatsApp Cloud API
     wa_business_number: str = ""
@@ -76,7 +76,7 @@ class Settings(BaseSettings):
     sap_sl_url: str = ""
     sap_paas_url: str = ""
     sap_paas_api_key: str = ""
-    sap_paas_tenant: str = "tenant-001"
+    sap_paas_tenant: str = "RETAIL_QA5"
     sap_company_db: str = ""
     sap_user: str = ""
     sap_password: str = ""
@@ -86,6 +86,9 @@ class Settings(BaseSettings):
     sap_cash_account: str = ""
     sap_live_reads: bool = False
     sap_write_enabled: bool = False
+    # Socio genérico ("Consumidor Final") para clientes sin CardCode. Si está
+    # vacío, el checkout exige identificar al cliente o que tenga RUT.
+    sap_default_card_code: str = ""
     sap_cache_ttl_seconds: int = 60
     sap_costing_code: str = ""
     sap_costing_code2: str = ""
