@@ -5,8 +5,12 @@ import {
   Burger,
   Drawer,
   Group,
+  Kbd,
+  Modal,
   NavLink,
+  Stack,
   Text,
+  TextInput,
   UnstyledButton
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
@@ -22,6 +26,7 @@ import {
   IconChartBar,
   IconInbox,
   IconLogout,
+  IconSearch,
   IconUsers
 } from "@tabler/icons-react";
 import {
@@ -240,6 +245,9 @@ function ConsoleShell({
   children: React.ReactNode;
 }) {
   const [opened, { toggle, close }] = useDisclosure();
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [paletteQuery, setPaletteQuery] = useState("");
+  const navigate = useNavigate();
   const location = useLocation();
   const initials = me.display_name
     .split(/\s+/)
@@ -258,6 +266,36 @@ function ConsoleShell({
       visible: me.is_admin || me.role === "supervisor"
     }
   ];
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setPaletteOpen((current) => !current);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  const commands = [
+    ...links
+      .filter((item) => item.visible)
+      .map((item) => ({
+        label: `Ir a ${item.label}`,
+        hint: item.to,
+        run: () => navigate(item.to)
+      })),
+    {
+      label: "Cerrar sesión",
+      hint: "Salir de la consola",
+      run: () => {
+        window.location.href = "/advisor/logout";
+      }
+    }
+  ].filter((command) =>
+    command.label.toLowerCase().includes(paletteQuery.trim().toLowerCase())
+  );
 
   return (
     <AppShell
@@ -293,6 +331,17 @@ function ConsoleShell({
             </div>
           </Group>
           <Group gap="sm" wrap="nowrap">
+            <UnstyledButton
+              onClick={() => setPaletteOpen(true)}
+              className="hidden items-center gap-2 rounded-lg border border-white/15 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-white/10 hover:text-white sm:inline-flex"
+              aria-label="Abrir comandos"
+            >
+              <IconSearch size={15} />
+              <span>Buscar</span>
+              <Kbd size="xs" className="bg-white/10 text-slate-300">
+                Ctrl K
+              </Kbd>
+            </UnstyledButton>
             <Avatar color="red" radius="xl" size="sm">
               {initials || "A"}
             </Avatar>
@@ -355,6 +404,48 @@ function ConsoleShell({
       <AppShell.Main>
         <div className="min-h-[calc(100vh-60px)] bg-[#f4f6f8]">{children}</div>
       </AppShell.Main>
+
+      <Modal
+        opened={paletteOpen}
+        onClose={() => {
+          setPaletteOpen(false);
+          setPaletteQuery("");
+        }}
+        title="Comandos"
+        centered
+        size="md"
+      >
+        <TextInput
+          autoFocus
+          value={paletteQuery}
+          onChange={(event) => setPaletteQuery(event.currentTarget.value)}
+          placeholder="Buscar una acción…"
+          leftSection={<IconSearch size={16} />}
+          aria-label="Buscar comando"
+        />
+        <Stack gap={4} mt="md">
+          {commands.length ? (
+            commands.map((command) => (
+              <UnstyledButton
+                key={command.label}
+                onClick={() => {
+                  command.run();
+                  setPaletteOpen(false);
+                  setPaletteQuery("");
+                }}
+                className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-100"
+              >
+                <span className="font-medium text-slate-800">{command.label}</span>
+                <span className="text-xs text-slate-400">{command.hint}</span>
+              </UnstyledButton>
+            ))
+          ) : (
+            <Text size="sm" c="dimmed" ta="center" py="sm">
+              Sin comandos para esa búsqueda.
+            </Text>
+          )}
+        </Stack>
+      </Modal>
     </AppShell>
   );
 }

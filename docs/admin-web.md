@@ -91,6 +91,7 @@ http://127.0.0.1:8000/console/
 - Estado leído/no leído por asesor.
 - En móvil, al elegir un caso la consola hace scroll al panel de conversación.
 - Navegación interna con `Link` para respetar `base=/console/`.
+- Command palette con `Ctrl+K` para ir a Bandeja, Agentes, Métricas o cerrar sesión.
 
 ## Layout
 
