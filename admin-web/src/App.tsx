@@ -1,24 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActionIcon,
-  AppShell,
-  Avatar,
-  Burger,
-  Button as MantineButton,
-  Drawer,
-  Group,
-  Kbd,
-  Modal,
-  NavLink,
-  Stack,
-  Text,
-  TextInput,
-  Tooltip,
-  UnstyledButton,
-  useMantineColorScheme
-} from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
-import {
   Link,
   Navigate,
   Route,
@@ -27,33 +8,18 @@ import {
   useNavigate
 } from "react-router-dom";
 import {
-  IconChartBar,
-  IconInbox,
-  IconLayoutSidebarLeftCollapse,
-  IconLayoutSidebarRightExpand,
-  IconLogout,
-  IconSearch,
-  IconUsers
-} from "@tabler/icons-react";
-import {
   Bell,
   BarChart3,
   Check,
   Clock,
-  Eye,
-  EyeOff,
   Inbox as InboxIcon,
-  LockKeyhole,
   LogOut,
-  Moon,
-  PanelRight,
   Paperclip,
   RefreshCw,
   Search,
   Send,
   ShieldCheck,
   StickyNote,
-  Sun,
   Users,
   X
 } from "lucide-react";
@@ -109,13 +75,11 @@ function Login({ onLogin }: { onLogin: (me: Advisor) => void }) {
   const navigate = useNavigate();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (busy) return;
     setBusy(true);
     setError("");
     try {
@@ -161,19 +125,12 @@ function Login({ onLogin }: { onLogin: (me: Advisor) => void }) {
         <input
           id="advisor-password"
           className="mb-2 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-600"
-          type={showPassword ? "text" : "password"}
+          type="password"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           autoComplete="current-password"
           required
         />
-        <button
-          type="button"
-          onClick={() => setShowPassword((value) => !value)}
-          className="mb-2 text-xs font-semibold text-blue-700 hover:underline"
-        >
-          {showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
-        </button>
         {error && (
           <p role="alert" className="mb-2 text-sm text-red-600">
             {error}
@@ -257,260 +214,6 @@ function Header({
   );
 }
 
-function ConsoleShell({
-  me,
-  children
-}: {
-  me: Advisor;
-  children: React.ReactNode;
-}) {
-  const [opened, { toggle, close }] = useDisclosure();
-  const { colorScheme, setColorScheme } = useMantineColorScheme();
-  const dark = colorScheme === "dark";
-  const [navCollapsed, setNavCollapsed] = useState(false);
-  const [paletteOpen, setPaletteOpen] = useState(false);
-  const [paletteQuery, setPaletteQuery] = useState("");
-  const navigate = useNavigate();
-  const location = useLocation();
-  const initials = me.display_name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
-
-  const links = [
-    { to: "/inbox", label: "Bandeja", icon: IconInbox, visible: true },
-    { to: "/agents", label: "Agentes", icon: IconUsers, visible: me.is_admin },
-    {
-      to: "/metrics",
-      label: "Métricas",
-      icon: IconChartBar,
-      visible: me.is_admin || me.role === "supervisor"
-    }
-  ];
-
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        setPaletteOpen((current) => !current);
-      }
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
-
-  const commands = [
-    ...links
-      .filter((item) => item.visible)
-      .map((item) => ({
-        label: `Ir a ${item.label}`,
-        hint: item.to,
-        run: () => navigate(item.to)
-      })),
-    {
-      label: "Cerrar sesión",
-      hint: "Salir de la consola",
-      run: () => {
-        window.location.href = "/advisor/logout";
-      }
-    }
-  ].filter((command) =>
-    command.label.toLowerCase().includes(paletteQuery.trim().toLowerCase())
-  );
-
-  return (
-    <AppShell
-      header={{ height: 60 }}
-      navbar={{
-        width: navCollapsed ? 72 : 238,
-        breakpoint: "sm",
-        collapsed: { mobile: !opened }
-      }}
-      padding={0}
-    >
-      <AppShell.Header className="border-b border-slate-800 bg-slate-950 text-white">
-        <Group h="100%" px="md" justify="space-between" wrap="nowrap">
-          <Group gap="sm" wrap="nowrap">
-            <Burger
-              opened={opened}
-              onClick={toggle}
-              hiddenFrom="sm"
-              size="sm"
-              color="white"
-              aria-label="Abrir navegación"
-            />
-            <div className="grid h-8 w-8 place-items-center rounded-lg bg-red-600 text-sm font-black text-white">
-              R
-            </div>
-            <div className="leading-tight">
-              <Text size="xs" fw={700} c="dimmed" tt="uppercase" style={{ letterSpacing: ".16em" }}>
-                ROHO
-              </Text>
-              <Text size="sm" fw={600}>
-                Consola de asesores
-              </Text>
-            </div>
-          </Group>
-          <Group gap="sm" wrap="nowrap">
-            <Tooltip label={dark ? "Modo claro" : "Modo oscuro"}>
-              <ActionIcon
-                variant="subtle"
-                color="gray"
-                onClick={() => setColorScheme(dark ? "light" : "dark")}
-                aria-label={dark ? "Activar modo claro" : "Activar modo oscuro"}
-              >
-                {dark ? <Sun size={17} /> : <Moon size={17} />}
-              </ActionIcon>
-            </Tooltip>
-            <UnstyledButton
-              onClick={() => setPaletteOpen(true)}
-              className="hidden items-center gap-2 rounded-lg border border-white/15 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-white/10 hover:text-white sm:inline-flex"
-              aria-label="Abrir comandos"
-            >
-              <IconSearch size={15} />
-              <span>Buscar</span>
-              <Kbd size="xs" className="bg-white/10 text-slate-300">
-                Ctrl K
-              </Kbd>
-            </UnstyledButton>
-            <Avatar color="red" radius="xl" size="sm">
-              {initials || "A"}
-            </Avatar>
-            <div className="hidden min-w-[92px] flex-col justify-center text-right leading-tight sm:flex">
-              <Text size="sm" fw={600} lh={1.2}>
-                {me.display_name}
-              </Text>
-              <Text size="xs" c="dimmed" lh={1.2} tt="capitalize">
-                {me.role}
-              </Text>
-            </div>
-            <MantineButton
-              component="a"
-              href="/advisor/logout"
-              variant="outline"
-              color="red"
-              size="xs"
-              leftSection={<IconLogout size={14} />}
-              className="border-red-400/60 bg-red-500/10 text-red-100 hover:bg-red-500/20"
-              aria-label="Cerrar sesión"
-            >
-              Salir
-            </MantineButton>
-          </Group>
-        </Group>
-      </AppShell.Header>
-
-      <AppShell.Navbar p="xs" className="border-r border-slate-200 bg-white">
-        <div className={`flex items-center ${navCollapsed ? "justify-center" : "justify-between"} px-1 pb-2`}>
-          {!navCollapsed && (
-            <Text size="xs" fw={700} c="dimmed" tt="uppercase" px="xs" style={{ letterSpacing: ".12em" }}>
-              Operación
-            </Text>
-          )}
-          <Tooltip label={navCollapsed ? "Expandir menú" : "Contraer menú"}>
-            <ActionIcon
-              variant="subtle"
-              color="gray"
-              onClick={() => setNavCollapsed((value) => !value)}
-              aria-label={navCollapsed ? "Expandir menú" : "Contraer menú"}
-            >
-              {navCollapsed ? (
-                <IconLayoutSidebarRightExpand size={18} />
-              ) : (
-                <IconLayoutSidebarLeftCollapse size={18} />
-              )}
-            </ActionIcon>
-          </Tooltip>
-        </div>
-        {links
-          .filter((item) => item.visible)
-          .map((item) => {
-            const active = location.pathname.startsWith(item.to);
-            return (
-              <NavLink
-                key={item.to}
-                component={Link}
-                to={item.to}
-                label={navCollapsed ? undefined : item.label}
-                active={active}
-                onClick={close}
-                aria-label={item.label}
-                leftSection={<item.icon size={18} stroke={1.7} />}
-                styles={{
-                  root: {
-                    borderRadius: 8,
-                    marginBottom: 2,
-                    justifyContent: navCollapsed ? "center" : undefined
-                  },
-                  label: { fontWeight: 600 }
-                }}
-              />
-            );
-          })}
-
-        {!navCollapsed && (
-          <div className="mt-auto border-t border-slate-100 px-2 pt-3">
-            <Text size="xs" c="dimmed">
-              ROHO Homecenter · SAP B1
-            </Text>
-            <Text size="xs" c="dimmed">
-              {me.username}
-            </Text>
-          </div>
-        )}
-      </AppShell.Navbar>
-
-      <AppShell.Main>
-        <div className="min-h-[calc(100vh-60px)] bg-[#f4f6f8]">{children}</div>
-      </AppShell.Main>
-
-      <Modal
-        opened={paletteOpen}
-        onClose={() => {
-          setPaletteOpen(false);
-          setPaletteQuery("");
-        }}
-        title="Comandos"
-        centered
-        size="md"
-      >
-        <TextInput
-          autoFocus
-          value={paletteQuery}
-          onChange={(event) => setPaletteQuery(event.currentTarget.value)}
-          placeholder="Buscar una acción…"
-          leftSection={<IconSearch size={16} />}
-          aria-label="Buscar comando"
-        />
-        <Stack gap={4} mt="md">
-          {commands.length ? (
-            commands.map((command) => (
-              <UnstyledButton
-                key={command.label}
-                onClick={() => {
-                  command.run();
-                  setPaletteOpen(false);
-                  setPaletteQuery("");
-                }}
-                className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-100"
-              >
-                <span className="font-medium text-slate-800">{command.label}</span>
-                <span className="text-xs text-slate-400">{command.hint}</span>
-              </UnstyledButton>
-            ))
-          ) : (
-            <Text size="sm" c="dimmed" ta="center" py="sm">
-              Sin comandos para esa búsqueda.
-            </Text>
-          )}
-        </Stack>
-      </Modal>
-    </AppShell>
-  );
-}
-
 function HandoffCard({
   handoff,
   active,
@@ -574,26 +277,6 @@ const RESOLUTION_CATEGORIES = [
   ["otro", "Otro"]
 ] as const;
 
-function ContextPanel({ detail }: { detail: HandoffDetail }) {
-  return (
-    <div className="space-y-2">
-      <ContextBox title="Cliente">
-        {detail.profile.city || "Sin ciudad"}
-        <br />
-        {detail.profile.preferred_store || "Sin tienda preferida"}
-      </ContextBox>
-      <ContextBox title="Carrito">
-        {detail.cart ? `${detail.cart.count} ítems · Bs ${detail.cart.total}` : "Vacío"}
-      </ContextBox>
-      <ContextBox title="Pedidos">
-        {detail.orders.length
-          ? detail.orders.map((order) => `#${order.number} · ${order.status} · Bs ${order.total}`).join(" | ")
-          : "Sin pedidos"}
-      </ContextBox>
-    </div>
-  );
-}
-
 function DetailPanel({
   detail,
   onTake,
@@ -603,8 +286,7 @@ function DetailPanel({
   onAttach,
   onTransfer,
   onReturn,
-  onReopen,
-  onOpenContext
+  onReopen
 }: {
   detail: HandoffDetail;
   onTake: () => void;
@@ -615,7 +297,6 @@ function DetailPanel({
   onTransfer: () => void;
   onReturn: () => void;
   onReopen: () => void;
-  onOpenContext: () => void;
 }) {
   const [reply, setReply] = useState("");
   const [note, setNote] = useState("");
@@ -675,7 +356,7 @@ function DetailPanel({
   }
 
   return (
-    <section id="handoff-detail" className="flex min-h-[70vh] flex-col rounded-2xl border border-slate-200 bg-white shadow-sm lg:h-[calc(100vh-92px)] lg:min-h-[620px]">
+    <section id="handoff-detail" className="flex min-h-[70vh] flex-col rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 p-4">
         <div>
           <h2 className="text-lg font-bold text-slate-900">{detail.contact.name || detail.contact.wa_id}</h2>
@@ -720,10 +401,14 @@ function DetailPanel({
         </div>
       )}
 
-      <div className="border-b border-slate-100 px-4 py-2 xl:hidden">
-        <Button variant="secondary" size="sm" onClick={onOpenContext}>
-          <PanelRight size={15} /> Ver contexto
-        </Button>
+      <div className="grid gap-2 border-b border-slate-100 p-4 sm:grid-cols-3">
+        <ContextBox title="Cliente">{detail.profile.city || "Sin ciudad"}<br />{detail.profile.preferred_store || "Sin tienda preferida"}</ContextBox>
+        <ContextBox title="Carrito">{detail.cart ? `${detail.cart.count} ítems · Bs ${detail.cart.total}` : "Vacío"}</ContextBox>
+        <ContextBox title="Pedidos">
+          {detail.orders.length
+            ? detail.orders.map((order) => `#${order.number} · ${order.status} · Bs ${order.total}`).join(" | ")
+            : "Sin pedidos"}
+        </ContextBox>
       </div>
 
       <details className="border-b border-slate-100 px-4 py-2">
@@ -757,7 +442,7 @@ function DetailPanel({
         </div>
       </details>
 
-      <div className="scrollbar-thin min-h-0 flex-1 space-y-3 overflow-y-auto bg-slate-50/60 p-4">
+      <div className="scrollbar-thin flex-1 space-y-3 overflow-y-auto bg-slate-50/60 p-4" style={{ maxHeight: "46vh" }}>
         {detail.messages.map((message, index) => (
           <div key={`${message.created_at}-${index}`} className={`flex ${message.direction === "out" ? "justify-end" : "justify-start"}`}>
             <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${message.direction === "out" ? "bg-slate-900 text-white" : "border border-slate-200 bg-white text-slate-800"}`}>
@@ -875,7 +560,6 @@ function Inbox({ me }: { me: Advisor }) {
   const [transferTo, setTransferTo] = useState("");
   const [returnOpen, setReturnOpen] = useState(false);
   const [returnReason, setReturnReason] = useState("El asesor devolvió el caso al bot.");
-  const [contextOpen, setContextOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const known = useRef<Set<string> | null>(null);
   const selectedId = selected?.id;
@@ -1101,23 +785,14 @@ function Inbox({ me }: { me: Advisor }) {
 
   return (
     <>
+      <Header me={me} duty={duty} count={handoffs.filter((handoff) => handoff.unread && (handoff.status === "pending" || handoff.status === "taken")).length} onNotify={notify} />
       <ToastStack toasts={toasts} />
-      <div className="mx-auto grid max-w-[1600px] gap-4 p-4 xl:h-[calc(100vh-92px)] xl:min-h-0 xl:grid-cols-[300px_minmax(0,1fr)_260px] xl:p-6">
-        <aside className="flex min-h-0 flex-col gap-2">
+      <main className="mx-auto grid max-w-[1500px] gap-4 p-4 lg:grid-cols-[380px_1fr] lg:p-6">
+        <aside className="space-y-2">
           <div className="flex items-center justify-between px-1">
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-lg font-bold text-slate-900">Bandeja</h1>
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">
-                  {counts.all}
-                </span>
-              </div>
-              <p className="text-xs text-slate-500">
-                Tiempo real · respaldo cada 30 s
-              </p>
-              <p className={`mt-1 text-[11px] font-semibold ${duty.length ? "text-blue-700" : "text-red-600"}`}>
-                {duty.length ? `Guardia: ${duty.join(", ")}` : "Sin guardia"}
-              </p>
+              <h1 className="text-lg font-bold text-slate-900">Handoffs abiertos</h1>
+              <p className="text-xs text-slate-500">Tiempo real + respaldo cada 30 s</p>
             </div>
             <button onClick={load} className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold hover:bg-slate-50">
               Actualizar
@@ -1130,7 +805,6 @@ function Inbox({ me }: { me: Advisor }) {
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Buscar por nombre, número o motivo…"
-                aria-label="Buscar handoffs"
                 className="pl-9"
               />
             </div>
@@ -1152,29 +826,27 @@ function Inbox({ me }: { me: Advisor }) {
               ))}
             </div>
           </div>
-          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-            {loading && (
-              <div className="space-y-2">
-                <Skeleton className="h-20 w-full" />
-                <Skeleton className="h-20 w-full" />
-                <Skeleton className="h-20 w-full" />
-              </div>
-            )}
-            {!loading && !filtered.length && (
-              <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
-                <InboxIcon className="mx-auto mb-2 text-slate-300" size={28} />
-                {handoffs.length ? "No hay casos con ese filtro." : "No hay handoffs abiertos"}
-              </div>
-            )}
-            {filtered.map((handoff) => (
-              <HandoffCard
-                key={handoff.id}
-                handoff={handoff}
-                active={selected?.id === handoff.id}
-                onClick={() => setSelected(handoff)}
-              />
-            ))}
-          </div>
+          {loading && (
+            <div className="space-y-2">
+              <Skeleton className="h-20 w-full" />
+              <Skeleton className="h-20 w-full" />
+              <Skeleton className="h-20 w-full" />
+            </div>
+          )}
+          {!loading && !filtered.length && (
+            <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
+              <InboxIcon className="mx-auto mb-2 text-slate-300" size={28} />
+              {handoffs.length ? "No hay casos con ese filtro." : "No hay handoffs abiertos"}
+            </div>
+          )}
+          {filtered.map((handoff) => (
+            <HandoffCard
+              key={handoff.id}
+              handoff={handoff}
+              active={selected?.id === handoff.id}
+              onClick={() => setSelected(handoff)}
+            />
+          ))}
         </aside>
         {detail ? (
           <DetailPanel
@@ -1187,42 +859,13 @@ function Inbox({ me }: { me: Advisor }) {
             onTransfer={openTransfer}
             onReturn={() => setReturnOpen(true)}
             onReopen={reopen}
-            onOpenContext={() => setContextOpen(true)}
           />
         ) : (
           <div className="grid min-h-[50vh] place-items-center rounded-2xl border border-dashed border-slate-300 bg-white/60 text-sm text-slate-500">
             Elegí un handoff para ver la conversación
           </div>
         )}
-        {detail && (
-          <aside className="hidden min-h-0 xl:block">
-            <div className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="mb-3 flex items-center justify-between border-b border-slate-100 pb-3">
-                <div>
-                  <div className="text-sm font-bold text-slate-900">Contexto</div>
-                  <div className="text-[11px] text-slate-500">Datos del cliente</div>
-                </div>
-                <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase text-blue-700">
-                  Cliente
-                </span>
-              </div>
-              <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-                <ContextPanel detail={detail} />
-              </div>
-            </div>
-          </aside>
-        )}
-      </div>
-
-      <Drawer
-        opened={contextOpen}
-        onClose={() => setContextOpen(false)}
-        title="Contexto del cliente"
-        position="right"
-        size="sm"
-      >
-        {detail && <ContextPanel detail={detail} />}
-      </Drawer>
+      </main>
       <Dialog
         open={resolveOpen}
         onClose={() => setResolveOpen(false)}
@@ -1338,7 +981,8 @@ function Agents({ me }: { me: Advisor }) {
 
   return (
     <>
-      <div className="mx-auto max-w-[1100px] p-4 lg:p-6">
+      <Header me={me} duty={advisors.filter((advisor) => advisor.on_duty).map((advisor) => advisor.display_name)} count={0} onNotify={() => {}} />
+      <main className="mx-auto max-w-[1100px] p-4 lg:p-6">
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-slate-900">Agentes</h1>
@@ -1416,7 +1060,7 @@ function Agents({ me }: { me: Advisor }) {
             </div>
           ))}
         </div>
-      </div>
+      </main>
     </>
   );
 }
@@ -1430,7 +1074,8 @@ function MetricsPage({ me }: { me: Advisor }) {
   useEffect(() => { void load(); }, [load]);
   return (
     <>
-      <div className="mx-auto max-w-[1100px] p-4 lg:p-6">
+      <Header me={me} duty={[]} count={0} onNotify={() => {}} />
+      <main className="mx-auto max-w-[1100px] p-4 lg:p-6">
         <h1 className="mb-1 text-xl font-bold text-slate-900">Métricas de atención</h1>
         <p className="mb-4 text-sm text-slate-500">Últimos 30 días.</p>
         <Card className="overflow-hidden">
@@ -1463,7 +1108,7 @@ function MetricsPage({ me }: { me: Advisor }) {
             </table>
           </div>
         </Card>
-      </div>
+      </main>
     </>
   );
 }
@@ -1492,9 +1137,9 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={me ? <Navigate to="/inbox" replace /> : <Login onLogin={setMe} />} />
-      <Route path="/inbox" element={me ? <ConsoleShell me={me}><Inbox me={me} /></ConsoleShell> : <Navigate to="/login" replace />} />
-      <Route path="/agents" element={me?.is_admin ? <ConsoleShell me={me}><Agents me={me} /></ConsoleShell> : <Navigate to="/inbox" replace />} />
-      <Route path="/metrics" element={me && (me.is_admin || me.role === "supervisor") ? <ConsoleShell me={me}><MetricsPage me={me} /></ConsoleShell> : <Navigate to="/inbox" replace />} />
+      <Route path="/inbox" element={me ? <Inbox me={me} /> : <Navigate to="/login" replace />} />
+      <Route path="/agents" element={me?.is_admin ? <Agents me={me} /> : <Navigate to="/inbox" replace />} />
+      <Route path="/metrics" element={me && (me.is_admin || me.role === "supervisor") ? <MetricsPage me={me} /> : <Navigate to="/inbox" replace />} />
       <Route path="*" element={<Navigate to={me ? "/inbox" : "/login"} replace />} />
     </Routes>
   );

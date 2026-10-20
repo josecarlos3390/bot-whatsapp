@@ -2,7 +2,6 @@
   "name": "roho-admin-web",
   "private": true,
   "version": "0.1.0",
-  "packageManager": "pnpm@11.24.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,10 +10,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@mantine/core": "^9.7.3",
-    "@mantine/hooks": "^9.7.3",
-    "@mantine/notifications": "^9.7.3",
-    "@tabler/icons-react": "^3.49.0",
     "clsx": "^2.1.1",
     "lucide-react": "^1.59.0",
     "react": "^19.1.0",
