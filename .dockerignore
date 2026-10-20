@@ -1,0 +1,10 @@
+.git
+.venv
+__pycache__
+*.pyc
+dev.db
+*.sqlite3
+admin-web/node_modules
+admin-web/dist
+.env
+.pytest_cache
