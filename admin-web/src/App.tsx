@@ -410,13 +410,22 @@ function DetailPanel({
   return (
     <section id="handoff-detail" className="flex min-h-[70vh] flex-col rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 p-4">
-        <div>
+        <div className="flex items-start gap-2">
+          <button
+            type="button"
+            onClick={() => document.getElementById("handoff-list")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+            className="mt-0.5 rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-600 lg:hidden"
+          >
+            Volver
+          </button>
+          <div>
           <h2 className="text-lg font-bold text-slate-900">{detail.contact.name || detail.contact.wa_id}</h2>
           <p className="text-xs text-slate-500">
             {detail.contact.phone} · {detail.reason || "Sin motivo"} · {detail.waiting_minutes} min
             {detail.overdue ? " · SLA vencido" : ""}
             {detail.sla_paused ? " · En espera del cliente" : ""}
           </p>
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           {detail.can_take && (
@@ -603,7 +612,7 @@ function Inbox({ me }: { me: Advisor }) {
   const [duty, setDuty] = useState<string[]>([]);
   const [toasts, setToasts] = useState<{ id: number; text: string }[]>([]);
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<"all" | "pending" | "taken" | "overdue" | "closed">("all");
+  const [filter, setFilter] = useState<"all" | "pending" | "taken" | "mine" | "unassigned" | "overdue" | "closed">("all");
   const [resolveOpen, setResolveOpen] = useState(false);
   const [resolveNote, setResolveNote] = useState("");
   const [resolveCategory, setResolveCategory] = useState("stock");
@@ -626,7 +635,9 @@ function Inbox({ me }: { me: Advisor }) {
         return false;
       }
       if (filter === "overdue" && !handoff.overdue) return false;
-      if (filter !== "all" && filter !== "overdue" && filter !== "closed" && handoff.status !== filter) return false;
+      if (filter === "mine" && handoff.assigned_to !== me.display_name) return false;
+      if (filter === "unassigned" && (handoff.assigned_to || !isOpen)) return false;
+      if (filter !== "all" && filter !== "overdue" && filter !== "closed" && filter !== "mine" && filter !== "unassigned" && handoff.status !== filter) return false;
       if (!needle) return true;
       return `${handoff.contact} ${handoff.wa_id} ${handoff.reason ?? ""}`.toLowerCase().includes(needle);
     });
@@ -637,10 +648,12 @@ function Inbox({ me }: { me: Advisor }) {
       all: handoffs.filter((handoff) => handoff.status === "pending" || handoff.status === "taken").length,
       pending: handoffs.filter((handoff) => handoff.status === "pending").length,
       taken: handoffs.filter((handoff) => handoff.status === "taken").length,
+      mine: handoffs.filter((handoff) => handoff.assigned_to === me.display_name && (handoff.status === "pending" || handoff.status === "taken")).length,
+      unassigned: handoffs.filter((handoff) => !handoff.assigned_to && handoff.status === "pending").length,
       overdue: handoffs.filter((handoff) => handoff.overdue && (handoff.status === "pending" || handoff.status === "taken")).length,
       closed: handoffs.filter((handoff) => handoff.status === "resolved" || handoff.status === "returned").length
     }),
-    [handoffs]
+    [handoffs, me.display_name]
   );
 
   const addToast = useCallback((text: string) => {
@@ -854,7 +867,7 @@ function Inbox({ me }: { me: Advisor }) {
       <Header me={me} duty={duty} count={handoffs.filter((handoff) => handoff.unread && (handoff.status === "pending" || handoff.status === "taken")).length} onNotify={notify} />
       <ToastStack toasts={toasts} />
       <main className="mx-auto grid max-w-[1500px] gap-4 p-4 lg:grid-cols-[380px_1fr] lg:p-6">
-        <aside className="space-y-2">
+        <aside id="handoff-list" className="space-y-2">
           <div className="flex items-center justify-between px-1">
             <div>
               <h1 className="text-lg font-bold text-slate-900">Handoffs abiertos</h1>
@@ -879,7 +892,8 @@ function Inbox({ me }: { me: Advisor }) {
               {([
                 ["all", "Todos"],
                 ["pending", "Pendientes"],
-                ["taken", "Tomados"],
+                ["mine", "Míos"],
+                ["unassigned", "Sin asignar"],
                 ["overdue", "SLA"],
                 ["closed", "Cerrados"]
               ] as const).map(([key, label]) => (
@@ -903,7 +917,15 @@ function Inbox({ me }: { me: Advisor }) {
           {!loading && !filtered.length && (
             <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
               <InboxIcon className="mx-auto mb-2 text-slate-300" size={28} />
-              {handoffs.length ? "No hay casos con ese filtro." : "No hay handoffs abiertos"}
+              <p>{handoffs.length ? "No hay casos con ese filtro." : "No hay handoffs abiertos."}</p>
+              {handoffs.length > 0 && (query || filter !== "all") && (
+                <button
+                  onClick={() => { setQuery(""); setFilter("all"); }}
+                  className="mt-3 text-xs font-semibold text-blue-700 hover:underline"
+                >
+                  Limpiar filtros
+                </button>
+              )}
             </div>
           )}
           {filtered.map((handoff) => (
