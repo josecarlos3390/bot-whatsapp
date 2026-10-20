@@ -58,6 +58,7 @@ def _paas(monkeypatch, calls: list[dict], session) -> PaasSap:
     monkeypatch.setattr(settings, "sap_costing_code2", "ECO")
     monkeypatch.setattr(settings, "sap_costing_code3", "1000")
     monkeypatch.setattr(settings, "sap_tax_code", "IVA")
+    monkeypatch.setattr(settings, "sap_default_card_code", "CF-TEST")
     sap = PaasSap(session)
     sap._client = httpx.AsyncClient(
         base_url="http://paas.test", transport=_paas_transport(calls)
