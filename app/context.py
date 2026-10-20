@@ -14,6 +14,9 @@ from .config import settings
 logger = logging.getLogger(__name__)
 BOLIVIA_TZ = timezone(timedelta(hours=-4))
 _WEATHER_CACHE: tuple[datetime, str] | None = None
+# Si el proveedor de clima falla, no reintentamos en cada mensaje: cada intento
+# cuesta hasta 3 s de espera antes de responder.
+_WEATHER_RETRY_AFTER: datetime | None = None
 
 
 def now_local() -> datetime:
@@ -66,12 +69,14 @@ def _weather_label(code: int) -> str:
 
 
 async def weather_text() -> str:
-    global _WEATHER_CACHE
+    global _WEATHER_CACHE, _WEATHER_RETRY_AFTER
     if not settings.weather_enabled:
         return ""
     now = datetime.now(timezone.utc)
     if _WEATHER_CACHE and now - _WEATHER_CACHE[0] < timedelta(minutes=30):
         return _WEATHER_CACHE[1]
+    if _WEATHER_RETRY_AFTER and now < _WEATHER_RETRY_AFTER:
+        return ""
     try:
         async with httpx.AsyncClient(timeout=3) as client:
             response = await client.get(
@@ -95,6 +100,7 @@ async def weather_text() -> str:
         )
     except Exception:  # noqa: BLE001 - el clima nunca debe romper el chat
         logger.warning("No se pudo obtener el clima", exc_info=True)
+        _WEATHER_RETRY_AFTER = now + timedelta(minutes=10)
         return ""
     _WEATHER_CACHE = (now, text)
     return text

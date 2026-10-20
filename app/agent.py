@@ -2213,6 +2213,12 @@ class Agent:
                     arguments = {}
                 result = await toolbox.dispatch(call.function.name, arguments)
                 logger.info("Herramienta ejecutada: %s", call.function.name)
+                if isinstance(result, dict) and result.get("error"):
+                    logger.warning(
+                        "Herramienta %s devolvió error: %s",
+                        call.function.name,
+                        result.get("error"),
+                    )
                 messages.append(
                     {
                         "role": "tool",
@@ -2221,9 +2227,36 @@ class Agent:
                     }
                 )
 
-        return AgentReply(
-            [Outbound(text="No pude completar la consulta. ¿Te derivo con un asesor?")]
+        # El modelo gastó los turnos llamando herramientas sin cerrar. Pedimos
+        # un cierre sin herramientas para no dejar al cliente sin respuesta.
+        answer = ""
+        try:
+            completion = await self._llm().chat.completions.create(
+                model=settings.deepseek_model,
+                messages=messages
+                + [
+                    {
+                        "role": "system",
+                        "content": (
+                            "Cerrá ahora la respuesta al cliente con la "
+                            "información que ya tenés. No llames herramientas."
+                        ),
+                    }
+                ],
+                temperature=0.2,
+                extra_body={"thinking": {"type": "disabled"}},
+            )
+            answer = (completion.choices[0].message.content or "").strip()
+        except Exception:  # noqa: BLE001 - nunca dejar al cliente sin respuesta
+            logger.exception("No se pudo cerrar la respuesta del LLM")
+
+        if answer:
+            return AgentReply([Outbound(text=answer)])
+
+        logger.warning(
+            "El LLM agotó los turnos de herramientas; se usa el modo demo"
         )
+        return await self._demo(session, contact, text)
 
     async def _demo(
         self, session: AsyncSession, contact: Contact, text: str
