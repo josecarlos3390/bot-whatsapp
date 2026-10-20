@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  AppShell,
+  Avatar,
+  Burger,
+  Group,
+  NavLink,
+  Text,
+  UnstyledButton
+} from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
+import {
   Link,
   Navigate,
   Route,
@@ -7,6 +17,12 @@ import {
   useLocation,
   useNavigate
 } from "react-router-dom";
+import {
+  IconChartBar,
+  IconInbox,
+  IconLogout,
+  IconUsers
+} from "@tabler/icons-react";
 import {
   Bell,
   BarChart3,
@@ -211,6 +227,133 @@ function Header({
         </div>
       </div>
     </header>
+  );
+}
+
+function ConsoleShell({
+  me,
+  children
+}: {
+  me: Advisor;
+  children: React.ReactNode;
+}) {
+  const [opened, { toggle, close }] = useDisclosure();
+  const location = useLocation();
+  const initials = me.display_name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+
+  const links = [
+    { to: "/inbox", label: "Bandeja", icon: IconInbox, visible: true },
+    { to: "/agents", label: "Agentes", icon: IconUsers, visible: me.is_admin },
+    {
+      to: "/metrics",
+      label: "Métricas",
+      icon: IconChartBar,
+      visible: me.is_admin || me.role === "supervisor"
+    }
+  ];
+
+  return (
+    <AppShell
+      header={{ height: 60 }}
+      navbar={{
+        width: 238,
+        breakpoint: "sm",
+        collapsed: { mobile: !opened }
+      }}
+      padding={0}
+    >
+      <AppShell.Header className="border-b border-slate-800 bg-slate-950 text-white">
+        <Group h="100%" px="md" justify="space-between" wrap="nowrap">
+          <Group gap="sm" wrap="nowrap">
+            <Burger
+              opened={opened}
+              onClick={toggle}
+              hiddenFrom="sm"
+              size="sm"
+              color="white"
+              aria-label="Abrir navegación"
+            />
+            <div className="grid h-8 w-8 place-items-center rounded-lg bg-red-600 text-sm font-black text-white">
+              R
+            </div>
+            <div className="leading-tight">
+              <Text size="xs" fw={700} c="dimmed" tt="uppercase" style={{ letterSpacing: ".16em" }}>
+                ROHO
+              </Text>
+              <Text size="sm" fw={600}>
+                Consola de asesores
+              </Text>
+            </div>
+          </Group>
+          <Group gap="sm" wrap="nowrap">
+            <Avatar color="red" radius="xl" size="sm">
+              {initials || "A"}
+            </Avatar>
+            <div className="hidden leading-tight sm:block">
+              <Text size="sm" fw={600}>
+                {me.display_name}
+              </Text>
+              <Text size="xs" c="dimmed">
+                {me.role}
+              </Text>
+            </div>
+            <UnstyledButton
+              component="a"
+              href="/advisor/logout"
+              className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs text-slate-400 hover:bg-white/10 hover:text-white"
+              aria-label="Cerrar sesión"
+            >
+              <IconLogout size={16} />
+              <span className="hidden sm:inline">Salir</span>
+            </UnstyledButton>
+          </Group>
+        </Group>
+      </AppShell.Header>
+
+      <AppShell.Navbar p="xs" className="border-r border-slate-200 bg-white">
+        <Text size="xs" fw={700} c="dimmed" tt="uppercase" px="sm" py="xs" style={{ letterSpacing: ".12em" }}>
+          Operación
+        </Text>
+        {links
+          .filter((item) => item.visible)
+          .map((item) => {
+            const active = location.pathname.startsWith(item.to);
+            return (
+              <NavLink
+                key={item.to}
+                component={Link}
+                to={item.to}
+                label={item.label}
+                active={active}
+                onClick={close}
+                leftSection={<item.icon size={18} stroke={1.7} />}
+                styles={{
+                  root: { borderRadius: 8, marginBottom: 2 },
+                  label: { fontWeight: 600 }
+                }}
+              />
+            );
+          })}
+
+        <div className="mt-auto border-t border-slate-100 px-2 pt-3">
+          <Text size="xs" c="dimmed">
+            ROHO Homecenter · SAP B1
+          </Text>
+          <Text size="xs" c="dimmed">
+            {me.username}
+          </Text>
+        </div>
+      </AppShell.Navbar>
+
+      <AppShell.Main>
+        <div className="min-h-[calc(100vh-60px)] bg-[#f4f6f8]">{children}</div>
+      </AppShell.Main>
+    </AppShell>
   );
 }
 
@@ -785,14 +928,18 @@ function Inbox({ me }: { me: Advisor }) {
 
   return (
     <>
-      <Header me={me} duty={duty} count={handoffs.filter((handoff) => handoff.unread && (handoff.status === "pending" || handoff.status === "taken")).length} onNotify={notify} />
       <ToastStack toasts={toasts} />
-      <main className="mx-auto grid max-w-[1500px] gap-4 p-4 lg:grid-cols-[380px_1fr] lg:p-6">
+      <div className="mx-auto grid max-w-[1500px] gap-4 p-4 lg:grid-cols-[380px_1fr] lg:p-6">
         <aside className="space-y-2">
           <div className="flex items-center justify-between px-1">
             <div>
               <h1 className="text-lg font-bold text-slate-900">Handoffs abiertos</h1>
-              <p className="text-xs text-slate-500">Tiempo real + respaldo cada 30 s</p>
+              <p className="text-xs text-slate-500">
+                Tiempo real + respaldo cada 30 s
+              </p>
+              <p className={`mt-1 text-[11px] font-semibold ${duty.length ? "text-blue-700" : "text-red-600"}`}>
+                {duty.length ? `Guardia: ${duty.join(", ")}` : "Sin guardia"}
+              </p>
             </div>
             <button onClick={load} className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold hover:bg-slate-50">
               Actualizar
@@ -865,7 +1012,7 @@ function Inbox({ me }: { me: Advisor }) {
             Elegí un handoff para ver la conversación
           </div>
         )}
-      </main>
+      </div>
       <Dialog
         open={resolveOpen}
         onClose={() => setResolveOpen(false)}
@@ -981,8 +1128,7 @@ function Agents({ me }: { me: Advisor }) {
 
   return (
     <>
-      <Header me={me} duty={advisors.filter((advisor) => advisor.on_duty).map((advisor) => advisor.display_name)} count={0} onNotify={() => {}} />
-      <main className="mx-auto max-w-[1100px] p-4 lg:p-6">
+      <div className="mx-auto max-w-[1100px] p-4 lg:p-6">
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-slate-900">Agentes</h1>
@@ -1060,7 +1206,7 @@ function Agents({ me }: { me: Advisor }) {
             </div>
           ))}
         </div>
-      </main>
+      </div>
     </>
   );
 }
@@ -1074,8 +1220,7 @@ function MetricsPage({ me }: { me: Advisor }) {
   useEffect(() => { void load(); }, [load]);
   return (
     <>
-      <Header me={me} duty={[]} count={0} onNotify={() => {}} />
-      <main className="mx-auto max-w-[1100px] p-4 lg:p-6">
+      <div className="mx-auto max-w-[1100px] p-4 lg:p-6">
         <h1 className="mb-1 text-xl font-bold text-slate-900">Métricas de atención</h1>
         <p className="mb-4 text-sm text-slate-500">Últimos 30 días.</p>
         <Card className="overflow-hidden">
@@ -1108,7 +1253,7 @@ function MetricsPage({ me }: { me: Advisor }) {
             </table>
           </div>
         </Card>
-      </main>
+      </div>
     </>
   );
 }
@@ -1137,9 +1282,9 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={me ? <Navigate to="/inbox" replace /> : <Login onLogin={setMe} />} />
-      <Route path="/inbox" element={me ? <Inbox me={me} /> : <Navigate to="/login" replace />} />
-      <Route path="/agents" element={me?.is_admin ? <Agents me={me} /> : <Navigate to="/inbox" replace />} />
-      <Route path="/metrics" element={me && (me.is_admin || me.role === "supervisor") ? <MetricsPage me={me} /> : <Navigate to="/inbox" replace />} />
+      <Route path="/inbox" element={me ? <ConsoleShell me={me}><Inbox me={me} /></ConsoleShell> : <Navigate to="/login" replace />} />
+      <Route path="/agents" element={me?.is_admin ? <ConsoleShell me={me}><Agents me={me} /></ConsoleShell> : <Navigate to="/inbox" replace />} />
+      <Route path="/metrics" element={me && (me.is_admin || me.role === "supervisor") ? <ConsoleShell me={me}><MetricsPage me={me} /></ConsoleShell> : <Navigate to="/inbox" replace />} />
       <Route path="*" element={<Navigate to={me ? "/inbox" : "/login"} replace />} />
     </Routes>
   );
