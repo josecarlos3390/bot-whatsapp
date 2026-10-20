@@ -29,6 +29,8 @@ import {
 import {
   IconChartBar,
   IconInbox,
+  IconLayoutSidebarLeftCollapse,
+  IconLayoutSidebarRightExpand,
   IconLogout,
   IconSearch,
   IconUsers
@@ -265,6 +267,7 @@ function ConsoleShell({
   const [opened, { toggle, close }] = useDisclosure();
   const { colorScheme, setColorScheme } = useMantineColorScheme();
   const dark = colorScheme === "dark";
+  const [navCollapsed, setNavCollapsed] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteQuery, setPaletteQuery] = useState("");
   const navigate = useNavigate();
@@ -321,7 +324,7 @@ function ConsoleShell({
     <AppShell
       header={{ height: 60 }}
       navbar={{
-        width: 238,
+        width: navCollapsed ? 72 : 238,
         breakpoint: "sm",
         collapsed: { mobile: !opened }
       }}
@@ -375,11 +378,11 @@ function ConsoleShell({
             <Avatar color="red" radius="xl" size="sm">
               {initials || "A"}
             </Avatar>
-            <div className="hidden leading-tight sm:block">
-              <Text size="sm" fw={600}>
+            <div className="hidden min-w-[92px] flex-col justify-center text-right leading-tight sm:flex">
+              <Text size="sm" fw={600} lh={1.2}>
                 {me.display_name}
               </Text>
-              <Text size="xs" c="dimmed">
+              <Text size="xs" c="dimmed" lh={1.2} tt="capitalize">
                 {me.role}
               </Text>
             </div>
@@ -400,9 +403,27 @@ function ConsoleShell({
       </AppShell.Header>
 
       <AppShell.Navbar p="xs" className="border-r border-slate-200 bg-white">
-        <Text size="xs" fw={700} c="dimmed" tt="uppercase" px="sm" py="xs" style={{ letterSpacing: ".12em" }}>
-          Operación
-        </Text>
+        <div className={`flex items-center ${navCollapsed ? "justify-center" : "justify-between"} px-1 pb-2`}>
+          {!navCollapsed && (
+            <Text size="xs" fw={700} c="dimmed" tt="uppercase" px="xs" style={{ letterSpacing: ".12em" }}>
+              Operación
+            </Text>
+          )}
+          <Tooltip label={navCollapsed ? "Expandir menú" : "Contraer menú"}>
+            <ActionIcon
+              variant="subtle"
+              color="gray"
+              onClick={() => setNavCollapsed((value) => !value)}
+              aria-label={navCollapsed ? "Expandir menú" : "Contraer menú"}
+            >
+              {navCollapsed ? (
+                <IconLayoutSidebarRightExpand size={18} />
+              ) : (
+                <IconLayoutSidebarLeftCollapse size={18} />
+              )}
+            </ActionIcon>
+          </Tooltip>
+        </div>
         {links
           .filter((item) => item.visible)
           .map((item) => {
@@ -412,26 +433,33 @@ function ConsoleShell({
                 key={item.to}
                 component={Link}
                 to={item.to}
-                label={item.label}
+                label={navCollapsed ? undefined : item.label}
                 active={active}
                 onClick={close}
+                aria-label={item.label}
                 leftSection={<item.icon size={18} stroke={1.7} />}
                 styles={{
-                  root: { borderRadius: 8, marginBottom: 2 },
+                  root: {
+                    borderRadius: 8,
+                    marginBottom: 2,
+                    justifyContent: navCollapsed ? "center" : undefined
+                  },
                   label: { fontWeight: 600 }
                 }}
               />
             );
           })}
 
-        <div className="mt-auto border-t border-slate-100 px-2 pt-3">
-          <Text size="xs" c="dimmed">
-            ROHO Homecenter · SAP B1
-          </Text>
-          <Text size="xs" c="dimmed">
-            {me.username}
-          </Text>
-        </div>
+        {!navCollapsed && (
+          <div className="mt-auto border-t border-slate-100 px-2 pt-3">
+            <Text size="xs" c="dimmed">
+              ROHO Homecenter · SAP B1
+            </Text>
+            <Text size="xs" c="dimmed">
+              {me.username}
+            </Text>
+          </div>
+        )}
       </AppShell.Navbar>
 
       <AppShell.Main>
@@ -1074,7 +1102,7 @@ function Inbox({ me }: { me: Advisor }) {
   return (
     <>
       <ToastStack toasts={toasts} />
-      <div className="mx-auto grid max-w-[1600px] gap-4 p-4 xl:h-[calc(100vh-92px)] xl:min-h-0 xl:grid-cols-[360px_minmax(0,1fr)_300px] xl:p-6">
+      <div className="mx-auto grid max-w-[1600px] gap-4 p-4 xl:h-[calc(100vh-92px)] xl:min-h-0 xl:grid-cols-[300px_minmax(0,1fr)_260px] xl:p-6">
         <aside className="flex min-h-0 flex-col gap-2">
           <div className="flex items-center justify-between px-1">
             <div>

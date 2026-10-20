@@ -78,6 +78,7 @@ http://127.0.0.1:8000/console/
 - Toasts y notificaciones del navegador.
 - Badge de pendientes.
 - Guardia visible.
+- Sidebar colapsable (72 px) para ganar espacio en la bandeja.
 - Inbox de tres paneles en escritorio: lista, conversación y contexto.
 - Contexto del cliente en `Drawer` en tablet/móvil.
 - Composer dentro del panel de conversación, sin desplazarse con la página.
