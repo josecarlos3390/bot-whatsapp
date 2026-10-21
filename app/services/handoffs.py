@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 import httpx
 import secrets
@@ -117,7 +118,8 @@ async def create_handoff(
     if existing is not None:
         return existing, {"ok": True, "already_open": True}
 
-    conversation.bot_paused = True
+    # El bot NO se pausa al crear el caso: sigue atendiendo consultas de
+    # producto mientras un asesor lo revisa. Se pausa cuando lo toma.
     assigned = await _choose_on_duty(session)
     handoff = Handoff(
         conversation_id=conversation.id,
@@ -765,6 +767,10 @@ async def take_handoff(
         return {"ok": False, "reason": "already_taken"}
     handoff.status = "taken"
     handoff.assigned_to = assigned_to[:120]
+    # Ahora sí el bot se calla: hay una persona atendiendo este chat.
+    conversation = await session.get(Conversation, handoff.conversation_id)
+    if conversation is not None:
+        conversation.bot_paused = True
     await _event(
         session, handoff.id, "taken", advisor=advisor or assigned_to
     )
@@ -780,6 +786,7 @@ async def resolve_handoff(
     category: str | None = None,
     return_to_bot: bool = True,
     advisor: str | None = None,
+    whatsapp: Any | None = None,
 ) -> dict:
     handoff = await session.get(Handoff, handoff_id)
     if handoff is None:
@@ -802,6 +809,19 @@ async def resolve_handoff(
         detail=f"{category or 'otro'}: {notes}",
     )
     await session.commit()
+
+    # Aviso de cierre: el cliente no debe quedar en silencio tras la gestión.
+    if whatsapp is not None and conversation is not None and return_to_bot:
+        contact = await session.get(Contact, conversation.contact_id)
+        if contact is not None:
+            try:
+                await whatsapp.send_text(
+                    contact.wa_id,
+                    "Quedó resuelto ✅ Sigo yo por acá si necesitás algo más.",
+                )
+            except Exception:  # noqa: BLE001 - no romper el cierre por mensajería
+                logger.exception("No se pudo avisar el cierre del handoff")
+
     return {"ok": True, "status": handoff.status}
 
 

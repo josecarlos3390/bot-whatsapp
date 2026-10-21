@@ -140,6 +140,7 @@ async def ingest_inbound(
         except (ValueError, TypeError):
             logger.warning("Respuesta de encuesta inválida: %s", text)
 
+    resumed_notice = False
     if conversation.bot_paused:
         wants_bot = (text or "").strip().lower() in {
             "menu",
@@ -160,6 +161,7 @@ async def ingest_inbound(
                 "Bot pausado para %s; mensaje guardado para humano", wa_id
             )
             return []
+        resumed_notice = True
 
     if native_order and native_order.items:
         summary, errors = await native_commerce.replace_order_in_cart(
@@ -198,6 +200,12 @@ async def ingest_inbound(
                     )
                 ]
             )
+
+    if resumed_notice:
+        reply.messages.insert(
+            0,
+            Outbound(text="Sigo yo de nuevo 👋 ¿En qué te ayudo?"),
+        )
 
     sent: list[dict] = []
     for outbound in reply.messages:

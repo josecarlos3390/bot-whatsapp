@@ -78,8 +78,8 @@ def checkout_failed(reason: str) -> str:
 
 def handoff() -> str:
     return (
-        "Listo, te paso con alguien del equipo 🙋. "
-        "Te va a responder por este mismo chat lo antes posible."
+        "Ya avisé a alguien del equipo 🙋 para que revise este caso. "
+        "Mientras tanto puedo seguir ayudándote con precios, stock y opciones."
     )
 
 

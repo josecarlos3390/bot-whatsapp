@@ -1,4 +1,4 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
+﻿from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -58,7 +58,7 @@ class Settings(BaseSettings):
     feedback_template_lang: str = "es"
     handoff_webhook_url: str = ""
     handoff_notify_enabled: bool = True
-    handoff_auto_resume_minutes: int = 15
+    handoff_auto_resume_minutes: int = 5
     handoff_sla_minutes: int = 5
     handoff_reassign_minutes: int = 5
     advisor_session_secret: str = "change-me-advisor-session"

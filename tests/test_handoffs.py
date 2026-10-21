@@ -31,7 +31,8 @@ async def test_create_take_resolve_handoff(session):
     )
     assert notification["ok"] is True
     assert handoff.status == "pending"
-    assert conversation.bot_paused is True
+    # Mientras el caso espera, el bot sigue atendiendo.
+    assert conversation.bot_paused is False
 
     again, _ = await handoffs.create_handoff(
         session, conversation, contact, "Otra vez"
@@ -43,12 +44,38 @@ async def test_create_take_resolve_handoff(session):
 
     taken = await handoffs.take_handoff(session, handoff.id, "Ana")
     assert taken["ok"] is True
+    # Cuando un asesor toma el caso, el bot se calla.
+    assert conversation.bot_paused is True
 
     resolved = await handoffs.resolve_handoff(
         session, handoff.id, notes="Resuelto"
     )
     assert resolved["ok"] is True
     assert (await session.get(Handoff, handoff.id)).status == "resolved"
+    assert conversation.bot_paused is False
+
+
+async def test_resolver_avisa_al_cliente(session):
+    contact = Contact(wa_id="59170000993", phone_e164="+59170000993")
+    session.add(contact)
+    await session.flush()
+    conversation = Conversation(contact_id=contact.id)
+    session.add(conversation)
+    await session.commit()
+
+    handoff, _ = await handoffs.create_handoff(
+        session, conversation, contact, "Consulta de factura"
+    )
+    await handoffs.take_handoff(session, handoff.id, "Ana")
+
+    fake = FakeWhatsApp()
+    await handoffs.resolve_handoff(
+        session, handoff.id, notes="Se emitió la factura", whatsapp=fake
+    )
+
+    assert conversation.bot_paused is False
+    assert fake.last is not None
+    assert "resuelto" in fake.last[1].lower()
 
 
 async def test_handoff_auto_assigns_on_duty(session):

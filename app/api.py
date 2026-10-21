@@ -1531,6 +1531,7 @@ async def admin_handoff_resolve(
         notes=solution,
         category=payload.category,
         advisor=advisor["username"],
+        whatsapp=whatsapp,
     )
     if result.get("ok"):
         handoff = await session.get(Handoff, handoff_id)
