@@ -12,7 +12,9 @@ Qué hace:
 - reinicia cualquiera de los dos si se cae,
 - cuando el túnel estrena URL, actualiza PUBLIC_BASE_URL en .env y reinicia
   la API para que los links de pago usen la URL nueva,
-- escribe la URL vigente en .tools/tunnel-url.txt.
+- escribe la URL vigente en .tools/tunnel-url.txt,
+- sincroniza el catálogo desde SAP al arrancar y cada 24 h (si hay
+  credenciales SAP_USER en .env); usar -NoCatalogSync para desactivarlo.
 
 Requiere cloudflared en .tools\cloudflared.exe (ver docs/despliegue.md).
 Para que sobreviva al cierre de sesión hace falta un servicio de Windows
@@ -20,7 +22,8 @@ Para que sobreviva al cierre de sesión hace falta un servicio de Windows
 #>
 param(
     [int]$Port = 8010,
-    [switch]$NoTunnel
+    [switch]$NoTunnel,
+    [switch]$NoCatalogSync
 )
 
 $ErrorActionPreference = "Stop"
@@ -46,6 +49,34 @@ function Write-TextNoBom {
 }
 
 if (-not $env:SAP_PAAS_URL) { $env:SAP_PAAS_URL = "http://127.0.0.1:5050" }
+
+$syncLog = Join-Path $logDir "sync.log"
+$syncStamp = Join-Path $logDir "last-sync.txt"
+
+function Test-SapCredentials {
+    if (-not (Test-Path $envFile)) { return $false }
+    $text = [System.IO.File]::ReadAllText($envFile)
+    return [bool]($text -match "(?m)^SAP_USER=\S+")
+}
+
+function Sync-Due {
+    if ($NoCatalogSync) { return $false }
+    if (-not (Test-SapCredentials)) { return $false }
+    if (-not (Test-Path $syncStamp)) { return $true }
+    $last = (Get-Item $syncStamp).LastWriteTime
+    return ((Get-Date) - $last).TotalHours -ge 24
+}
+
+function Start-CatalogSync {
+    Write-Host "[serve] sincronizando catálogo desde SAP"
+    Write-TextNoBom -Path $syncStamp -Text (Get-Date -Format o)
+    Start-Process -FilePath $python `
+        -ArgumentList @("-m", "scripts.sync_catalog", "--deactivate-missing") `
+        -WorkingDirectory $root `
+        -RedirectStandardOutput $syncLog `
+        -RedirectStandardError (Join-Path $logDir "sync.err.log") `
+        -WindowStyle Hidden | Out-Null
+}
 
 function Start-Bot {
     Start-Process -FilePath $python `
@@ -96,8 +127,12 @@ $currentUrl = (Select-String -Path $envFile -Pattern "^PUBLIC_BASE_URL=(.*)$" -E
 
 Start-Sleep -Seconds 15
 
+if (Sync-Due) { Start-CatalogSync }
+
 while ($true) {
     Start-Sleep -Seconds 5
+
+    if (Sync-Due) { Start-CatalogSync }
 
     if ($bot.HasExited) {
         Write-Host "[serve] la API se detuvo; reiniciando"

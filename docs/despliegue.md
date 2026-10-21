@@ -128,7 +128,15 @@ El script:
 - levanta uvicorn y cloudflared, y reinicia cualquiera que se caiga;
 - escribe la URL del túnel en `.tools\tunnel-url.txt`;
 - cuando el túnel estrena URL, actualiza `PUBLIC_BASE_URL` en `.env` y reinicia
-  la API para que los links de pago sigan siendo válidos.
+  la API para que los links de pago sigan siendo válidos;
+- **sincroniza el catálogo desde SAP** al arrancar y cada 24 horas (solo si
+  `.env` tiene `SAP_USER`); se desactiva con `-NoCatalogSync`. La marca de la
+  última sincronización queda en `.tools\last-sync.txt` y el log en
+  `.tools\sync.log`.
+
+El catálogo local es el índice de búsqueda del bot: sin sincronizar, las
+búsquedas por texto no devuelven nada. La primera carga completa son ~29.700
+artículos y tarda unos 4 minutos.
 
 Arranque al iniciar sesión: acceso directo `ROHO Bot.lnk` en
 `shell:startup`. Logs en `.tools\bot.out.log`, `.tools\bot.err.log` y
