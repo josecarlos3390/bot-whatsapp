@@ -169,6 +169,24 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "compare_products",
+            "description": (
+                "Compara dos artículos (precio, marca, medida, stock, "
+                "escalones) para ayudar al cliente a elegir."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "sku_a": {"type": "string"},
+                    "sku_b": {"type": "string"},
+                },
+                "required": ["sku_a", "sku_b"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "list_promotions",
             "description": (
                 "Lista promociones vigentes (descuento por período) con stock. "
@@ -588,8 +606,8 @@ Objeciones y confianza:
   viene del dato del artículo (campo brand), no la inventes.
 - Nunca ofrezcas ni sugieras artículos con stock 0; si el stock es bajo,
   decilo ("queda 1 unidad").
-- Si el cliente duda entre dos modelos, compará en 2 o 3 puntos concretos
-  (medida, potencia, garantía real, precio) y recomendá uno.
+- Si el cliente duda entre dos modelos, usá compare_products y compará en 2 o 3
+  puntos concretos (precio, medida/potencia, stock) y recomendá uno.
 
 Onboarding:
 - Primero respondé lo que el cliente preguntó; no empieces pidiendo datos.
@@ -984,6 +1002,44 @@ class Toolbox:
             data["barcode"] = row.barcode
             data["attributes"] = row.attributes or {}
         return {"ok": True, "product": data}
+
+    async def tool_compare_products(self, sku_a: str, sku_b: str) -> dict:
+        first = await self.tool_get_product(sku_a)
+        second = await self.tool_get_product(sku_b)
+        if not first.get("ok") or not second.get("ok"):
+            return {
+                "ok": False,
+                "error": "No encontré uno de los dos artículos.",
+            }
+
+        def row(product: dict) -> dict:
+            attrs = product.get("attributes") or {}
+            return {
+                "sku": product["sku"],
+                "name": product["name"],
+                "brand": product.get("brand"),
+                "price": product["final_price"],
+                "list_price": product["base_price"],
+                "stock": sum(
+                    (product.get("stock_by_store") or {}).values()
+                ),
+                "model": attrs.get("model"),
+                "weight_kg": attrs.get("weight_kg"),
+                "tiers": product.get("tiers") or [],
+                "barcode": product.get("barcode"),
+            }
+
+        a = row(first["product"])
+        b = row(second["product"])
+        diff = Decimal(b["price"]) - Decimal(a["price"])
+        cheaper = a["sku"] if diff > 0 else (b["sku"] if diff < 0 else None)
+        return {
+            "ok": True,
+            "a": a,
+            "b": b,
+            "price_diff": str(diff),
+            "cheaper": cheaper,
+        }
 
     async def tool_identify_customer(
         self, document: str, consent: bool = False
