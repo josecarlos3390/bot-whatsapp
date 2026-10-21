@@ -320,6 +320,8 @@ class CatalogItem(Base):
     manufacturer_code: Mapped[int | None] = mapped_column(Integer)
     # Código de barra vigente (SAP BarCode). Se guarda sólo con dígitos.
     barcode: Mapped[str | None] = mapped_column(String(32), index=True)
+    # Ficha ampliada de SAP: familia, línea, grupo, peso, modelo, descripción.
+    attributes: Mapped[dict | None] = mapped_column(JSON)
     sales_unit: Mapped[str | None] = mapped_column(String(20))
     price: Mapped[Decimal] = mapped_column(Numeric(14, 2))
     currency: Mapped[str] = mapped_column(String(3), default="BOB")

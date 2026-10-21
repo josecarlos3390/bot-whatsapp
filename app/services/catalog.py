@@ -4,6 +4,7 @@ import difflib
 import logging
 import re
 import unicodedata
+from collections import Counter
 from datetime import date, datetime, timezone
 from decimal import Decimal
 
@@ -510,6 +511,71 @@ def _is_relevant(item: CatalogItem, terms: list[str]) -> bool:
         f"{item.category or ''}"
     )
     return any(term in haystack for term in terms)
+
+
+SIZE_RE = re.compile(r"\b(\d+(?:[.,]\d+)?)\s*(?:plazas?|plz)\b", re.IGNORECASE)
+SIZE_WORDS = ("QUEEN", "KING", "TWIN", "FULL", "MATRIMONIAL")
+
+
+async def facets(
+    session: AsyncSession, query: str | None, limit: int = 3
+) -> dict:
+    """Medidas y marcas disponibles para un rubro (para preguntar, no listar).
+
+    Devuelve ``sizes`` y ``brands`` ordenados por cantidad de artículos con
+    stock, y ``total`` de coincidencias.
+    """
+    term = primary_term(query)
+    if not term:
+        return {"sizes": [], "brands": [], "total": 0}
+
+    rows = (
+        await session.scalars(
+            select(CatalogItem)
+            .where(
+                CatalogItem.active.is_(True),
+                CatalogItem.stock > 0,
+                CatalogItem.name.ilike(_like(term)),
+            )
+            .limit(300)
+        )
+    ).all()
+
+    sizes: Counter[str] = Counter()
+    brands: Counter[str] = Counter()
+    for row in rows:
+        name = _fold(row.name or "")
+        match = SIZE_RE.search(name)
+        if match:
+            size = f"{match.group(1).replace(',', '.')} plazas"
+            if size.startswith("1 "):
+                size = "1 plaza"
+            sizes[size] += 1
+        for word in SIZE_WORDS:
+            if word in name:
+                sizes[word.title()] += 1
+        if row.brand:
+            brands[row.brand.strip().title()] += 1
+
+    return {
+        "sizes": [size for size, _ in sizes.most_common(limit)],
+        "brands": [brand for brand, _ in brands.most_common(limit)],
+        "total": len(rows),
+    }
+
+
+def is_broad_query(query: str | None) -> bool:
+    """¿Es un pedido amplio ("colchón", "taladro") sin medida ni marca?
+
+    Cuenta palabras significativas sin importar el largo: hay marcas de dos
+    letras (LG, HP) que no deben descartarse.
+    """
+    words = [
+        word
+        for word in re.split(r"\s+", _fold(query or ""))
+        if word and word not in QUERY_STOPWORDS
+    ]
+    return len(words) <= 1
 
 
 def barcode_from_text(text: str | None) -> str | None:

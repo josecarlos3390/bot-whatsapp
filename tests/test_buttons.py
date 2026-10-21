@@ -13,7 +13,8 @@ async def test_greeting_returns_quick_actions(session):
     reply = await Agent().handle(session, contact, "Hola que tal..!!")
     assert reply.messages[0].kind == "buttons"
     ids = [button["id"] for button in reply.messages[0].buttons]
-    assert ids == ["explore", "human"]
+    # El saludo invita a buscar, no a recorrer categorías (eso es el ecommerce).
+    assert ids == ["search", "human"]
 
     catalog = await Agent().handle(session, contact, "Tienes catálogo?")
     assert catalog.messages[0].kind == "list"

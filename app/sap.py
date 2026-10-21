@@ -912,6 +912,24 @@ class PaasSap:
             if item.get("sku") and item.get("name")
         ]
 
+    async def export_items(
+        self, after: str | None = None, limit: int = 200
+    ) -> list[dict]:
+        """Página del catálogo exportada por el integrador (keyset por SKU)."""
+        params: dict = {"limit": max(1, min(int(limit), 500))}
+        if after:
+            params["after"] = after
+        data = await self.get("api/sap/items/export", params=params)
+        return data if isinstance(data, list) else []
+
+    async def catalog_reference(self) -> dict:
+        """Grupos de artículos y fabricantes para traducir códigos a nombres."""
+        data = await self.get("api/sap/catalog-reference")
+        return {
+            "groups": data.get("groups") or [],
+            "manufacturers": data.get("manufacturers") or [],
+        }
+
     async def get_price_periods(
         self, sku: str, force_refresh: bool = False
     ) -> list[PricePeriod]:

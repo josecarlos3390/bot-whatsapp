@@ -26,6 +26,8 @@ Lecturas:
 ```http
 GET /api/sap/items/{sku}
 GET /api/sap/items?q={texto}&limit={n}   # búsqueda por nombre (caché en caliente)
+GET /api/sap/items/export?after={sku}&limit={n}   # lote para el catálogo
+GET /api/sap/catalog-reference           # grupos y fabricantes
 GET /api/sap/business-partners/{cardCode}
 ```
 
@@ -35,7 +37,10 @@ Pedido existente:
 POST /api/crm/orders
 ```
 
-El PaaS gestiona la sesión SAP; el bot no recibe credenciales SAP.
+El PaaS gestiona la sesión SAP; en `SAP_MODE=paas` el bot **no usa credenciales
+SAP**: la sincronización del catálogo va por `/api/sap/items/export` (keyset por
+`ItemCode`, 200 filas por llamada) y los nombres de grupo/fabricante por
+`/api/sap/catalog-reference`.
 
 ## Configuración del bot
 

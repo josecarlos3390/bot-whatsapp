@@ -982,6 +982,7 @@ class Toolbox:
             data["brand"] = row.brand
             data["category"] = row.category
             data["barcode"] = row.barcode
+            data["attributes"] = row.attributes or {}
         return {"ok": True, "product": data}
 
     async def tool_identify_customer(
@@ -1492,6 +1493,29 @@ AFFIRMATIVE_RE = re.compile(
     r"hagamoslo|hagámoslo|genera|generalo|general[oa]|sigamos)\b",
     re.IGNORECASE,
 )
+# Mensajes que no deben interpretarse como respuesta a una búsqueda previa.
+_CONTROL_WORDS = {
+    "hola",
+    "buenas",
+    "buenos dias",
+    "buenas tardes",
+    "buenas noches",
+    "menu",
+    "inicio",
+    "asesor",
+    "humano",
+    "gracias",
+    "ok",
+    "dale",
+    "si",
+    "sí",
+    "no",
+    "chau",
+    "adios",
+    "listo",
+    "ayuda",
+    "carrito",
+}
 CHECKOUT_RE = re.compile(
     r"\b(confirm(?:o|ar|a|á)|genera(?:r|me)?\s+(?:el\s+)?(?:qr|link)|"
     r"link\s+de\s+pago|pagar|checkout)\b",
@@ -1612,10 +1636,48 @@ class Agent:
         max_price: float | None = None,
     ) -> AgentReply:
         await self._remember_query(session, contact, query)
+        # Pedido amplio ("colchón"): preguntar medida/marca antes de listar.
+        # Mostrar todo el catálogo es tarea del ecommerce, no del chat.
+        if (
+            catalog.is_broad_query(query)
+            and min_price is None
+            and max_price is None
+        ):
+            info = await catalog.facets(session, query, limit=3)
+            options = (
+                info["sizes"][:3] if info["sizes"] else info["brands"][:3]
+            )
+            if len(options) >= 2:
+                if info["sizes"]:
+                    text = (
+                        f"Tengo varias opciones. Para no mostrarte de todo: "
+                        f"¿qué medida o marca te sirve?"
+                    )
+                else:
+                    text = (
+                        "Tengo varias marcas. ¿Alguna en particular o te "
+                        "muestro las más elegidas?"
+                    )
+                return AgentReply(
+                    [
+                        Outbound(
+                            kind="buttons",
+                            text=text,
+                            buttons=[
+                                {
+                                    "id": f"refine:{option}",
+                                    "title": self._truncate(option, 20),
+                                }
+                                for option in options[:3]
+                            ],
+                        )
+                    ]
+                )
+
         toolbox = Toolbox(session, contact, self.wa)
         result = await toolbox.tool_search_products(
             query=query,
-            limit=limit,
+            limit=min(int(limit), 3),
             min_price=min_price,
             max_price=max_price,
         )
@@ -1633,7 +1695,7 @@ class Agent:
                             "forma?"
                         ),
                         buttons=[
-                            {"id": "catalog", "title": "Ver categorías"},
+                            {"id": "search", "title": "Buscar otra cosa"},
                             {"id": "human", "title": "Asesor"},
                         ],
                     )
@@ -1767,6 +1829,14 @@ class Agent:
                     f"Por {tier['quantity']} unidades: Bs {tier['price']} c/u"
                 )
         lines.append(f"Stock: {stock}")
+        attrs = product.get("attributes") or {}
+        if attrs.get("model"):
+            lines.append(f"Modelo: {attrs['model']}")
+        if attrs.get("weight_kg"):
+            lines.append(f"Peso: {attrs['weight_kg']} kg")
+        description = (attrs.get("description") or "").strip()
+        if description and description.upper() != (product.get("name") or "").upper():
+            lines.append(description[:220])
         if product.get("barcode"):
             lines.append(f"Código de barra: {product['barcode']}")
         # Complemento con stock validado: sube el ticket sin inventar nada.
@@ -2087,7 +2157,7 @@ class Agent:
                         kind="buttons",
                         text=persona.welcome(contact.name),
                         buttons=[
-                            {"id": "explore", "title": "Ver categorías"},
+                            {"id": "search", "title": "Buscar producto"},
                             {"id": "human", "title": "Asesor"},
                         ],
                     )
@@ -2156,6 +2226,44 @@ class Agent:
         if normalized.startswith("product:"):
             sku = raw.split(":", 1)[1].strip()
             return await self._product_detail(session, contact, sku)
+
+        # Botón de la pregunta de medida/marca: se combina con la búsqueda previa.
+        if normalized.startswith("refine:"):
+            option = raw.split(":", 1)[1].strip()
+            conversation = await session.scalar(
+                select(Conversation).where(Conversation.contact_id == contact.id)
+            )
+            base = (conversation.last_query if conversation else None) or ""
+            combined = f"{base} {option}".strip()
+            local = await catalog.search_items(session, combined, limit=5)
+            needle = option.lower()
+            matches = [
+                row
+                for row in local
+                if needle in (row.name or "").lower()
+                or needle in (row.brand or "").lower()
+            ]
+            if matches:
+                return await self._search_reply(
+                    session, contact, combined, limit=3
+                )
+            # Sin coincidencias locales no vale la pena ir a SAP: se responde
+            # al instante y se ofrece otra opción.
+            return AgentReply(
+                [
+                    Outbound(
+                        kind="buttons",
+                        text=(
+                            f"No tengo *{option}* para {base or 'eso'}. "
+                            "¿Probamos otra medida o marca?"
+                        ),
+                        buttons=[
+                            {"id": "catalog", "title": "Ver opciones"},
+                            {"id": "human", "title": "Asesor"},
+                        ],
+                    )
+                ]
+            )
 
         # Código de barra (EAN/UPC): se resuelve directo, sin LLM.
         barcode = catalog.barcode_from_text(raw)
@@ -2278,6 +2386,34 @@ class Agent:
                     )
                 ]
             )
+        # Respuesta corta a una pregunta anterior ("2 plazas", "marca Flex"):
+        # se combina con la última búsqueda si por sí sola no encuentra nada.
+        if 1 <= len(simple.split()) <= 4 and simple not in _CONTROL_WORDS:
+            conversation = await session.scalar(
+                select(Conversation).where(Conversation.contact_id == contact.id)
+            )
+            last = (conversation.last_query or "").strip() if conversation else ""
+            if last and _fold_word(last) not in simple:
+                probe = await Toolbox(session, contact, self.wa).tool_search_products(
+                    query=f"{last} {raw}".strip(), limit=3
+                )
+                if probe.get("products"):
+                    return AgentReply(
+                        [
+                            Outbound(
+                                text=(
+                                    f"Con *{raw.strip()}* tengo estas opciones:"
+                                )
+                            ),
+                            self._search_list(probe["products"]),
+                            Outbound(
+                                kind="buttons",
+                                text="¿Seguimos?",
+                                buttons=self._search_buttons(),
+                            ),
+                        ]
+                    )
+
         if not settings.deepseek_api_key:
             return await self._demo(session, contact, text)
         try:

@@ -21,7 +21,7 @@ from sqlalchemy import select, update
 from app.config import settings
 from app.db import SessionLocal, init_db
 from app.models import CatalogItem
-from app.sap import ServiceLayerSap
+from app.sap import PaasSap, ServiceLayerSap
 
 logger = logging.getLogger("sync_catalog")
 
@@ -44,6 +44,32 @@ def _barcode(value: str | None) -> str | None:
     """Código de barra sólo con dígitos (SAP a veces trae espacios o guiones)."""
     digits = "".join(ch for ch in str(value or "") if ch.isdigit())
     return digits or None
+
+
+def _attributes(item: dict, foreign_name: str | None) -> dict | None:
+    """Ficha técnica que SAP guarda y sirve para vender.
+
+    Se excluyen costos y datos fiscales: sólo lo que el asesor puede contar.
+    """
+    description = _clean(item.get("User_Text")) or ""
+    weight = item.get("U_PESO")
+    data = {
+        "family": _clean(item.get("U_FAMILIA")),
+        "line": _clean(item.get("U_LINEA")),
+        "group": _clean(item.get("U_GRUPO")),
+        "model": _clean(item.get("SupplierCatalogNo")),
+        "weight_kg": weight if isinstance(weight, (int, float)) and weight > 0 else None,
+        "location": _clean(item.get("U_UBICACION")),
+        "sales_unit": _clean(item.get("SalesUnit")),
+        "foreign_name": foreign_name,
+        "description": description[:600] or None,
+    }
+    cleaned = {
+        key: value
+        for key, value in data.items()
+        if value not in (None, "", 0, 0.0)
+    }
+    return cleaned or None
 
 
 def _updated_at(item: dict) -> datetime | None:
@@ -123,8 +149,23 @@ async def _fetch_all(
     return rows
 
 
-async def sync(limit: int | None = None, deactivate_missing: bool = False) -> None:
-    started_at = datetime.now(timezone.utc)
+def _reference_maps(groups: list[dict], manufacturers: list[dict]):
+    group_names = {
+        row["Number"]: row.get("GroupName") for row in groups if "Number" in row
+    }
+    manufacturer_names = {
+        row["Code"]: row.get("ManufacturerName")
+        for row in manufacturers
+        if "Code" in row
+    }
+    logger.info(
+        "Grupos: %s · fabricantes: %s", len(group_names), len(manufacturer_names)
+    )
+    return group_names, manufacturer_names
+
+
+async def _fetch_direct(limit: int | None):
+    """Lee SAP directo (SAP_MODE=service_layer): requiere credenciales SAP."""
     sap = ServiceLayerSap(session=None)  # type: ignore[arg-type]
     try:
         logger.info("Cargando grupos y fabricantes...")
@@ -132,18 +173,6 @@ async def sync(limit: int | None = None, deactivate_missing: bool = False) -> No
         manufacturers = await _fetch_all(
             sap, "Manufacturers", "Code,ManufacturerName"
         )
-        group_names = {
-            row["Number"]: row.get("GroupName") for row in groups if "Number" in row
-        }
-        manufacturer_names = {
-            row["Code"]: row.get("ManufacturerName")
-            for row in manufacturers
-            if "Code" in row
-        }
-        logger.info(
-            "Grupos: %s · fabricantes: %s", len(group_names), len(manufacturer_names)
-        )
-
         logger.info("Descargando artículos vendibles...")
         items = await _fetch_all(
             sap,
@@ -154,9 +183,54 @@ async def sync(limit: int | None = None, deactivate_missing: bool = False) -> No
             filter_expr=FILTER,
             keyset_field="ItemCode",
         )
-        logger.info("Artículos descargados: %s", len(items))
     finally:
         await sap.close()
+    return items, groups, manufacturers
+
+
+async def _fetch_paas(limit: int | None):
+    """Lee el catálogo por el integrador (SAP_MODE=paas): sin credenciales SAP."""
+    paas = PaasSap(session=None)  # type: ignore[arg-type]
+    try:
+        logger.info("Cargando grupos y fabricantes desde el integrador...")
+        reference = await paas.catalog_reference()
+        groups = reference.get("groups") or []
+        manufacturers = reference.get("manufacturers") or []
+
+        logger.info("Descargando artículos vendibles por el integrador...")
+        items: list[dict] = []
+        after: str | None = None
+        while True:
+            page = await paas.export_items(after=after, limit=200)
+            if not page:
+                break
+            items.extend(page)
+            logger.info("Artículos: %s filas", len(items))
+            if limit and len(items) >= limit:
+                items = items[:limit]
+                break
+            if len(page) < 200:
+                break
+            after = page[-1].get("ItemCode")
+    finally:
+        await paas.close()
+    return items, groups, manufacturers
+
+
+async def sync(limit: int | None = None, deactivate_missing: bool = False) -> None:
+    started_at = datetime.now(timezone.utc)
+    if settings.sap_mode == "paas":
+        try:
+            items, groups, manufacturers = await _fetch_paas(limit)
+            logger.info("Artículos descargados: %s", len(items))
+        except Exception:  # noqa: BLE001 - integrador sin el endpoint todavía
+            logger.exception(
+                "La exportación por el integrador falló; se intenta SAP directo"
+            )
+            items, groups, manufacturers = await _fetch_direct(limit)
+    else:
+        items, groups, manufacturers = await _fetch_direct(limit)
+    group_names, manufacturer_names = _reference_maps(groups, manufacturers)
 
     if not items:
         logger.warning("SAP no devolvió artículos; no se toca el catálogo")
@@ -216,6 +290,7 @@ async def sync(limit: int | None = None, deactivate_missing: bool = False) -> No
                 "stock": int(item.get("QuantityOnStock") or 0),
                 "keywords": keywords,
                 "barcode": _barcode(item.get("BarCode")),
+                "attributes": _attributes(item, foreign_name),
                 "active": True,
                 "sap_valid": item.get("Valid") == "tYES",
                 "sap_updated_at": _updated_at(item),
