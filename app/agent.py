@@ -18,6 +18,7 @@ from .models import (
     Contact,
     Conversation,
     Handoff,
+    Message,
     ProductPromotion,
 )
 from .services import (
@@ -814,6 +815,24 @@ class Toolbox:
             fallback = True
         products = [self._product(row) for row in rows]
         await self._attach_promotions(products)
+        exact_match = any(
+            catalog.is_head_match(row, query) for row in rows
+        )
+        # "colchón queen" sin coincidencias exactas: mejor mostrar colchones
+        # (el producto base) que protectores que sólo mencionan la palabra.
+        if rows and not exact_match and query and not has_filters:
+            head = catalog.primary_term(query)
+            if head and head.lower() != query.strip().lower():
+                head_rows = await catalog.search_items(
+                    self.session, head, limit=take
+                )
+                head_rows = [
+                    row for row in head_rows if catalog.is_head_match(row, head)
+                ]
+                if head_rows:
+                    rows = head_rows
+                    products = [self._product(row) for row in rows]
+                    await self._attach_promotions(products)
         self.last_search = {
             "products": products,
             "fallback_without_discount": fallback,
@@ -822,6 +841,13 @@ class Toolbox:
             "ok": True,
             "products": products,
             "fallback_without_discount": fallback,
+            "exact_match": exact_match,
+            "suggestion_hint": None
+            if exact_match or not products
+            else (
+                "Ningún artículo coincide exactamente con lo pedido: son "
+                "opciones relacionadas. Aclaralo y ofrecé alternativas."
+            ),
             "filters": {
                 "query": query,
                 "category": category,
@@ -1421,6 +1447,13 @@ KNOWLEDGE_RE = re.compile(
     r"comprobante(?:s)?)\b",
     re.IGNORECASE,
 )
+# Respuestas cortas de aceptación: si el bot acaba de ofrecer el link de pago,
+# cierran el pedido sin pasar por el LLM.
+AFFIRMATIVE_RE = re.compile(
+    r"^(si|sí|dale|ok|okey|de una|claro|obvio|perfecto|adelante|listo|va|"
+    r"hagamoslo|hagámoslo|genera|generalo|general[oa]|sigamos)\b",
+    re.IGNORECASE,
+)
 CHECKOUT_RE = re.compile(
     r"\b(confirm(?:o|ar|a|á)|genera(?:r|me)?\s+(?:el\s+)?(?:qr|link)|"
     r"link\s+de\s+pago|pagar|checkout)\b",
@@ -1554,7 +1587,13 @@ class Agent:
                 [
                     Outbound(
                         kind="buttons",
-                        text=persona.no_results(),
+                        text=(
+                            f"No tengo nada para *{query.strip()}* en este "
+                            "momento. Trabajo con línea blanca, colchones, "
+                            "muebles, iluminación, baño y ferretería. "
+                            "¿Te muestro alguna categoría o buscamos de otra "
+                            "forma?"
+                        ),
                         buttons=[
                             {"id": "catalog", "title": "Ver categorías"},
                             {"id": "human", "title": "Asesor"},
@@ -1562,9 +1601,17 @@ class Agent:
                     )
                 ]
             )
+        intro = (
+            persona.search_intro()
+            if result.get("exact_match", True)
+            else (
+                f"No tengo *{_clean_query(query)}* exactamente, pero tengo "
+                "estas opciones parecidas:"
+            )
+        )
         return AgentReply(
             [
-                Outbound(text=persona.search_intro()),
+                Outbound(text=intro),
                 self._search_list(products),
                 Outbound(
                     kind="buttons",
@@ -1859,6 +1906,31 @@ class Agent:
             ]
         )
 
+    async def _asked_payment(
+        self, session: AsyncSession, contact: Contact
+    ) -> bool:
+        """¿El último mensaje del bot ofreció generar el link/QR de pago?"""
+        conversation = await session.scalar(
+            select(Conversation).where(Conversation.contact_id == contact.id)
+        )
+        if conversation is None:
+            return False
+        last = await session.scalar(
+            select(Message)
+            .where(
+                Message.conversation_id == conversation.id,
+                Message.direction == "out",
+            )
+            .order_by(Message.created_at.desc())
+            .limit(1)
+        )
+        if last is None or not last.text:
+            return False
+        text = _fold_word(last.text)
+        return ("link" in text and ("pago" in text or "qr" in text)) or (
+            "cerr" in text and "pedido" in text
+        )
+
     async def _status_reply(
         self, session: AsyncSession, contact: Contact
     ) -> AgentReply:
@@ -2019,6 +2091,28 @@ class Agent:
                 return await self._add_product(
                     session, contact, parts[1], max(quantity, 1)
                 )
+
+        # "agregar SKU 2" en texto libre: mismo atajo que el botón, sin LLM.
+        for prefix in ("agregar ", "añadir ", "anadir "):
+            if normalized.startswith(prefix):
+                parts = raw[len(prefix) :].split()
+                if not parts:
+                    break
+                sku = parts[0].upper()
+                if await catalog.get_item(session, sku) is None:
+                    break
+                quantity = 1
+                if len(parts) > 1 and parts[1].isdigit():
+                    quantity = int(parts[1])
+                return await self._add_product(
+                    session, contact, sku, max(quantity, 1)
+                )
+
+        # Un "sí" tras ofrecer el link de pago cierra el pedido, sin LLM.
+        if AFFIRMATIVE_RE.match(simple) and await self._asked_payment(
+            session, contact
+        ):
+            return await self._checkout_reply(session, contact)
 
         if normalized == "search":
             return AgentReply(

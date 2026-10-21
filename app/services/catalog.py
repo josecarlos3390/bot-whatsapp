@@ -7,7 +7,7 @@ import unicodedata
 from datetime import date, datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import exists, func, or_, select
+from sqlalchemy import case, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models import CatalogItem, ProductImage, ProductPromotion
@@ -343,7 +343,7 @@ async def search_items(
     # filtro: forzarla descartaba coincidencias reales por nombre cuando el
     # grupo del artículo en SAP no coincide con INTENT_CATEGORY.
     rank_terms = terms + ([intent_category] if intent_category else [])
-    fetch_limit = max(int(limit) * 5, int(limit))
+    fetch_limit = max(int(limit) * 10, 50)
 
     async def run(
         expanded: bool, apply_category: bool = True
@@ -357,10 +357,23 @@ async def search_items(
             stmt = stmt.where(
                 *_match_all(terms[:4], expand=expanded)
             )
+        # Priorizar en SQL los artículos cuyo nombre EMPIEZA con el término:
+        # si se ordena sólo alfabéticamente, accesorios como "BOLSA PARA
+        # LAVADORA" desplazan a la "LAVADORA" real fuera del límite.
+        ordering = []
+        for term in terms[:2]:
+            for variant in _variants(term)[:2]:
+                ordering.append(
+                    case(
+                        (CatalogItem.name.ilike(f"{variant}%"), 0),
+                        else_=1,
+                    )
+                )
+        ordering.append(CatalogItem.name)
         return list(
             (
                 await session.scalars(
-                    stmt.order_by(CatalogItem.name).limit(fetch_limit)
+                    stmt.order_by(*ordering).limit(fetch_limit)
                 )
             ).all()
         )
@@ -496,6 +509,28 @@ def _is_relevant(item: CatalogItem, terms: list[str]) -> bool:
         f"{item.category or ''}"
     )
     return any(term in haystack for term in terms)
+
+
+def primary_term(query: str | None) -> str | None:
+    """Palabra más significativa de la consulta (ignora "buscar", "quiero"...)."""
+    terms = _relevance_terms(query or "")
+    if not terms:
+        return None
+    return max(terms, key=len)
+
+
+def is_head_match(item: CatalogItem, query: str | None) -> bool:
+    """¿El nombre del artículo empieza con el término principal de la consulta?
+
+    Sirve para distinguir "LAVADORA 10KG…" de "BOLSA PARA LAVADORA": cuando
+    ninguna coincide así, el bot ofrece alternativas en lugar de presentar
+    accesorios como si fueran el producto pedido.
+    """
+    terms = _relevance_terms(query or "")
+    if not terms:
+        return True
+    name = _fold(item.name or "")
+    return any(name.startswith(term) for term in terms)
 
 
 def _sap_candidates(query: str, terms: list[str]) -> list[str]:
