@@ -790,6 +790,25 @@ class Toolbox:
         only_discount: bool = False,
     ) -> dict:
         take = min(int(limit or 5), 8)
+        # Código de barra: si el mensaje trae un EAN/UPC, se resuelve directo.
+        barcode = catalog.barcode_from_text(query)
+        if barcode:
+            hit = await catalog.get_by_barcode(self.session, barcode)
+            if hit is not None:
+                products = [self._product(hit)]
+                await self._attach_promotions(products)
+                self.last_search = {
+                    "products": products,
+                    "fallback_without_discount": False,
+                }
+                return {
+                    "ok": True,
+                    "products": products,
+                    "fallback_without_discount": False,
+                    "exact_match": True,
+                    "barcode_match": True,
+                    "filters": {"query": query, "barcode": barcode},
+                }
         has_filters = any(
             (
                 category,
@@ -962,6 +981,7 @@ class Toolbox:
         if row is not None:
             data["brand"] = row.brand
             data["category"] = row.category
+            data["barcode"] = row.barcode
         return {"ok": True, "product": data}
 
     async def tool_identify_customer(
@@ -1747,6 +1767,8 @@ class Agent:
                     f"Por {tier['quantity']} unidades: Bs {tier['price']} c/u"
                 )
         lines.append(f"Stock: {stock}")
+        if product.get("barcode"):
+            lines.append(f"Código de barra: {product['barcode']}")
         # Complemento con stock validado: sube el ticket sin inventar nada.
         combo = await catalog.complements(
             session, product["sku"], product["name"], limit=1
@@ -2134,6 +2156,13 @@ class Agent:
         if normalized.startswith("product:"):
             sku = raw.split(":", 1)[1].strip()
             return await self._product_detail(session, contact, sku)
+
+        # Código de barra (EAN/UPC): se resuelve directo, sin LLM.
+        barcode = catalog.barcode_from_text(raw)
+        if barcode:
+            hit = await catalog.get_by_barcode(session, barcode)
+            if hit is not None:
+                return await self._product_detail(session, contact, hit.sku)
 
         if normalized.startswith("add:"):
             parts = raw.split(":")

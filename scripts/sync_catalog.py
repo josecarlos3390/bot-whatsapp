@@ -29,7 +29,7 @@ FILTER = "Valid eq 'tYES' and SalesItem eq 'tYES' and ItemType eq 'itItems'"
 SELECT = (
     "ItemCode,ItemName,ForeignName,User_Text,SalesUnit,ItemsGroupCode,"
     "QuantityOnStock,Valid,SalesItem,Manufacturer,U_FAMILIA,U_LINEA,"
-    "U_SC_Sinonimo,UpdateDate,UpdateTime,ItemPrices"
+    "U_SC_Sinonimo,UpdateDate,UpdateTime,ItemPrices,BarCode"
 )
 PAGE_SIZE = 20  # SAP Service Layer devuelve como máximo 20 por página.
 
@@ -38,6 +38,12 @@ def _clean(value: str | None) -> str | None:
     if not value:
         return None
     return str(value).strip().strip('"').strip() or None
+
+
+def _barcode(value: str | None) -> str | None:
+    """Código de barra sólo con dígitos (SAP a veces trae espacios o guiones)."""
+    digits = "".join(ch for ch in str(value or "") if ch.isdigit())
+    return digits or None
 
 
 def _updated_at(item: dict) -> datetime | None:
@@ -209,6 +215,7 @@ async def sync(limit: int | None = None, deactivate_missing: bool = False) -> No
                 "currency": "BOB",
                 "stock": int(item.get("QuantityOnStock") or 0),
                 "keywords": keywords,
+                "barcode": _barcode(item.get("BarCode")),
                 "active": True,
                 "sap_valid": item.get("Valid") == "tYES",
                 "sap_updated_at": _updated_at(item),

@@ -318,6 +318,8 @@ class CatalogItem(Base):
     group_name: Mapped[str | None] = mapped_column(String(80))
     brand: Mapped[str | None] = mapped_column(String(80))
     manufacturer_code: Mapped[int | None] = mapped_column(Integer)
+    # Código de barra vigente (SAP BarCode). Se guarda sólo con dígitos.
+    barcode: Mapped[str | None] = mapped_column(String(32), index=True)
     sales_unit: Mapped[str | None] = mapped_column(String(20))
     price: Mapped[Decimal] = mapped_column(Numeric(14, 2))
     currency: Mapped[str] = mapped_column(String(3), default="BOB")

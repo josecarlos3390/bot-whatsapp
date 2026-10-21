@@ -512,6 +512,26 @@ def _is_relevant(item: CatalogItem, terms: list[str]) -> bool:
     return any(term in haystack for term in terms)
 
 
+def barcode_from_text(text: str | None) -> str | None:
+    """Extrae un código de barra (8 a 14 dígitos) de un mensaje."""
+    match = re.search(r"\d{8,14}", text or "")
+    return match.group(0) if match else None
+
+
+async def get_by_barcode(
+    session: AsyncSession, barcode: str | None
+) -> CatalogItem | None:
+    code = "".join(ch for ch in str(barcode or "") if ch.isdigit())
+    if len(code) < 8:
+        return None
+    return await session.scalar(
+        select(CatalogItem).where(
+            CatalogItem.barcode == code,
+            CatalogItem.active.is_(True),
+        )
+    )
+
+
 async def quantity_tiers(
     session: AsyncSession, sku: str
 ) -> list[tuple[int, Decimal]]:
