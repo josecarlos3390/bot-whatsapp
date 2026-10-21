@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -783,6 +784,87 @@ class Toolbox:
                 if quantity_tiers:
                     product["quantity_tiers"] = quantity_tiers
 
+    async def _refresh_live_prices(
+        self, products: list[dict], limit: int = 5
+    ) -> None:
+        """Actualiza precio y stock de los primeros resultados contra SAP.
+
+        La lista sale del catálogo (sync diario); sin esto, un cambio de precio
+        se vería recién al abrir la ficha. Responde con lo que SAP conteste en
+        ~1 segundo y deja el resto calentando en segundo plano: la próxima
+        consulta ya tiene el precio vivo sin hacer esperar al cliente.
+        """
+        targets = [p for p in products[:limit] if p.get("sku")]
+        if not targets or settings.sap_mode not in {"paas", "service_layer"}:
+            return
+
+        adapter = None
+        try:
+            adapter = get_sap(self.session)
+            pending_map: dict[asyncio.Task, dict] = {
+                asyncio.ensure_future(self._live_offer(adapter, product["sku"])): product
+                for product in targets
+            }
+            done, pending = await asyncio.wait(
+                pending_map.keys(), timeout=1.2
+            )
+        except Exception:  # noqa: BLE001 - la lista ya tiene precio de catálogo
+            logger.info(
+                "Sin refresco de precios en vivo para la lista", exc_info=True
+            )
+            await self._close_sap(adapter)
+            return
+
+        for task in done:
+            try:
+                offer = task.result()
+            except Exception:  # noqa: BLE001
+                continue
+            if offer is not None:
+                self._apply_live_offer(pending_map[task], offer)
+
+        if pending:
+            # No se cancela: que termine y llene la caché para la próxima.
+            asyncio.create_task(self._warm_and_close(pending, adapter))
+        else:
+            await self._close_sap(adapter)
+
+    @staticmethod
+    async def _live_offer(adapter, sku: str):
+        try:
+            return await adapter.get_offer(sku, 1)
+        except Exception:  # noqa: BLE001 - un SKU no debe romper la lista
+            return None
+
+    @staticmethod
+    async def _close_sap(adapter) -> None:
+        closer = getattr(adapter, "close", None) if adapter is not None else None
+        if closer is None:
+            return
+        try:
+            await closer()
+        except Exception:  # noqa: BLE001 - cerrar no debe romper nada
+            logger.debug("No se pudo cerrar el adaptador SAP", exc_info=True)
+
+    @classmethod
+    async def _warm_and_close(cls, tasks, adapter) -> None:
+        try:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        finally:
+            await cls._close_sap(adapter)
+
+    @staticmethod
+    def _apply_live_offer(product: dict, offer) -> None:
+        product["price"] = str(offer.base_price)
+        if offer.final_price != offer.base_price:
+            product["promo_price"] = str(offer.final_price)
+            product["promo_discount_percent"] = str(
+                offer.discount_percent or 0
+            )
+        # SAP puede devolver negativo por ajustes; para el cliente es 0.
+        stock = max(0, sum((offer.stock_by_store or {}).values()))
+        product["stock"] = stock
+
     async def _search_with_hot_cache(self, query: str, limit: int) -> list:
         """Busca en local y, si no hay, en SAP; lo traído queda en el catálogo."""
         if not settings.sap_hot_search_enabled:
@@ -890,6 +972,11 @@ class Toolbox:
                     rows = head_rows
                     products = [self._product(row) for row in rows]
                     await self._attach_promotions(products)
+        # Precio y stock de los primeros resultados, en vivo desde SAP.
+        await self._refresh_live_prices(products)
+        # Si SAP dice que no hay stock, no se ofrece (salvo que no quede nada).
+        if products and any(p.get("stock", 0) > 0 for p in products):
+            products = [p for p in products if p.get("stock", 0) > 0]
         self.last_search = {
             "products": products,
             "fallback_without_discount": fallback,
@@ -1741,7 +1828,7 @@ class Agent:
         toolbox = Toolbox(session, contact, self.wa)
         result = await toolbox.tool_search_products(
             query=query,
-            limit=min(int(limit), 3),
+            limit=min(int(limit), 5),
             min_price=min_price,
             max_price=max_price,
         )
@@ -1765,14 +1852,26 @@ class Agent:
                     )
                 ]
             )
-        intro = (
-            persona.search_intro()
-            if result.get("exact_match", True)
-            else (
-                f"No tengo *{_clean_query(query)}* exactamente, pero tengo "
-                "estas opciones parecidas:"
+        products = result.get("products") or []
+        if len(products) == 1:
+            only = products[0]
+            intro = (
+                f"Con stock me queda esta opción: *{only['name']}*."
+                if result.get("exact_match", True)
+                else (
+                    f"No tengo *{_clean_query(query)}* exactamente, pero "
+                    f"tengo esta parecida: *{only['name']}*."
+                )
             )
-        )
+        else:
+            intro = (
+                persona.search_intro()
+                if result.get("exact_match", True)
+                else (
+                    f"No tengo *{_clean_query(query)}* exactamente, pero tengo "
+                    "estas opciones parecidas:"
+                )
+            )
         return AgentReply(
             [
                 Outbound(text=intro),
@@ -2012,8 +2111,12 @@ class Agent:
         rows = []
         for product in products[:9]:
             price = product.get("promo_price") or product.get("price")
+            try:
+                price_text = f"{Decimal(str(price)):,.2f}"
+            except Exception:  # noqa: BLE001 - precio ya formateado
+                price_text = str(price)
             brand = (product.get("brand") or "").strip()
-            detail = f"Bs {price}"
+            detail = f"Bs {price_text}"
             if brand:
                 detail += f" · {brand}"
             detail += f" · stock {product.get('stock', 0)}"
@@ -2298,6 +2401,23 @@ class Agent:
                 select(Conversation).where(Conversation.contact_id == contact.id)
             )
             base = (conversation.last_query if conversation else None) or ""
+            if not base:
+                # Botón viejo o conversación sin contexto: no buscamos a ciegas.
+                return AgentReply(
+                    [
+                        Outbound(
+                            kind="buttons",
+                            text=(
+                                f"¿Sobre qué producto querés que busque "
+                                f"*{option}*?"
+                            ),
+                            buttons=[
+                                {"id": "search", "title": "Buscar producto"},
+                                {"id": "human", "title": "Asesor"},
+                            ],
+                        )
+                    ]
+                )
             combined = f"{base} {option}".strip()
             local = await catalog.search_items(session, combined, limit=5)
             needle = option.lower()
@@ -2313,12 +2433,13 @@ class Agent:
                 )
             # Sin coincidencias locales no vale la pena ir a SAP: se responde
             # al instante y se ofrece otra opción.
+            topic = catalog.primary_term(base) or base or "eso"
             return AgentReply(
                 [
                     Outbound(
                         kind="buttons",
                         text=(
-                            f"No tengo *{option}* para {base or 'eso'}. "
+                            f"No tengo *{option}* en {topic}. "
                             "¿Probamos otra medida o marca?"
                         ),
                         buttons=[
