@@ -752,6 +752,7 @@ async def take_handoff(
     assigned_to: str,
     advisor: str | None = None,
     is_admin: bool = False,
+    whatsapp: Any | None = None,
 ) -> dict:
     handoff = await session.get(Handoff, handoff_id)
     if handoff is None:
@@ -775,6 +776,33 @@ async def take_handoff(
         session, handoff.id, "taken", advisor=advisor or assigned_to
     )
     await session.commit()
+
+    # Saludo automático del asesor: el cliente debe saber que lo atendió una
+    # persona con nombre, no quedar en silencio mientras el humano lee.
+    if whatsapp is not None and conversation is not None:
+        contact = await session.get(Contact, conversation.contact_id)
+        if contact is not None:
+            name = (contact.name or "").strip()
+            greeting = (
+                f"¡Hola{', ' + name if name else ''}! Soy "
+                f"*{assigned_to}* del equipo de ROHO 👋 "
+                "Ya estoy con tu consulta, contame un poco más y lo vemos juntos."
+            )
+            try:
+                message_id = await whatsapp.send_text(contact.wa_id, greeting)
+                session.add(
+                    Message(
+                        conversation_id=conversation.id,
+                        wa_message_id=message_id,
+                        direction="out",
+                        type="text",
+                        text=greeting,
+                    )
+                )
+                await session.commit()
+            except Exception:  # noqa: BLE001 - no romper la toma del caso
+                logger.exception("No se pudo enviar el saludo del asesor")
+
     return {"ok": True, "status": handoff.status}
 
 

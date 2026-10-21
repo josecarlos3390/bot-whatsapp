@@ -1460,6 +1460,7 @@ async def admin_handoff_take(
         is_admin=bool(
             advisor.get("is_admin") or advisor.get("is_supervisor")
         ),
+        whatsapp=whatsapp,
     )
     if not result.get("ok"):
         detail = {

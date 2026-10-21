@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 
-from app.models import Contact, Conversation, Handoff
+from app.models import Contact, Conversation, Handoff, Message
 from app.services import handoffs
 
 class FakeWhatsApp:
@@ -53,6 +53,37 @@ async def test_create_take_resolve_handoff(session):
     assert resolved["ok"] is True
     assert (await session.get(Handoff, handoff.id)).status == "resolved"
     assert conversation.bot_paused is False
+
+
+async def test_tomar_envia_saludo_del_asesor(session):
+    contact = Contact(
+        wa_id="59170000994", phone_e164="+59170000994", name="Lucía"
+    )
+    session.add(contact)
+    await session.flush()
+    conversation = Conversation(contact_id=contact.id)
+    session.add(conversation)
+    await session.commit()
+
+    handoff, _ = await handoffs.create_handoff(
+        session, conversation, contact, "Quiere un asesor"
+    )
+
+    fake = FakeWhatsApp()
+    result = await handoffs.take_handoff(
+        session, handoff.id, "Ana Pérez", whatsapp=fake
+    )
+
+    assert result["ok"] is True
+    assert fake.last is not None
+    assert "Ana Pérez" in fake.last[1]
+    assert "Lucía" in fake.last[1]
+
+    # El saludo queda en el historial, así la consola lo muestra.
+    saved = await session.scalar(
+        select(Message).where(Message.conversation_id == conversation.id)
+    )
+    assert saved is not None and "Ana Pérez" in (saved.text or "")
 
 
 async def test_resolver_avisa_al_cliente(session):
