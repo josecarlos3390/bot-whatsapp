@@ -734,6 +734,28 @@ class Toolbox:
                 if quantity_tiers:
                     product["quantity_tiers"] = quantity_tiers
 
+    async def _search_with_hot_cache(self, query: str, limit: int) -> list:
+        """Busca en local y, si no hay, en SAP; lo traído queda en el catálogo."""
+        if not settings.sap_hot_search_enabled:
+            return await catalog.search_items(self.session, query, limit=limit)
+
+        sap = None
+        try:
+            sap = get_sap(self.session)
+            return await catalog.search_with_sap(
+                self.session, query, sap=sap, limit=limit
+            )
+        except Exception:  # noqa: BLE001 - la búsqueda local sigue disponible
+            logger.exception("Búsqueda en caliente no disponible para %s", query)
+            return await catalog.search_items(self.session, query, limit=limit)
+        finally:
+            closer = getattr(sap, "close", None) if sap is not None else None
+            if closer is not None:
+                try:
+                    await closer()
+                except Exception:  # noqa: BLE001 - cerrar no debe romper nada
+                    logger.debug("No se pudo cerrar el adaptador SAP", exc_info=True)
+
     async def tool_search_products(
         self,
         query: str | None = None,
@@ -744,16 +766,29 @@ class Toolbox:
         max_price: float | None = None,
         only_discount: bool = False,
     ) -> dict:
-        rows = await catalog.search_items(
-            self.session,
-            query,
-            limit=min(int(limit or 5), 8),
-            category=category,
-            brand=brand,
-            min_price=min_price,
-            max_price=max_price,
-            only_discount=only_discount,
+        take = min(int(limit or 5), 8)
+        has_filters = any(
+            (
+                category,
+                brand,
+                min_price is not None,
+                max_price is not None,
+                only_discount,
+            )
         )
+        if has_filters or not query:
+            rows = await catalog.search_items(
+                self.session,
+                query,
+                limit=take,
+                category=category,
+                brand=brand,
+                min_price=min_price,
+                max_price=max_price,
+                only_discount=only_discount,
+            )
+        else:
+            rows = await self._search_with_hot_cache(query, take)
         fallback = False
         if not rows and only_discount:
             rows = await catalog.search_items(

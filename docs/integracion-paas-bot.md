@@ -25,6 +25,7 @@ Lecturas:
 
 ```http
 GET /api/sap/items/{sku}
+GET /api/sap/items?q={texto}&limit={n}   # búsqueda por nombre (caché en caliente)
 GET /api/sap/business-partners/{cardCode}
 ```
 

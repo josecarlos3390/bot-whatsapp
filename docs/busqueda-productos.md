@@ -52,6 +52,23 @@ Si no hay resultados, prueba correcciones por similitud:
 - `lavadroa` → `lavadora`
 - `colchom` → `colchon`
 
+## 5. Búsqueda en caliente en SAP
+
+Cuando ninguna de las capas anteriores encuentra una coincidencia real, el bot
+consulta SAP por nombre y **guarda el resultado en su base** para la próxima
+consulta.
+
+- Se activa con `SAP_HOT_SEARCH_ENABLED=true` (por defecto) y trae hasta
+  `SAP_HOT_SEARCH_LIMIT` artículos.
+- La consulta va por el integrador: `GET /api/sap/items?q=...&limit=...`
+  (o directo al Service Layer si `SAP_MODE=service_layer`).
+- SAP busca texto contiguo y distingue mayúsculas, así que el bot prueba la
+  frase, cada palabra y sus variantes de plural.
+- La primera consulta tarda ~1 s; las siguientes salen del catálogo local
+  (~0,2 s).
+- Solo se muestran artículos con stock: si SAP devuelve stock 0, el artículo
+  queda guardado pero no se ofrece.
+
 ## Qué falta
 
 - Full-text real en PostgreSQL (`tsvector`/`pg_trgm`) para producción.
@@ -59,4 +76,4 @@ Si no hay resultados, prueba correcciones por similitud:
 - Sinónimos administrables desde archivo o base, no hardcodeados.
 
 Hoy la búsqueda es SQL `ILIKE` optimizada con expansión; funciona bien para
-28.000 SKUs y SQLite.
+28.000 SKUs y SQLite, con SAP como red de seguridad para lo que falte.

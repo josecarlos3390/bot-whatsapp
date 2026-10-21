@@ -96,6 +96,10 @@ class Settings(BaseSettings):
     sap_tax_code: str = ""
     sap_stores: str = "101-1001=Tienda 1,102-1001=Tienda 2,103-1001=Tienda 3"
     sap_price_cache_ttl_seconds: int = 300
+    # Búsqueda en caliente: si el término no está en el catálogo local, se
+    # consulta SAP y se guarda la respuesta para la próxima consulta.
+    sap_hot_search_enabled: bool = True
+    sap_hot_search_limit: int = 8
 
     @property
     def sap_store_map(self) -> dict[str, str]:

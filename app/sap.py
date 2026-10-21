@@ -149,6 +149,10 @@ class SapAdapter(Protocol):
         self, sku: str, force_refresh: bool = False
     ) -> SapItem | None: ...
 
+    async def search_items(
+        self, query: str, limit: int = 8
+    ) -> list[dict]: ...
+
     async def get_offer(
         self, sku: str, quantity: int = 1, force_refresh: bool = False
     ) -> Offer | None: ...
@@ -257,6 +261,10 @@ class MockSap:
             currency=row.currency,
             stock_by_store={settings.sap_warehouse: row.stock},
         )
+
+    async def search_items(self, query: str, limit: int = 8) -> list[dict]:
+        # El mock no tiene catálogo remoto: la búsqueda local ya cubre el caso.
+        return []
 
     async def get_offer(
         self, sku: str, quantity: int = 1, force_refresh: bool = False
@@ -404,6 +412,49 @@ class ServiceLayerSap:
             stock=stock,
             stock_by_store=stock_by_store,
         )
+
+    async def search_items(self, query: str, limit: int = 8) -> list[dict]:
+        """Búsqueda por nombre en el Service Layer (sensible a mayúsculas)."""
+        term = (query or "").strip()
+        if not term:
+            return []
+        for candidate in (term.upper(), term):
+            safe = candidate.replace("'", "''")
+            response = await self._request(
+                "GET",
+                "/Items",
+                params={
+                    "$select": "ItemCode,ItemName,QuantityOnStock,ItemPrices",
+                    "$top": max(1, min(int(limit), 25)),
+                    "$filter": (
+                        f"contains(ItemName,'{safe}') and Valid eq 'tYES' "
+                        "and SalesItem eq 'tYES'"
+                    ),
+                },
+            )
+            rows = response.json().get("value") or []
+            if rows:
+                return [self._search_row(row) for row in rows]
+        return []
+
+    @staticmethod
+    def _search_row(row: dict) -> dict:
+        price = Decimal("0")
+        prices = row.get("ItemPrices") or []
+        for entry in prices:
+            if entry.get("PriceList") == settings.sap_price_list:
+                price = Decimal(str(entry.get("Price", 0)))
+                break
+        else:
+            if prices:
+                price = Decimal(str(prices[0].get("Price", 0)))
+        return {
+            "sku": row.get("ItemCode"),
+            "name": row.get("ItemName"),
+            "price": float(price),
+            "stock": int(Decimal(str(row.get("QuantityOnStock") or 0))),
+            "currency": "BOB",
+        }
 
     async def get_price_periods(
         self, sku: str, force_refresh: bool = False
@@ -678,6 +729,16 @@ class HybridSap:
                 _CACHE[key] = (time.monotonic(), item)
             return item
 
+    async def search_items(self, query: str, limit: int = 8) -> list[dict]:
+        getter = getattr(self.reader, "search_items", None)
+        if getter is None:
+            return []
+        try:
+            return await getter(query, limit=limit)
+        except Exception:  # noqa: BLE001 - la caché local sigue respondiendo
+            logger.exception("Búsqueda en caliente falló para %s", query)
+            return []
+
     async def get_offer(
         self, sku: str, quantity: int = 1, force_refresh: bool = False
     ) -> Offer | None:
@@ -809,6 +870,31 @@ class PaasSap:
         )
         self._cache[sku] = (time.monotonic(), item)
         return item
+
+    async def search_items(self, query: str, limit: int = 8) -> list[dict]:
+        """Búsqueda por nombre a través del integrador (si lo soporta)."""
+        term = (query or "").strip()
+        if not term:
+            return []
+        try:
+            data = await self.get(
+                "api/sap/items",
+                params={"q": term, "limit": max(1, min(int(limit), 25))},
+            )
+        except SapNotFound:
+            return []
+        items = data.get("items") or []
+        return [
+            {
+                "sku": item.get("sku"),
+                "name": item.get("name"),
+                "price": float(item.get("price") or 0),
+                "stock": int(item.get("stock") or 0),
+                "currency": item.get("currency") or "BOB",
+            }
+            for item in items
+            if item.get("sku") and item.get("name")
+        ]
 
     async def get_price_periods(
         self, sku: str, force_refresh: bool = False

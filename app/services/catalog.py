@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 import difflib
+import logging
 import re
 import unicodedata
-from datetime import date
+from datetime import date, datetime, timezone
 from decimal import Decimal
 
 from sqlalchemy import exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models import CatalogItem, ProductImage, ProductPromotion
+
+logger = logging.getLogger(__name__)
 
 
 SYNONYMS: dict[str, list[str]] = {    "living": ["sala", "sofa", "sillon", "mueble"],
@@ -409,6 +412,153 @@ async def get_item(session: AsyncSession, sku: str) -> CatalogItem | None:
             CatalogItem.sku == sku.strip(), CatalogItem.active.is_(True)
         )
     )
+
+
+async def upsert_sap_items(
+    session: AsyncSession, items: list[dict]
+) -> int:
+    """Guarda en el catálogo local artículos traídos de SAP al vuelo.
+
+    Devuelve cuántos artículos se agregaron (los existentes se actualizan).
+    """
+    clean: list[tuple[str, str, Decimal, int]] = []
+    for item in items or []:
+        sku = str(item.get("sku") or "").strip()
+        name = str(item.get("name") or "").strip()
+        if not sku or not name:
+            continue
+        try:
+            price = Decimal(str(item.get("price") or 0))
+        except (ArithmeticError, ValueError):
+            price = Decimal("0")
+        try:
+            stock = int(item.get("stock") or 0)
+        except (TypeError, ValueError):
+            stock = 0
+        clean.append((sku, name, price, stock))
+    if not clean:
+        return 0
+
+    existing = {
+        row.sku: row
+        for row in (
+            await session.scalars(
+                select(CatalogItem).where(
+                    CatalogItem.sku.in_([row[0] for row in clean])
+                )
+            )
+        ).all()
+    }
+    synced_at = datetime.now(timezone.utc)
+    added = 0
+    for sku, name, price, stock in clean:
+        row = existing.get(sku)
+        if row is None:
+            session.add(
+                CatalogItem(
+                    sku=sku,
+                    name=name[:200],
+                    description=name,
+                    price=price,
+                    currency="BOB",
+                    stock=stock,
+                    keywords=name,
+                    active=True,
+                    sap_valid=True,
+                    synced_at=synced_at,
+                )
+            )
+            added += 1
+        else:
+            row.name = name[:200]
+            row.price = price
+            row.stock = stock
+            row.active = True
+            row.sap_valid = True
+            row.synced_at = synced_at
+    await session.commit()
+    if added:
+        logger.info("Catálogo: %s artículos nuevos desde SAP", added)
+    return added
+
+
+def _relevance_terms(query: str) -> list[str]:
+    return [
+        t
+        for t in re.split(r"\s+", _fold(query or ""))
+        if len(t) >= 3 and t not in QUERY_STOPWORDS
+    ]
+
+
+def _is_relevant(item: CatalogItem, terms: list[str]) -> bool:
+    haystack = _fold(
+        f"{item.name or ''} {item.keywords or ''} {item.brand or ''} "
+        f"{item.category or ''}"
+    )
+    return any(term in haystack for term in terms)
+
+
+def _sap_candidates(query: str, terms: list[str]) -> list[str]:
+    """Frases y palabras para probar en SAP.
+
+    SAP busca texto contiguo (`contains`), así que además de la frase se
+    prueban las palabras más largas y sus variantes de plural.
+    """
+    words = [
+        w
+        for w in (query or "").split()
+        if _fold(w) not in QUERY_STOPWORDS
+    ]
+    candidates: list[str] = []
+    phrase = " ".join(words).strip()
+    if phrase:
+        candidates.append(phrase)
+    for token in sorted(set(terms), key=len, reverse=True)[:3]:
+        if token not in candidates:
+            candidates.append(token)
+        for variant in _variants(token)[1:3]:
+            if variant not in candidates:
+                candidates.append(variant)
+    return candidates[:5]
+
+
+async def search_with_sap(
+    session: AsyncSession,
+    query: str | None,
+    *,
+    sap,
+    limit: int = 5,
+) -> list[CatalogItem]:
+    """Busca en el catálogo local y, si no hay coincidencias reales, en SAP.
+
+    Lo que SAP devuelve se guarda en la base para que la próxima consulta se
+    resuelva localmente.
+    """
+    rows = await search_items(session, query, limit=limit)
+    terms = _relevance_terms(query or "")
+    if not terms or sap is None:
+        return rows
+    if any(_is_relevant(row, terms) for row in rows):
+        return rows
+
+    found: dict[str, dict] = {}
+    for candidate in _sap_candidates(query or "", terms)[:3]:
+        try:
+            items = await sap.search_items(candidate, limit=max(limit, 8))
+        except Exception:  # noqa: BLE001 - una búsqueda en caliente nunca rompe el chat
+            logger.exception("Búsqueda en caliente falló para %s", candidate)
+            break
+        for item in items or []:
+            sku = str(item.get("sku") or "").strip()
+            if sku:
+                found.setdefault(sku, item)
+        if len(found) >= limit:
+            break
+
+    if not found:
+        return rows
+    await upsert_sap_items(session, list(found.values()))
+    return await search_items(session, query, limit=limit)
 
 
 def price_of(item: CatalogItem) -> Decimal:
