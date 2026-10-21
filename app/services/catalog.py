@@ -10,6 +10,7 @@ from decimal import Decimal
 from sqlalchemy import case, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..config import settings
 from ..models import CatalogItem, ProductImage, ProductPromotion
 
 logger = logging.getLogger(__name__)
@@ -509,6 +510,74 @@ def _is_relevant(item: CatalogItem, terms: list[str]) -> bool:
         f"{item.category or ''}"
     )
     return any(term in haystack for term in terms)
+
+
+async def quantity_tiers(
+    session: AsyncSession, sku: str
+) -> list[tuple[int, Decimal]]:
+    """Escalones de precio por cantidad vigentes para un SKU."""
+    today = date.today()
+    rows = (
+        await session.scalars(
+            select(ProductPromotion)
+            .where(
+                ProductPromotion.sku == sku.strip().upper(),
+                ProductPromotion.price_list == settings.sap_price_list,
+                ProductPromotion.tier_quantity.is_not(None),
+                or_(
+                    ProductPromotion.valid_from.is_(None),
+                    ProductPromotion.valid_from <= today,
+                ),
+                or_(
+                    ProductPromotion.valid_to.is_(None),
+                    ProductPromotion.valid_to >= today,
+                ),
+            )
+            .order_by(ProductPromotion.tier_quantity)
+        )
+    ).all()
+    return [
+        (int(row.tier_quantity), Decimal(row.price))
+        for row in rows
+        if row.tier_quantity and row.price
+    ]
+
+
+# Qué ofrecer junto a un producto (siempre con stock).
+COMPLEMENT_TERMS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
+    (("COLCHON",), ("ALMOHADA", "PROTECTOR COLCHON")),
+    (("LAVADORA", "SECADORA"), ("DETERGENTE",)),
+    (("TALADRO", "ATORNILLADOR"), ("BROCA",)),
+    (("PINTURA", "ESMALTE"), ("RODILLO", "BROCHA")),
+)
+
+
+async def complements(
+    session: AsyncSession, sku: str, name: str, limit: int = 1
+) -> list[CatalogItem]:
+    """Productos que suelen comprarse junto al artículo, con stock."""
+    upper = (name or "").upper()
+    terms = next(
+        (
+            options
+            for keys, options in COMPLEMENT_TERMS
+            if any(key in upper for key in keys)
+        ),
+        (),
+    )
+    found: list[CatalogItem] = []
+    seen: set[str] = {sku.strip().upper()}
+    for term in terms:
+        rows = await search_items(session, term, limit=limit + 3)
+        for row in rows:
+            if row.sku in seen or row.stock <= 0:
+                continue
+            found.append(row)
+            seen.add(row.sku)
+            break
+        if len(found) >= limit:
+            break
+    return found[:limit]
 
 
 def primary_term(query: str | None) -> str | None:

@@ -579,6 +579,18 @@ Método de venta:
 5. Ofrece un complemento o una tienda con stock; no empujes de más.
 6. Cierra con una pregunta simple: "¿Te lo agrego?", "¿Lo vemos en Tienda 1?".
 
+Objeciones y confianza:
+- Si dice que está caro, no lo discutas: ofrecé 1 o 2 alternativas más
+  económicas de la misma categoría con stock (search_products con max_price) o
+  mencioná el escalón por cantidad si existe. Nunca bajes el precio por tu
+  cuenta ni inventes un descuento.
+- Mencioná la marca cuando aporte confianza (Bosch, Karcher, Tramontina…):
+  viene del dato del artículo (campo brand), no la inventes.
+- Nunca ofrezcas ni sugieras artículos con stock 0; si el stock es bajo,
+  decilo ("queda 1 unidad").
+- Si el cliente duda entre dos modelos, compará en 2 o 3 puntos concretos
+  (medida, potencia, garantía real, precio) y recomendá uno.
+
 Onboarding:
 - Primero respondé lo que el cliente preguntó; no empieces pidiendo datos.
 - Si no tenés historial y la conversación va a recomendación personalizada o
@@ -945,7 +957,12 @@ class Toolbox:
         )
         if offer is None:
             return {"ok": False, "error": "SKU no encontrado"}
-        return {"ok": True, "product": offer.as_dict()}
+        data = offer.as_dict()
+        row = await catalog.get_item(self.session, sku)
+        if row is not None:
+            data["brand"] = row.brand
+            data["category"] = row.category
+        return {"ok": True, "product": data}
 
     async def tool_identify_customer(
         self, document: str, consent: bool = False
@@ -1290,6 +1307,7 @@ class Toolbox:
             "items": len(summary["items"]),
             "count": summary["count"],
             "name": line["name"] if line else sku,
+            "quantity": int(line["quantity"]) if line else int(quantity),
             "store_code": line["store_code"] if line else None,
             "store_name": line["store_name"] if line else None,
             "unit_price": str(line["unit_price"]) if line else None,
@@ -1696,27 +1714,31 @@ class Agent:
             )
         product = result["product"]
         stock = sum((product.get("stock_by_store") or {}).values())
-        base = product["base_price"]
-        final = product["final_price"]
+        base = Decimal(
+            product.get("base_price") or product.get("final_price") or 0
+        )
+        final = Decimal(product.get("final_price") or base)
         discount = str(product.get("discount_percent") or "0")
         lines = [f"*{product['name']}*"]
+        if product.get("brand"):
+            lines.append(f"Marca: {product['brand']}")
         if product.get("is_promotion"):
             lines.extend(
                 [
-                    f"Precio de lista: Bs {base}",
-                    f"Precio con descuento: *Bs {final}*",
+                    f"Precio de lista: Bs {base:,.2f}",
+                    f"Precio con descuento: *Bs {final:,.2f}*",
                     f"Descuento: {discount}%",
                 ]
             )
         elif product.get("is_special_price"):
             lines.extend(
                 [
-                    f"Precio de lista: Bs {base}",
-                    f"Precio especial vigente: *Bs {final}*",
+                    f"Precio de lista: Bs {base:,.2f}",
+                    f"Precio especial vigente: *Bs {final:,.2f}*",
                 ]
             )
         else:
-            lines.append(f"Precio: *Bs {final}*")
+            lines.append(f"Precio: *Bs {final:,.2f}*")
         if product.get("period_to"):
             lines.append(f"Vigente hasta {product['period_to']}")
         for tier in product.get("tiers") or []:
@@ -1725,6 +1747,16 @@ class Agent:
                     f"Por {tier['quantity']} unidades: Bs {tier['price']} c/u"
                 )
         lines.append(f"Stock: {stock}")
+        # Complemento con stock validado: sube el ticket sin inventar nada.
+        combo = await catalog.complements(
+            session, product["sku"], product["name"], limit=1
+        )
+        if combo:
+            extra = combo[0]
+            lines.append(
+                f"Para completar: {extra.name.title()} — Bs {extra.price} "
+                f"(escribí *agregar {extra.sku}*)"
+            )
         buttons = [
             {"id": "catalog", "title": "Otra opción"},
             {"id": "human", "title": "Asesor"},
@@ -1784,14 +1816,33 @@ class Agent:
                     )
                 ]
             )
+        added_text = persona.added(
+            result.get("name") or sku,
+            f"{Decimal(result['cart_total']):,.2f}",
+        )
+        # Nudge de escalón: si el cliente está cerca del siguiente precio por
+        # cantidad, se lo mostramos con los datos reales de la oferta.
+        current = int(result.get("quantity") or quantity)
+        tiers: list[tuple[int, Decimal]] = []
+        try:
+            offer = await pricing.get_offer(session, sku, quantity=current)
+            if offer is not None:
+                tiers = [(tier.quantity, tier.price) for tier in offer.tiers]
+        except Exception:  # noqa: BLE001 - el nudge es opcional
+            logger.debug("No se pudo leer escalones de %s", sku, exc_info=True)
+        if not tiers:
+            tiers = await catalog.quantity_tiers(session, sku)
+        upcoming = next((tier for tier in tiers if tier[0] > current), None)
+        if upcoming:
+            added_text += (
+                f"\n\nOjo: desde {upcoming[0]} unidades te queda a "
+                f"*Bs {upcoming[1]} c/u*."
+            )
         return AgentReply(
             [
                 Outbound(
                     kind="buttons",
-                    text=persona.added(
-                        result.get("name") or sku,
-                        f"{Decimal(result['cart_total']):,.2f}",
-                    ),
+                    text=added_text,
                     buttons=[
                         {"id": "cart", "title": "Mi carrito"},
                         {"id": "catalog", "title": "Seguir comprando"},
@@ -1805,13 +1856,16 @@ class Agent:
         rows = []
         for product in products[:9]:
             price = product.get("promo_price") or product.get("price")
+            brand = (product.get("brand") or "").strip()
+            detail = f"Bs {price}"
+            if brand:
+                detail += f" · {brand}"
+            detail += f" · stock {product.get('stock', 0)}"
             rows.append(
                 {
                     "id": f"product:{product['sku']}",
                     "title": Agent._truncate(product["name"], 24),
-                    "description": (
-                        f"Bs {price} · stock {product.get('stock', 0)}"
-                    )[:72],
+                    "description": detail[:72],
                 }
             )
         return Outbound(
