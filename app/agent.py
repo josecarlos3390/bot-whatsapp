@@ -84,6 +84,16 @@ def _clean_query(text: str) -> str:
     return " ".join(w for w in words if w.lower() not in _STOPWORDS)
 
 
+def _fold_word(value: str) -> str:
+    """Minúsculas y sin acentos, para comparar títulos y consultas."""
+    import unicodedata
+
+    normalized = unicodedata.normalize("NFKD", value or "")
+    return "".join(
+        ch for ch in normalized if not unicodedata.combining(ch)
+    ).lower().strip()
+
+
 @dataclass
 class AgentReply:
     messages: list[Outbound] = field(default_factory=list)
@@ -1396,6 +1406,21 @@ PROMO_RE = re.compile(
     r"\b(promoci[oó]n(?:es)?|promo(?:s)?|descuento(?:s)?|oferta(?:s)?|rebaja(?:s)?)\b",
     re.IGNORECASE,
 )
+# Pedidos de recomendación: se precargan los más vendidos para ahorrar un
+# turno del LLM (~2 s por turno).
+RECO_RE = re.compile(
+    r"\b(recomend\w*|recomiend\w*|suger\w*|sugerencia(?:s)?|aconsej\w*|"
+    r"consejo(?:s)?)\b|"
+    r"\bqu[eé]\s+me\s+conviene\b|\bpara\s+regalar\b",
+    re.IGNORECASE,
+)
+# Consultas de políticas/FAQ: se precarga la base de conocimiento.
+KNOWLEDGE_RE = re.compile(
+    r"\b(pol[ií]tica(?:s)?|garant[ií]a(?:s)?|cambios?|devoluci[oó]n(?:es)?|"
+    r"env[ií]os?|delivery|horarios?|cuotas?|formas? de pago|facturaci[oó]n|"
+    r"comprobante(?:s)?)\b",
+    re.IGNORECASE,
+)
 CHECKOUT_RE = re.compile(
     r"\b(confirm(?:o|ar|a|á)|genera(?:r|me)?\s+(?:el\s+)?(?:qr|link)|"
     r"link\s+de\s+pago|pagar|checkout)\b",
@@ -1962,6 +1987,11 @@ class Agent:
         if STATUS_RE.search(raw):
             return await self._status_reply(session, contact)
 
+        if KNOWLEDGE_RE.search(raw):
+            knowledge_reply = await self._knowledge_reply(session, contact, raw)
+            if knowledge_reply is not None:
+                return knowledge_reply
+
         if CHECKOUT_RE.search(raw) and normalized not in {
             "formas de pago",
             "medios de pago",
@@ -2110,6 +2140,85 @@ class Agent:
             )
         return "\n".join(lines)
 
+    async def _recommendation_preflight(
+        self, text: str, toolbox: Toolbox
+    ) -> str | None:
+        """Precarga los más vendidos para que el modelo no gaste un turno.
+
+        Cada turno extra del LLM cuesta ~2 s; con el contexto ya presente suele
+        responder en la primera pasada.
+        """
+        if not RECO_RE.search(text or ""):
+            return None
+        try:
+            result = await toolbox.tool_get_best_sellers(limit=5)
+        except Exception:  # noqa: BLE001 - es sólo contexto adicional
+            logger.exception("No se pudieron precargar los más vendidos")
+            return None
+        products = result.get("products") or []
+        if not products:
+            return None
+        lines = [
+            "Más vendidos (contexto; si alcanza, respondé sin llamar otra "
+            "herramienta de búsqueda):"
+        ]
+        for product in products[:5]:
+            lines.append(
+                f"- {product['name']} — Bs {product['price']} "
+                f"(stock {product['stock']})"
+            )
+        return "\n".join(lines)
+
+    async def _knowledge_reply(
+        self, session: AsyncSession, contact: Contact, text: str
+    ) -> AgentReply | None:
+        """Responde el FAQ directo desde la base, sin gastar un turno del LLM.
+
+        Devuelve ``None`` si el artículo no es claramente pertinente, para que
+        el modelo converse con contexto.
+        """
+        if not KNOWLEDGE_RE.search(text or ""):
+            return None
+        toolbox = Toolbox(session, contact, self.wa)
+        try:
+            result = await toolbox.tool_search_knowledge(text)
+        except Exception:  # noqa: BLE001 - el LLM puede responder igual
+            logger.exception("No se pudo consultar la base de conocimiento")
+            return None
+
+        articles = result.get("articles") or []
+        if not articles:
+            return None
+
+        terms = [
+            _fold_word(word)
+            for word in re.split(r"[^\wáéíóúñü]+", text or "")
+            if len(word) > 3
+        ]
+        top = articles[0]
+        title = _fold_word(top.get("title") or "")
+        if not any(term and term in title for term in terms):
+            return None
+
+        body = (top.get("content") or "").strip()
+        if not body:
+            return None
+        if len(body) > 900:
+            body = body[:900].rsplit(" ", 1)[0] + "…"
+
+        return AgentReply(
+            [
+                Outbound(
+                    kind="buttons",
+                    text=f"*{top.get('title', '')}*\n\n{body}",
+                    buttons=[
+                        {"id": "catalog", "title": "Ver catálogo"},
+                        {"id": "human", "title": "Asesor"},
+                    ],
+                )
+            ]
+        )
+
     async def _llm_handle(
         self,
         session: AsyncSession,
@@ -2148,6 +2257,9 @@ class Agent:
         promo_context = await self._promotion_preflight(text, toolbox)
         if promo_context:
             messages.append({"role": "system", "content": promo_context})
+        reco_context = await self._recommendation_preflight(text, toolbox)
+        if reco_context:
+            messages.append({"role": "system", "content": reco_context})
         # Ventana corta: el historial largo encarece el prompt y agrega latencia
         # sin mejorar la respuesta.
         messages.extend(history[-6:])
