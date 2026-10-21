@@ -554,12 +554,16 @@ class ServiceLayerSap:
     async def get_offer(
         self, sku: str, quantity: int = 1, force_refresh: bool = False
     ) -> Offer | None:
-        item = await self.get_item(sku, force_refresh=force_refresh)
+        # Artículo y precios son independientes: en paralelo se ahorra un
+        # viaje completo a SAP en la primera consulta.
+        if not self._client.cookies:
+            await self._login()
+        item, periods = await asyncio.gather(
+            self.get_item(sku, force_refresh=force_refresh),
+            self.get_price_periods(sku, force_refresh=force_refresh),
+        )
         if item is None:
             return None
-        periods = await self.get_price_periods(
-            sku, force_refresh=force_refresh
-        )
         return build_offer(item, periods, quantity)
 
     async def _ensure_bp(self, contact: Contact) -> str:
@@ -742,18 +746,30 @@ class HybridSap:
     async def get_offer(
         self, sku: str, quantity: int = 1, force_refresh: bool = False
     ) -> Offer | None:
-        item = await self.get_item(sku, force_refresh=force_refresh)
-        if item is None:
-            return None
-        periods: list[PricePeriod] = []
         getter = getattr(self.reader, "get_price_periods", None)
-        if getter is not None:
+        if getter is None:
+            item = await self.get_item(sku, force_refresh=force_refresh)
+            if item is None:
+                return None
+            return build_offer(item, [], quantity)
+
+        async def price_periods() -> list[PricePeriod]:
             try:
-                periods = await getter(sku, force_refresh=force_refresh)
+                return await getter(sku, force_refresh=force_refresh)
             except Exception:  # noqa: BLE001
                 if force_refresh:
                     raise
-                logger.exception("No se pudieron leer precios especiales de %s", sku)
+                logger.exception(
+                    "No se pudieron leer precios especiales de %s", sku
+                )
+                return []
+
+        item, periods = await asyncio.gather(
+            self.get_item(sku, force_refresh=force_refresh),
+            price_periods(),
+        )
+        if item is None:
+            return None
         return build_offer(item, periods, quantity)
 
     async def create_sales_order(self, order: Order) -> SapOrderResult:
@@ -935,12 +951,14 @@ class PaasSap:
     async def get_offer(
         self, sku: str, quantity: int = 1, force_refresh: bool = False
     ) -> Offer | None:
-        item = await self.get_item(sku, force_refresh=force_refresh)
+        # Artículo y precios son independientes: en paralelo se ahorra un
+        # viaje completo al integrador en la primera consulta.
+        item, periods = await asyncio.gather(
+            self.get_item(sku, force_refresh=force_refresh),
+            self.get_price_periods(sku, force_refresh=force_refresh),
+        )
         if item is None:
             return None
-        periods = await self.get_price_periods(
-            sku, force_refresh=force_refresh
-        )
         return build_offer(item, periods, quantity)
 
     async def post(self, path: str, payload: dict) -> dict:

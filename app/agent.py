@@ -2148,7 +2148,9 @@ class Agent:
         promo_context = await self._promotion_preflight(text, toolbox)
         if promo_context:
             messages.append({"role": "system", "content": promo_context})
-        messages.extend(history[-10:])
+        # Ventana corta: el historial largo encarece el prompt y agrega latencia
+        # sin mejorar la respuesta.
+        messages.extend(history[-6:])
         messages.append({"role": "user", "content": text})
 
         for _ in range(4):

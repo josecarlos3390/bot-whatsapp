@@ -29,7 +29,7 @@ async def _history(
         select(Message)
         .where(Message.conversation_id == conversation_id)
         .order_by(Message.created_at.desc())
-        .limit(10)
+        .limit(6)
     )
     if exclude_id:
         stmt = stmt.where(Message.id != exclude_id)
