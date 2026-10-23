@@ -1,4 +1,4 @@
-﻿from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     public_base_url: str = "http://localhost:8000"
     admin_token: str = ""
+    internal_refresh_token: str = ""
     seed_demo: bool = True
     knowledge_dir: str = "knowledge"
     bot_name: str = "Rohi"

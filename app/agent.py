@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import html
 import json
 import logging
 import re
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime, timezone
 from decimal import Decimal
+from pathlib import Path
 
 from openai import AsyncOpenAI
 from sqlalchemy import or_, select
@@ -25,7 +27,11 @@ from .models import (
 from .services import (
     cart as cart_service,
     catalog,
+    area_router,
+    conversation_state,
+    conversation_guard,
     customer_analysis,
+    intent_guard,
     customers,
     feedback,
     handoffs,
@@ -35,12 +41,46 @@ from .services import (
     orders,
     pricing,
     purchases,
+    order_tracking,
+    occasions,
+    occasion_store,
+    recommendations,
+    return_flow,
+    rule_policy,
+    rules_engine,
+    semantic,
     sales_stats,
+    vtex_customers,
 )
 from .sap import SapError, ServiceLayerSap, get_sap
 from .whatsapp import Outbound, WhatsAppClient, normalize_whatsapp_text
 
 logger = logging.getLogger(__name__)
+
+_TOOL_TRACE = Path("logs") / "bot_tools.jsonl"
+
+
+def _log_tool_trace(name: str, arguments: dict, result: dict) -> None:
+    """Auditoría local de tool calls para revisar errores de interpretación."""
+    try:
+        _TOOL_TRACE.parent.mkdir(exist_ok=True)
+        with _TOOL_TRACE.open("a", encoding="utf-8") as handle:
+            handle.write(
+                json.dumps(
+                    {
+                        "at": datetime.now(timezone.utc).isoformat(),
+                        "tool": name,
+                        "args": arguments,
+                        "ok": result.get("ok"),
+                        "error": str(result.get("error") or "")[:300],
+                    },
+                    ensure_ascii=False,
+                    default=str,
+                )
+                + "\n"
+            )
+    except Exception:  # noqa: BLE001 - la trazabilidad no debe romper el bot
+        logger.debug("No se pudo escribir tool trace", exc_info=True)
 
 
 def money(amount: Decimal | int | float | str) -> str:
@@ -55,6 +95,16 @@ _STOPWORDS = {
     "busco",
     "buscame",
     "buscar",
+    "buscando",
+    "buscaba",
+    "estoy",
+    "comprar",
+    "compro",
+    "deseo",
+    "quisiera",
+    "ver",
+    "opciones",
+    "mostrar",
     "un",
     "una",
     "unos",
@@ -66,9 +116,17 @@ _STOPWORDS = {
     "favor",
     "hola",
     "me",
+    "mi",
+    "mis",
+    "tu",
+    "tus",
+    "su",
+    "sus",
     "puedes",
     "mostrar",
     "tienes",
+    "tiene",
+    "tienen",
     "hay",
     "el",
     "la",
@@ -82,8 +140,217 @@ _STOPWORDS = {
 
 
 def _clean_query(text: str) -> str:
-    words = [w for w in re.split(r"\s+", text.strip()) if w]
-    return " ".join(w for w in words if w.lower() not in _STOPWORDS)
+    value = re.sub(r"[^\wáéíóúñü]+", " ", (text or "").lower())
+    words = [w for w in value.split() if w]
+    return " ".join(w for w in words if w not in _STOPWORDS)
+
+
+TV_QUERY_RE = re.compile(
+    r"\b(televisor(?:es)?|television(?:es)?)\b", re.IGNORECASE
+)
+TV_INTENT_RE = re.compile(
+    r"\b(tv|televisor(?:es)?|television(?:es)?)\b", re.IGNORECASE
+)
+TV_NAME_RE = re.compile(r"^\s*TV\b", re.IGNORECASE)
+
+
+def _normalize_tv_query(text: str) -> str:
+    """'televisor' se busca como 'tv': así aparecen todos los TVs y no
+    sólo los que tienen la palabra en categoría."""
+    return TV_QUERY_RE.sub("tv", text or "")
+
+
+def _only_tvs(products: list[dict]) -> list[dict]:
+    filtered = [
+        product
+        for product in products
+        if TV_NAME_RE.match(str(product.get("name") or ""))
+    ]
+    return filtered or products
+
+
+def _semantic_term_match(product: dict, term: str) -> bool:
+    """Evita que 'baby shower' termine recomendando una ducha o Babyliss."""
+    tokens = [
+        _fold_word(token)
+        for token in re.split(r"[^\wáéíóúñü]+", term)
+        if len(token) > 2
+    ]
+    if not tokens:
+        return False
+    blob = _fold_word(
+        f"{product.get('name') or ''} {product.get('category') or ''}"
+    )
+    for token in tokens:
+        if token in blob or token.rstrip("s") in blob:
+            continue
+        if token in {"televisor", "television", "televisores"} and "tv" in blob:
+            continue
+        return False
+    return True
+
+
+def _conversational_search(text: str) -> bool:
+    """¿La búsqueda viene en una frase conversacional?
+
+    Las frases largas se derivan al agente LLM para que sintetice la consulta
+    y redacte la respuesta; las palabras sueltas siguen el atajo rápido.
+    """
+    words = re.findall(r"[a-záéíóúñü]+", _fold_word(text))
+    if len(words) < 4:
+        return False
+    fillers = {
+        "estoy",
+        "buscando",
+        "busco",
+        "quiero",
+        "comprar",
+        "necesito",
+        "quisiera",
+        "deseo",
+        "hola",
+        "buenas",
+        "ayudame",
+        "podrias",
+        "gustaria",
+        "para",
+        "mi",
+        "de",
+        "un",
+        "una",
+    }
+    return any(word in fillers for word in words)
+
+
+def _remove_query_echo(answer: str, text: str) -> str:
+    """Evita que la IA repita la frase cruda del cliente como título."""
+    raw = (text or "").strip()
+    clean = _clean_query(raw)
+    if raw and clean and raw.lower() != clean.lower():
+        for left, right in (
+            (f"*{raw}*", f"*{clean}*"),
+            (f"“{raw}”", f"“{clean}”"),
+            (f'"{raw}"', f'"{clean}"'),
+        ):
+            answer = answer.replace(left, right)
+    return answer
+
+
+def _requested_size(text: str) -> str | None:
+    """Extrae '50 pulgadas', '50"' o '50 plg' como filtro de medida."""
+    match = re.search(
+        r'\b(\d{2,3})\s*(?:pulgadas?|pulg\.?|plg\.?|"|in)(?=\s|$|[.,;])',
+        text or "",
+        re.IGNORECASE,
+    )
+    return match.group(1) if match else None
+
+
+def _requested_quantity(text: str) -> int:
+    """Cantidad explícita: '3 televisores', '2 unidades', 'quiero 4'."""
+    match = re.search(
+        r"\b(?:quiero|necesito|comprar|llevar|encargar|pedir)\s+"
+        r"(\d{1,3})\b"
+        r"|\b(\d{1,3})\s*(?:unidades?|piezas?|televisores?|"
+        r"heladeras?|colchones?|lavadoras?|aires?|muebles?)\b",
+        text or "",
+        re.IGNORECASE,
+    )
+    if not match:
+        return 1
+    return max(1, int(match.group(1) or match.group(2)))
+
+
+def _amount(value: str) -> float:
+    raw = (value or "").replace(" ", "").replace("Bs", "").replace("BOB", "")
+    if "," in raw and "." in raw:
+        raw = raw.replace(".", "").replace(",", ".")
+    elif raw.count(".") > 1:
+        raw = raw.replace(".", "")
+    elif "." in raw and len(raw.rsplit(".", 1)[-1]) == 3:
+        raw = raw.replace(".", "")
+    elif "," in raw:
+        raw = raw.replace(",", ".")
+    return float(raw)
+
+
+def _requested_budget(text: str) -> tuple[float | None, float | None]:
+    """Extrae presupuesto explícito. No interpreta cualquier número."""
+    value = text or ""
+    between = re.search(
+        r"\bentre\s+([\d.,]+)\s+y\s+([\d.,]+)\b", value, re.IGNORECASE
+    )
+    if between:
+        try:
+            low, high = _amount(between.group(1)), _amount(between.group(2))
+            return min(low, high), max(low, high)
+        except ValueError:
+            return None, None
+    maximum = re.search(
+        r"\b(?:presupuesto(?:\s+de)?|hasta|m[aá]ximo|m[aá]x\.?|"
+        r"no\s+m[aá]s\s+de|menos\s+de|tope)\s*"
+        r"(?:bs\.?|bob)?\s*([\d.,]+)\b",
+        value,
+        re.IGNORECASE,
+    )
+    if maximum:
+        try:
+            return None, _amount(maximum.group(1))
+        except ValueError:
+            return None, None
+    return None, None
+
+
+def _strip_budget(text: str) -> str:
+    value = re.sub(
+        r"\b(?:presupuesto(?:\s+de)?|hasta|m[aá]ximo|m[aá]x\.?|"
+        r"no\s+m[aá]s\s+de|menos\s+de|tope)\s*"
+        r"(?:bs\.?|bob)?\s*[\d.,]+\b",
+        " ",
+        text or "",
+        flags=re.IGNORECASE,
+    )
+    value = re.sub(
+        r"\bentre\s+[\d.,]+\s+y\s+[\d.,]+\b",
+        " ",
+        value,
+        flags=re.IGNORECASE,
+    )
+    return re.sub(r"\s+", " ", value).strip()
+
+
+def _strip_quantity(text: str, quantity: int) -> str:
+    if quantity <= 1:
+        return text
+    value = re.sub(
+        rf"\b{quantity}\s*(?:unidades?|piezas?)\b",
+        " ",
+        text or "",
+        flags=re.IGNORECASE,
+    )
+    value = re.sub(rf"\b{quantity}\b", " ", value)
+    return re.sub(r"\s+", " ", value).strip()
+
+
+def _numbered_lines(values: list[str]) -> str:
+    return "\n".join(
+        f"{index}. {value}" for index, value in enumerate(values, start=1)
+    )
+
+
+def _remove_stock_phrases(answer: str) -> str:
+    """La ficha/tarjetas no muestran stock; quitamos frases sueltas del LLM."""
+    answer = re.sub(r"\s+en stock\b", "", answer, flags=re.IGNORECASE)
+    answer = re.sub(
+        r"\bstock\s*[:=]?\s*\d+\b", "", answer, flags=re.IGNORECASE
+    )
+    answer = re.sub(
+        r"\b(queda|quedan)\s+\d+\s+unidad(?:es)?\b",
+        "",
+        answer,
+        flags=re.IGNORECASE,
+    )
+    return re.sub(r"[ \t]{2,}", " ", answer).strip()
 
 
 def _fold_word(value: str) -> str:
@@ -108,7 +375,8 @@ TOOLS = [
             "name": "search_products",
             "description": (
                 "Busca productos del catálogo por texto, categoría, marca, "
-                "rango de precio o solo con descuento."
+                "rango de precio o solo con descuento. Extraé la palabra clave "
+                "de la frase del cliente; no pases la frase completa."
             ),
             "parameters": {
                 "type": "object",
@@ -119,11 +387,35 @@ TOOLS = [
                     },
                     "category": {"type": "string"},
                     "brand": {"type": "string"},
+                    "size": {"type": "string"},
                     "min_price": {"type": "number", "minimum": 0},
                     "max_price": {"type": "number", "minimum": 0},
                     "only_discount": {"type": "boolean"},
+                    "quantity": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Cantidad que el cliente quiere comprar.",
+                    },
                     "limit": {"type": "integer", "minimum": 1, "maximum": 8},
                 },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_catalog_facets",
+            "description": (
+                "Devuelve marcas, medidas y cantidad de productos con stock "
+                "para una categoría. Usar para preguntas como '¿tienen "
+                "televisores?' antes de listar modelos."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string"},
+                },
+                "required": ["query"],
             },
         },
     },
@@ -141,9 +433,15 @@ TOOLS = [
                     "query": {"type": "string"},
                     "category": {"type": "string"},
                     "brand": {"type": "string"},
+                    "size": {"type": "string"},
                     "min_price": {"type": "number", "minimum": 0},
                     "max_price": {"type": "number", "minimum": 0},
                     "only_discount": {"type": "boolean"},
+                    "quantity": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Cantidad que el cliente quiere comprar.",
+                    },
                     "limit": {"type": "integer", "minimum": 1, "maximum": 8},
                 },
             },
@@ -364,7 +662,10 @@ TOOLS = [
             "name": "get_purchase_history",
             "description": (
                 "Devuelve las compras del cliente: cantidad, total, última "
-                "compra, categorías y facturas recientes con productos."
+                "compra, categorías y facturas recientes con productos. "
+                "Usar cuando pregunte por sus compras, historial, gasto, "
+                "pedidos o facturas; no usar search_products para eso. "
+                "Si linked=false, pedir CI o NIT antes."
             ),
             "parameters": {
                 "type": "object",
@@ -426,8 +727,9 @@ TOOLS = [
         "function": {
             "name": "link_customer",
             "description": (
-                "Vincula el contacto con el CardCode confirmado y sincroniza "
-                "su historial de compras. Solo tras confirmar nombre."
+                "Vincula el contacto con el cliente confirmado (CardCode en "
+                "SAP o documento en VTEX) y sincroniza su historial de compras. "
+                "Solo tras confirmar nombre."
             ),
             "parameters": {
                 "type": "object",
@@ -530,6 +832,18 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "explain_recommendation",
+            "description": (
+                "Explica con datos reales por qué se recomendaron los "
+                "productos anteriores: precio, descuento, disponibilidad, "
+                "marca o medida. No inventes criterios."
+            ),
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "human_handoff",
             "description": "Deriva la conversación a un asesor humano.",
             "parameters": {
@@ -550,17 +864,41 @@ Personalidad:
   de tienda que conoce los productos, no como un formulario.
 - Cercana pero profesional. Tutea. Usá "¡Hola!" y el nombre del cliente si lo
   tenés.
-- Emojis con moderación: máximo 2 por mensaje y solo si suman calidez.
+- Emojis con moderación: máximo 1 por mensaje y solo si suman calidez.
   Nunca en un reclamo, error de pago o tema serio.
-- Humor sutil, nunca forzado. No digas "estimado cliente" ni "soy un robot".
+- Humor sutil y ocasional: una frase ligera cada tanto, solo si el cliente
+  está relajado. Nunca sobre precio, stock, errores, reclamos, datos
+  personales o competencia. Si el cliente está molesto, cero humor.
+- Humor máximo una frase corta cada 4-5 respuestas. Nunca en consultas de
+  precio, stock, pagos, devoluciones o reclamos. Si el cliente está apurado,
+  respondé directo y cálido, sin bromas.
+- La calidez se demuestra con atención y claridad, no con chistes. Si el
+  humor no suma, no lo uses.
+- Sé sutil: no cuentes chistes ni uses muletillas; un comentario breve y
+  natural. No digas "estimado cliente" ni "soy un robot".
 - Usá el saludo de la hora (buenos días/tardes/noches) cuando corresponda.
   Si hay feriado o clima en el contexto, mencionarlo solo si aporta; no lo
   repitas en cada mensaje ni inventes datos.
-- No repitas el saludo en cada mensaje ni empieces con "Encontré estas
-  opciones" de forma seca.
+- No repitas el saludo ni el nombre del cliente en cada mensaje.
+- No empieces con "Encontré estas opciones" de forma seca.
 
 Estilo:
 - Español boliviano, cálido y conversacional. Máximo 5 líneas por respuesta.
+- Respondé primero lo que el cliente preguntó; después hacé una sola pregunta.
+- En la ficha y en las tarjetas de producto no muestres stock ni cantidades.
+  Si preguntan disponibilidad, respondé solo sí o no. No digas "en stock".
+- No repitas la frase textual del cliente; nombrá el producto o la categoría.
+- Cuando enumeres marcas o medidas, mostralas una por línea:
+  1. marca uno
+  2. marca dos
+- Si escribe con errores o abrevia (air, televisro, refri), inferí la
+  categoría más probable. No repitas el error ni respondas "no tengo <texto>".
+  Si hay duda real entre categorías, preguntá "¿Te referís a ...?" antes de
+  listar. Si estás seguro, avanzá y preguntá marca o tamaño.
+- En precio o stock: primero el dato exacto, después una sola pregunta.
+- En un reclamo: disculpa breve, solución o derivación; cero humor.
+  Si el producto llegó roto, falló o hubo un problema, empezá con
+  "Lamento lo ocurrido" antes de derivar. No empieces con "Listo".
 - Haz una pregunta a la vez; no interrogues.
 - Si el cliente ya dijo qué busca, primero mostrale 2-3 opciones con precio;
   después preguntá medida, estilo o presupuesto. No lo interrogues antes de
@@ -570,6 +908,12 @@ Estilo:
 Método de venta:
 1. Descubre la necesidad: uso, ocasión, espacio, presupuesto o estilo.
 2. Busca con search_products y recomienda 1 o 2 opciones concretas.
+   Si el cliente menciona un producto o categoria concreta (televisor, TV,
+   colchon, lavadora...), extrae la palabra clave y llama search_products
+   antes de preguntar medida o marca. Mostra al menos una opcion con precio.
+   Si pregunta "tenes televisores" o similar, sin marca ni modelo, usa
+   get_catalog_facets y responde con las marcas reales; pregunta cual prefiere
+   antes de listar modelos.
    Si pide “colchones en descuento”, “de la marca X” o “hasta Bs Y”, usá
    search_products con category/brand/only_discount/max_price; no mandes
    todo el catálogo.
@@ -598,6 +942,24 @@ Método de venta:
 5. Ofrece un complemento o una tienda con stock; no empujes de más.
 6. Cierra con una pregunta simple: "¿Te lo agrego?", "¿Lo vemos en Tienda 1?".
 
+Seguimiento de pedido:
+- Si pide "estado de mi pedido", "seguimiento", "tracking", "dónde está mi
+  pedido" o "mi pedido ya", pedile el ID de pedido que VTEX envió al correo
+  (formato similar a 1670220500193-01).
+- No pidas CI/NIT para consultar un pedido por su ID.
+- Consultá el pedido con la herramienta de seguimiento y no inventes estado,
+  fecha, guía ni transportista.
+- Si no encontrás el ID, pedí que lo revise en el correo o derivá a asesor.
+
+Compras del cliente:
+- Si pide "mis compras", "mi historial", "cuanto gaste" o "mi factura",
+  no inventes datos.
+- Pedile el CI o NIT (documento) con consentimiento y usa identify_customer.
+- Mostra el nombre enmascarado y pedi confirmacion. Si confirma, usa
+  link_customer con el card_code del candidato.
+- Despues usa get_purchase_history. Si no hay compras, decilo con claridad.
+- No pidas CI/NIT para consultas de producto, precio o stock.
+
 Objeciones y confianza:
 - Si dice que está caro, no lo discutas: ofrecé 1 o 2 alternativas más
   económicas de la misma categoría con stock (search_products con max_price) o
@@ -605,10 +967,10 @@ Objeciones y confianza:
   cuenta ni inventes un descuento.
 - Mencioná la marca cuando aporte confianza (Bosch, Karcher, Tramontina…):
   viene del dato del artículo (campo brand), no la inventes.
-- Nunca ofrezcas ni sugieras artículos con stock 0; si el stock es bajo,
-  decilo ("queda 1 unidad").
+- Nunca ofrezcas ni sugieras artículos con stock 0. Usá el stock
+  internamente para elegir, pero no muestres cantidades ni digas "queda 1".
 - Si el cliente duda entre dos modelos, usá compare_products y compará en 2 o 3
-  puntos concretos (precio, medida/potencia, stock) y recomendá uno.
+  puntos concretos (precio, medida/potencia, disponibilidad) y recomendá uno.
 
 Derivación:
 - Derivá sólo si el cliente lo pide explícitamente o si el tema no es de
@@ -640,7 +1002,11 @@ Memoria:
 
 Historial:
 - Si el cliente pregunta qué compró, cuántas compras hizo o cuánto gastó,
-  usa get_purchase_history.
+  usa get_purchase_history. No uses search_products para eso.
+- Si get_purchase_history devuelve linked=false, pedile CI o NIT con
+  consentimiento, usá identify_customer, confirmá el nombre y luego
+  link_customer; después volvé a consultar get_purchase_history.
+- No digas "no tenés compras" si linked=false: primero identificá al cliente.
 - Usa get_customer_analysis para segmento, ticket promedio, frecuencia y
   recencia; adaptá la recomendación (nuevo, recurrente, alto valor, en riesgo).
 - Para recomendar según lo que ya compró, usa recommend_for_customer y explica
@@ -667,6 +1033,13 @@ Feedback:
 
 Reglas:
 - Usa SIEMPRE las herramientas para precio, stock, descuentos y pedidos.
+- Si el cliente indica cantidad, pasala en `quantity`; si indica
+  presupuesto, usá `min_price`/`max_price`. No muestres cantidades de stock.
+- Si el cliente pregunta por qué recomendaste algo, usá
+  explain_recommendation y explicá criterios reales: precio, descuento,
+  disponibilidad, marca o medida. No inventes calidad ni stock.
+- Si pide un televisor, no ofrezcas paneles, racks ni soportes como si
+  fueran televisores.
 - Nunca inventes promociones, descuentos, stock ni plazos.
 - No prometas descuentos que no estén en SAP ni crees urgencia falsa.
 - No inventes reseñas, testimonios ni “más vendido” sin datos.
@@ -692,12 +1065,65 @@ class Toolbox:
         self.last_cart: bool = False
         self.last_search: dict | None = None
 
+    async def _remember_search_context(self, query: str) -> None:
+        """Guarda el rubro/marca para que el siguiente mensaje no pierda contexto."""
+        value = (query or "").strip()
+        if not value:
+            return
+        conversation = await self.session.scalar(
+            select(Conversation).where(
+                Conversation.contact_id == self.contact_id
+            )
+        )
+        if conversation is None:
+            conversation = Conversation(contact_id=self.contact_id)
+            self.session.add(conversation)
+        conversation.last_query = value[:300]
+        await self.session.commit()
+
+    async def _update_state(self, **kwargs) -> None:
+        conversation = await self.session.scalar(
+            select(Conversation).where(
+                Conversation.contact_id == self.contact_id
+            )
+        )
+        if conversation is None:
+            conversation = Conversation(contact_id=self.contact_id)
+            self.session.add(conversation)
+            await self.session.flush()
+        await conversation_state.update_state(
+            self.session, conversation.id, **kwargs
+        )
+
+    async def _current_state(self):
+        conversation = await self.session.scalar(
+            select(Conversation).where(
+                Conversation.contact_id == self.contact_id
+            )
+        )
+        if conversation is None:
+            conversation = Conversation(contact_id=self.contact_id)
+            self.session.add(conversation)
+            await self.session.flush()
+        return await conversation_state.get_state(
+            self.session, conversation.id
+        )
+
     async def dispatch(self, name: str, arguments: dict) -> dict:
         method = getattr(self, f"tool_{name}", None)
         if method is None:
             return {"ok": False, "error": f"Herramienta desconocida: {name}"}
         try:
-            return await method(**arguments)
+            result = await method(**arguments)
+            logger.info(
+                "tool=%s args=%s ok=%s error=%s",
+                name,
+                arguments,
+                result.get("ok"),
+                str(result.get("error") or "")[:200],
+            )
+            _log_tool_trace(name, arguments, result)
+            return result
         except TypeError as exc:
             return {"ok": False, "error": f"Argumentos inválidos: {exc}"}
         except Exception as exc:  # noqa: BLE001 - el LLM debe recibir el error
@@ -714,6 +1140,8 @@ class Toolbox:
             "stock": item.stock,
             "category": getattr(item, "category", None),
             "brand": getattr(item, "brand", None),
+            "image_url": getattr(item, "image_url", None),
+            "description": getattr(item, "description", None),
         }
 
     async def _attach_promotions(self, products: list[dict]) -> None:
@@ -893,9 +1321,12 @@ class Toolbox:
         limit: int = 5,
         category: str | None = None,
         brand: str | None = None,
+        size: str | None = None,
         min_price: float | None = None,
         max_price: float | None = None,
         only_discount: bool = False,
+        quantity: int = 1,
+        ignore_state: bool = False,
     ) -> dict:
         take = min(int(limit or 5), 8)
         # Código de barra: si el mensaje trae un EAN/UPC, se resuelve directo.
@@ -917,6 +1348,21 @@ class Toolbox:
                     "barcode_match": True,
                     "filters": {"query": query, "barcode": barcode},
                 }
+        if query:
+            query = _clean_query(query) or query
+            query = _normalize_tv_query(query)
+        if category and TV_INTENT_RE.search(category):
+            category = None
+        state = await self._current_state()
+        query_category = bool(query and SEARCH_RE.search(query))
+        if not ignore_state:
+            if not category and state.category and not query_category:
+                category = state.category
+            if not brand and state.brand and not query_category:
+                brand = state.brand
+        size = size or _requested_size(query or "") or (
+            state.size if not ignore_state else None
+        )
         has_filters = any(
             (
                 category,
@@ -957,6 +1403,16 @@ class Toolbox:
         exact_match = any(
             catalog.is_head_match(row, query) for row in rows
         )
+        # Si hay coincidencias reales por nombre, no mezclar accesorios
+        # ("panel de TV", "soporte de TV") entre los primeros resultados.
+        if exact_match and query and not has_filters:
+            head_rows = [
+                row for row in rows if catalog.is_head_match(row, query)
+            ]
+            if head_rows:
+                rows = head_rows
+                products = [self._product(row) for row in rows]
+                await self._attach_promotions(products)
         # "colchón queen" sin coincidencias exactas: mejor mostrar colchones
         # (el producto base) que protectores que sólo mencionan la palabra.
         if rows and not exact_match and query and not has_filters:
@@ -977,6 +1433,65 @@ class Toolbox:
         # Si SAP dice que no hay stock, no se ofrece (salvo que no quede nada).
         if products and any(p.get("stock", 0) > 0 for p in products):
             products = [p for p in products if p.get("stock", 0) > 0]
+        size = _requested_size(query or "")
+        if size:
+            size_re = re.compile(rf"\b{re.escape(size)}\b")
+            products = [
+                p
+                for p in products
+                if size_re.search(str(p.get("name") or ""))
+            ]
+            exact_match = bool(products)
+        requested_quantity = max(1, int(quantity or 1))
+        shortfall = 0
+        if requested_quantity > 1:
+            enough = [
+                product
+                for product in products
+                if int(product.get("stock") or 0) >= requested_quantity
+            ]
+            if enough:
+                products = enough
+            else:
+                products = []
+                shortfall = requested_quantity
+        if query and TV_INTENT_RE.search(query):
+            products = _only_tvs(products)
+        rules = await rules_engine.brand_rules(
+            self.session, category=category or query
+        )
+        products = rules_engine.order_products(products, rules)
+        promo_rules = await rules_engine.promotion_rules(
+            self.session, category=category or query
+        )
+        products = rules_engine.order_promotions(products, promo_rules)
+        if query and not brand and not category and SEARCH_RE.search(query):
+            await self._remember_search_context(query)
+        state_brand = brand
+        if not state_brand and products:
+            candidate = products[0].get("brand")
+            if candidate and _fold_word(candidate) in _fold_word(query or ""):
+                state_brand = candidate
+        await self._update_state(
+            category=category or (
+                catalog.primary_term(query) if query_category else None
+            ),
+            brand=state_brand,
+            size=size,
+            intent="search",
+            last_sku=(products[0]["sku"] if products else None),
+        )
+        await recommendations.save(
+            self.session,
+            self.contact_id,
+            query=query,
+            category=category,
+            brand=brand,
+            size=size,
+            min_price=min_price,
+            max_price=max_price,
+            products=products,
+        )
         self.last_search = {
             "products": products,
             "fallback_without_discount": fallback,
@@ -998,8 +1513,26 @@ class Toolbox:
                 "brand": brand,
                 "min_price": min_price,
                 "max_price": max_price,
+                "quantity": requested_quantity,
                 "only_discount": only_discount,
             },
+            "quantity_shortfall": shortfall,
+        }
+
+    async def tool_get_catalog_facets(self, query: str) -> dict:
+        await self._remember_search_context(query)
+        await self._update_state(category=query, intent="availability")
+        data = await catalog.facets(self.session, query, limit=5)
+        rules = await rules_engine.brand_rules(
+            self.session, category=query
+        )
+        brands = rules_engine.order_brands(data.get("brands", []), rules)
+        return {
+            "ok": True,
+            "query": query,
+            "total": data.get("total", 0),
+            "brands": brands,
+            "sizes": data.get("sizes", []),
         }
 
     async def tool_show_catalog(
@@ -1007,9 +1540,11 @@ class Toolbox:
         query: str | None = None,
         category: str | None = None,
         brand: str | None = None,
+        size: str | None = None,
         min_price: float | None = None,
         max_price: float | None = None,
         only_discount: bool = False,
+        quantity: int = 1,
         limit: int = 5,
     ) -> dict:
         rows = await catalog.search_items(
@@ -1037,6 +1572,33 @@ class Toolbox:
             fallback = True
         products = [self._product(row) for row in rows]
         await self._attach_promotions(products)
+        if size:
+            size_re = re.compile(rf"\b{re.escape(str(size))}\b")
+            products = [
+                p
+                for p in products
+                if size_re.search(str(p.get("name") or ""))
+            ]
+        if quantity and int(quantity) > 1:
+            products = [
+                p
+                for p in products
+                if int(p.get("stock") or 0) >= int(quantity)
+            ]
+        rules = await rules_engine.brand_rules(
+            self.session, category=category or query
+        )
+        products = rules_engine.order_products(products, rules)
+        promo_rules = await rules_engine.promotion_rules(
+            self.session, category=category or query
+        )
+        products = rules_engine.order_promotions(products, promo_rules)
+        await self._update_state(
+            category=category or query,
+            brand=brand,
+            size=size,
+            intent="catalog",
+        )
         if not native_commerce.is_ready():
             return {
                 "ok": True,
@@ -1146,8 +1708,14 @@ class Toolbox:
             }
         sap = None
         try:
-            sap = ServiceLayerSap(self.session)
-            candidates = await customers.find_by_document(sap, document)
+            if settings.sap_mode == "vtex":
+                sap = get_sap(self.session)
+                candidates = await vtex_customers.find_candidates(
+                    sap, document
+                )
+            else:
+                sap = ServiceLayerSap(self.session)
+                candidates = await customers.find_by_document(sap, document)
         except Exception as exc:  # noqa: BLE001
             logger.exception("No se pudo identificar al cliente")
             return {"ok": False, "error": str(exc)[:300]}
@@ -1194,9 +1762,13 @@ class Toolbox:
             return {"ok": False, "error": str(exc)[:300]}
 
     async def tool_get_purchase_history(self, limit: int = 10) -> dict:
-        return await purchases.get_history(
+        result = await purchases.get_history(
             self.session, self.contact_id, limit=limit
         )
+        result["linked"] = bool(
+            self.contact.tax_id or self.contact.sap_card_code
+        )
+        return result
 
     async def tool_recommend_for_customer(
         self, need: str | None = None, limit: int = 3
@@ -1601,6 +2173,21 @@ class Toolbox:
             "invoice_doc_num": order.invoice_doc_num,
         }
 
+    async def tool_explain_recommendation(self) -> dict:
+        snapshot = await recommendations.latest(
+            self.session, self.contact_id
+        )
+        if snapshot is None:
+            return {
+                "ok": False,
+                "error": "No hay una recomendación reciente para explicar",
+            }
+        return {
+            "ok": True,
+            "explanation": recommendations.explain(snapshot),
+            "products": snapshot.products or [],
+        }
+
     async def tool_human_handoff(self, reason: str = "") -> dict:
         conversation = await self.session.scalar(
             select(Conversation).where(Conversation.contact_id == self.contact_id)
@@ -1628,6 +2215,21 @@ RECO_RE = re.compile(
     r"\b(recomend\w*|recomiend\w*|suger\w*|sugerencia(?:s)?|aconsej\w*|"
     r"consejo(?:s)?)\b|"
     r"\bqu[eé]\s+me\s+conviene\b|\bpara\s+regalar\b",
+    re.IGNORECASE,
+)
+EXPLAIN_RE = re.compile(
+    r"\b(por\s*qu[eé]|porque|recomendaste|qu[eé]\s+tienen|"
+    r"algo\s+especial|en\s+especial)\b",
+    re.IGNORECASE,
+)
+RECOMMENDATION_EXPLAIN_RE = re.compile(
+    r"\b(por\s*qu[eé]|porque)\b[\s\S]{0,90}\b"
+    r"(recomend\w*|mostr\w*|opci\w*|esos|esas|eso|televisor\w*|producto)\b",
+    re.IGNORECASE,
+)
+SEMANTIC_QUERY_RE = re.compile(
+    r"\b(algo para|qu[eé] (tienen|hay) para|tienen para|"
+    r"busco algo para|necesito algo para|regalo para|ideas para)\b",
     re.IGNORECASE,
 )
 # Consultas de políticas/FAQ: se precarga la base de conocimiento.
@@ -1672,6 +2274,11 @@ CHECKOUT_RE = re.compile(
     r"link\s+de\s+pago|pagar|checkout)\b",
     re.IGNORECASE,
 )
+PAYMENT_METHOD_RE = re.compile(
+    r"\b(qr|tarjeta|efectivo|transferencia|cuotas?|"
+    r"medios?\s+de\s+pago|formas?\s+de\s+pago)\b",
+    re.IGNORECASE,
+)
 CLEAR_CART_RE = re.compile(
     r"\b(vac[ií]a(?:r|me)?|limpi(?:a|ar)|borr(?:a|ar))\b.*\bcarrito\b|"
     r"\bcarrito\b.*\b(vac[ií]a(?:r|me)?|limpi(?:a|ar)|borr(?:a|ar))\b",
@@ -1687,6 +2294,48 @@ STATUS_RE = re.compile(
     r"|\b(factura|comprobante)\b",
     re.IGNORECASE,
 )
+TRACKING_RE = re.compile(
+    r"\b(seguimiento|tracking|rastre(?:ar|o)|gu[ií]a)\b"
+    r"|\b(d[oó]nde\s+est[aá]|donde\s+esta)\s+(mi|el)\s+pedido\b"
+    r"|\b(c[oó]mo|como)\s+va\s+(mi|el)\s+pedido\b"
+    r"|\bestado\s+(de|del)\s+(mi\s+)?pedido\b"
+    r"|\bmi\s+pedido\s+ya\b"
+    r"|\b(n[uú]mero|id)\s+de\s+pedido\b"
+    r"|\bquiero\s+(ver|saber)\s+(mi|el)\s+pedido\b",
+    re.IGNORECASE,
+)
+PURCHASE_RE = re.compile(
+    r"\b(mis\s+compras|mi\s+historial|historial\s+de\s+compras|"
+    r"qu[eé]\s+compr[eé]|cu[aá]nto\s+gast[eé]|mis\s+pedidos)\b",
+    re.IGNORECASE,
+)
+HANDOFF_RE = re.compile(
+    r"\b(asesor|humano|persona\s+real|agente|hablar\s+con\s+alguien)\b",
+    re.IGNORECASE,
+)
+COMPLAINT_RE = re.compile(
+    r"\b(roto|rota|da[nñ]ado|defectuoso|no\s+funciona|reclamo|"
+    r"devoluci[oó]n|devolver|cambiar\s+un\s+producto)\b",
+    re.IGNORECASE,
+)
+
+
+def _is_purchase_query(text: str) -> bool:
+    """Solo historial explícito; 'comprar para...' no es 'mis compras'."""
+    folded = _fold_word(text)
+    if PURCHASE_RE.search(text):
+        return True
+    if "factura" in folded:
+        return True
+    if re.search(r"\b(cu[aá]nto|total)\b.*\b(gast|compr)", folded):
+        return True
+    return bool(
+        re.search(
+            r"\b(mi\s+compra|mis\s+compras|mis\s+pedidos|"
+            r"mi\s+historial|mi\s+factura)\b",
+            folded,
+        )
+    )
 FRIENDLY_CATEGORIES = [
     {"key": "sala", "label": "Sala y comedor", "category": "MUEBLES"},
     {"key": "dormitorio", "label": "Dormitorio", "category": "DECO HOGAR"},
@@ -1700,9 +2349,12 @@ FRIENDLY_CATEGORIES = [
 ]
 SEARCH_RE = re.compile(
     r"\b(living|sala|comedor|sofa|sill[oó]n|mesa|silla|aparador|rack|"
-    r"colch[oó]n|cama|refri|refrigerador|heladera|nevera|lavadora|"
-    r"secadora|microondas|televisor|tv|l[aá]mpara|foco|ducha|"
-    r"grifer[ií]a|pintura|taladro|herramienta|maceta|jard[ií]n)\b",
+    r"colch[oó]n(?:es)?|cama(?:s)?|refri(?:gerador(?:es)?)?|"
+    r"heladera(?:s)?|nevera(?:s)?|lavadora(?:s)?|"
+    r"secadora(?:s)?|microondas|televisor(?:es)?|tv|l[aá]mpara(?:s)?|"
+    r"foco(?:s)?|ducha(?:s)?|grifer[ií]a(?:s)?|pintura(?:s)?|"
+    r"aire(?:s)?|acondicionador(?:es)?|acondicionado(?:s)?|split|"
+    r"taladro(?:s)?|herramienta(?:s)?|maceta(?:s)?|jard[ií]n)\b",
     re.IGNORECASE,
 )
 
@@ -1776,6 +2428,318 @@ class Agent:
         conversation.last_query = (query or "")[:300] or None
         await session.commit()
 
+    async def _purchase_history_reply(
+        self, session: AsyncSession, contact: Contact
+    ) -> AgentReply:
+        result = await Toolbox(session, contact, self.wa).tool_get_purchase_history(
+            limit=5
+        )
+        summary = result.get("summary") or {}
+        count = int(summary.get("count") or 0)
+        if not count:
+            return AgentReply(
+                [
+                    Outbound(
+                        text=(
+                            "No encontré compras registradas a tu nombre. "
+                            "¿Querés que busquemos un producto o te derivo con "
+                            "un asesor?"
+                        )
+                    )
+                ]
+            )
+        total = money(summary.get("total") or 0)
+        lines = [
+            f"Tenés {count} compra{'s' if count != 1 else ''} por {total}."
+        ]
+        for purchase in (result.get("purchases") or [])[:3]:
+            first = next(
+                (
+                    line.get("name")
+                    for line in purchase.get("lines") or []
+                    if line.get("name")
+                ),
+                "compra",
+            )
+            lines.append(
+                f"• {purchase.get('date')}: {money(purchase.get('total') or 0)} "
+                f"— {first}"
+            )
+        lines.append("¿Querés que te muestre el detalle de alguna?")
+        return AgentReply([Outbound(text="\n".join(lines))])
+
+    async def _occasion_reply(
+        self,
+        session: AsyncSession,
+        contact: Contact,
+        text: str,
+        event: dict,
+    ) -> AgentReply:
+        toolbox = Toolbox(session, contact, self.wa)
+        direct: list[dict] = []
+        seen: set[str] = set()
+        for term in event["direct"]:
+            result = await toolbox.tool_search_products(
+                query=term, limit=1, ignore_state=True
+            )
+            for product in result.get("products") or []:
+                if product["sku"] in seen:
+                    continue
+                if occasions.excluded(
+                    product.get("name") or "",
+                    event,
+                    product.get("category"),
+                ):
+                    continue
+                if not _semantic_term_match(product, term):
+                    continue
+                seen.add(product["sku"])
+                direct.append(product)
+            if len(direct) >= 3:
+                break
+        if direct:
+            return AgentReply(
+                [
+                    Outbound(
+                        text=(
+                            f"No tengo una sección específica de "
+                            f"*{event['label']}*, pero esto es lo más "
+                            "cercano que tengo:"
+                        )
+                    ),
+                    *self._search_cards(direct[:3]),
+                    Outbound(
+                        kind="buttons",
+                        text=(
+                            "¿Querés que busque algo más de la ocasión o "
+                            "preferís ver otra categoría?"
+                        ),
+                        buttons=[
+                            {"id": "catalog", "title": "Ver categorías"},
+                            {"id": "human", "title": "Asesor"},
+                        ],
+                    ),
+                ]
+            )
+        bridges = event.get("bridges") or []
+        for bridge in bridges:
+            bridge_products: list[dict] = []
+            bridge_seen: set[str] = set()
+            for term in bridge["terms"]:
+                result = await toolbox.tool_search_products(
+                    query=term, limit=2, ignore_state=True
+                )
+                for product in result.get("products") or []:
+                    if product["sku"] in bridge_seen:
+                        continue
+                    bridge_seen.add(product["sku"])
+                    bridge_products.append(product)
+            if bridge_products:
+                return AgentReply(
+                    [
+                        Outbound(
+                            text=(
+                                f"Lamentablemente no tengo productos para "
+                                f"*{event['label']}*. Si te sirve, para "
+                                f"*{bridge['label']}* tengo esto:"
+                            )
+                        ),
+                        *self._search_cards(bridge_products[:2]),
+                        Outbound(
+                            kind="buttons",
+                            text=(
+                                "¿Te muestro más opciones para esa ocasión "
+                                "o hablamos con un asesor?"
+                            ),
+                            buttons=[
+                                {"id": "catalog", "title": "Ver categorías"},
+                                {"id": "human", "title": "Asesor"},
+                            ],
+                        ),
+                    ]
+                )
+        return AgentReply(
+            [
+                Outbound(
+                    kind="buttons",
+                    text=(
+                        f"Lamentablemente no tengo productos para "
+                        f"*{event['label']}*. ¿Querés que veamos decoración, "
+                        "otra categoría o te derivo con un asesor?"
+                    ),
+                    buttons=[
+                        {"id": "catalog", "title": "Ver categorías"},
+                        {"id": "human", "title": "Asesor"},
+                    ],
+                )
+            ]
+        )
+
+    async def _human_fallback(
+        self, session: AsyncSession, contact: Contact, reason: str
+    ) -> AgentReply:
+        toolbox = Toolbox(session, contact, self.wa)
+        try:
+            await toolbox.tool_human_handoff(reason[:200])
+        except Exception:  # noqa: BLE001 - no dejar sin respuesta
+            logger.exception("No se pudo crear el handoff de aclaración")
+        return AgentReply(
+            [
+                Outbound(
+                    kind="buttons",
+                    text=(
+                        "Para no darte una respuesta incorrecta, te derivo "
+                        "con un asesor. ¿Querés que siga con otra consulta "
+                        "mientras tanto?"
+                    ),
+                    buttons=[
+                        {"id": "catalog", "title": "Ver productos"},
+                        {"id": "human", "title": "Asesor"},
+                    ],
+                )
+            ]
+        )
+
+    async def _clarify_reply(
+        self,
+        session: AsyncSession,
+        contact: Contact,
+        *,
+        question: str,
+        query: str,
+        slot: str = "topic",
+    ) -> AgentReply:
+        await conversation_guard.set_pending(
+            session,
+            contact,
+            slot=slot,
+            question=question,
+            query=query,
+        )
+        return AgentReply(
+            [
+                Outbound(
+                    kind="buttons",
+                    text=question,
+                    buttons=[
+                        {"id": "catalog", "title": "Ver categorías"},
+                        {"id": "human", "title": "Asesor"},
+                    ],
+                )
+            ]
+        )
+
+    async def _semantic_reply(
+        self,
+        session: AsyncSession,
+        contact: Contact,
+        text: str,
+    ) -> AgentReply | None:
+        if not settings.deepseek_api_key:
+            return None
+        try:
+            expansion = await semantic.expand(
+                session, text, self._llm()
+            )
+        except Exception:  # noqa: BLE001 - nunca romper por enriquecimiento
+            logger.exception("No se pudo expandir la consulta")
+            return None
+        if not expansion:
+            return None
+        topic = re.sub(
+            r"^(?:(?:tienes|tienen|hay|busco|necesito|quiero|"
+            r"me\s+interesa)\s+)?(?:algo\s+para|regalo\s+para|"
+            r"ideas\s+para)\s*",
+            "",
+            (text or "").strip(),
+            flags=re.IGNORECASE,
+        )
+        topic = re.sub(r"[?¿!]+", "", topic).strip() or "eso"
+        exclusions = expansion.get("exclusions") or []
+        toolbox = Toolbox(session, contact, self.wa)
+        direct: list[dict] = []
+        seen: set[str] = set()
+        for term in expansion.get("related_terms") or []:
+            result = await toolbox.tool_search_products(
+                query=term, limit=3, ignore_state=True
+            )
+            for product in result.get("products") or []:
+                if product["sku"] in seen:
+                    continue
+                blob = (
+                    f"{product.get('name') or ''} "
+                    f"{product.get('category') or ''}"
+                ).lower()
+                if any(item in blob for item in exclusions):
+                    continue
+                if not _semantic_term_match(product, term):
+                    continue
+                seen.add(product["sku"])
+                direct.append(product)
+            if len(direct) >= 3:
+                break
+        if direct:
+            return AgentReply(
+                [
+                    Outbound(
+                        text=(
+                            f"No tengo una sección específica para "
+                            f"*{topic}*, pero encontré esto relacionado:"
+                        )
+                    ),
+                    *self._search_cards(direct[:3]),
+                    Outbound(
+                        kind="buttons",
+                        text=(
+                            "¿Querés que busque otra cosa o te muestro "
+                            "categorías relacionadas?"
+                        ),
+                        buttons=[
+                            {"id": "catalog", "title": "Ver categorías"},
+                            {"id": "human", "title": "Asesor"},
+                        ],
+                    ),
+                ]
+            )
+        adjacent: list[dict] = []
+        seen.clear()
+        for term in expansion.get("adjacent_terms") or []:
+            result = await toolbox.tool_search_products(
+                query=term, limit=2, ignore_state=True
+            )
+            for product in result.get("products") or []:
+                if product["sku"] in seen:
+                    continue
+                if not _semantic_term_match(product, term):
+                    continue
+                seen.add(product["sku"])
+                adjacent.append(product)
+        if adjacent:
+            return AgentReply(
+                [
+                    Outbound(
+                        text=(
+                            f"No tengo productos específicos para "
+                            f"*{topic}*. Si te sirve, tengo esto "
+                            "como alternativa:"
+                        )
+                    ),
+                    *self._search_cards(adjacent[:2]),
+                    Outbound(
+                        kind="buttons",
+                        text=(
+                            "¿Te muestro más opciones o hablamos con un "
+                            "asesor?"
+                        ),
+                        buttons=[
+                            {"id": "catalog", "title": "Ver categorías"},
+                            {"id": "human", "title": "Asesor"},
+                        ],
+                    ),
+                ]
+            )
+        return None
+
     async def _search_reply(
         self,
         session: AsyncSession,
@@ -1785,7 +2749,23 @@ class Agent:
         limit: int = 5,
         min_price: float | None = None,
         max_price: float | None = None,
+        quantity: int | None = None,
+        policy: rule_policy.RulePolicy | None = None,
     ) -> AgentReply:
+        original_query = query
+        quantity = quantity or _requested_quantity(original_query)
+        if min_price is None and max_price is None:
+            budget_min, budget_max = _requested_budget(original_query)
+            min_price, max_price = budget_min, budget_max
+        cleaned_query = (
+            _strip_budget(original_query)
+            if min_price is not None or max_price is not None
+            else original_query
+        )
+        if quantity > 1:
+            cleaned_query = _strip_quantity(cleaned_query, quantity) or cleaned_query
+        query = _clean_query(cleaned_query) or cleaned_query
+        query = _normalize_tv_query(query)
         await self._remember_query(session, contact, query)
         # Pedido amplio ("colchón"): preguntar medida/marca antes de listar.
         # Mostrar todo el catálogo es tarea del ecommerce, no del chat.
@@ -1798,16 +2778,21 @@ class Agent:
             options = (
                 info["sizes"][:3] if info["sizes"] else info["brands"][:3]
             )
-            if len(options) >= 2:
+            total = int(info.get("total") or 0)
+            if total and options:
+                plural = "opciones" if total != 1 else "opción"
                 if info["sizes"]:
                     text = (
-                        f"Tengo varias opciones. Para no mostrarte de todo: "
-                        f"¿qué medida o marca te sirve?"
+                        f"Tenemos {total} {plural} de {query} en medidas:\n"
+                        f"{_numbered_lines(info['sizes'][:3])}\n\n"
+                        "¿Qué medida te sirve?"
                     )
                 else:
                     text = (
-                        "Tengo varias marcas. ¿Alguna en particular o te "
-                        "muestro las más elegidas?"
+                        f"Tenemos {total} {plural} de {query}:\n"
+                        f"{_numbered_lines(info['brands'][:3])}\n\n"
+                        "¿Alguna marca en particular o te muestro las más "
+                        "elegidas?"
                     )
                 return AgentReply(
                     [
@@ -1831,9 +2816,29 @@ class Agent:
             limit=min(int(limit), 5),
             min_price=min_price,
             max_price=max_price,
+            quantity=quantity,
         )
         products = result.get("products") or []
         if not products:
+            if result.get("quantity_shortfall"):
+                qty = result["quantity_shortfall"]
+                return AgentReply(
+                    [
+                        Outbound(
+                            kind="buttons",
+                            text=(
+                                f"No tengo {qty} unidades disponibles de "
+                                "*{_clean_query(query)}* en este momento. "
+                                "¿Querés que busque de a una o ver otra "
+                                "categoría?"
+                            ),
+                            buttons=[
+                                {"id": "search", "title": "Buscar otra cosa"},
+                                {"id": "human", "title": "Asesor"},
+                            ],
+                        )
+                    ]
+                )
             return AgentReply(
                 [
                     Outbound(
@@ -1856,7 +2861,7 @@ class Agent:
         if len(products) == 1:
             only = products[0]
             intro = (
-                f"Con stock me queda esta opción: *{only['name']}*."
+                f"Me queda disponible esta opción: *{only['name']}*."
                 if result.get("exact_match", True)
                 else (
                     f"No tengo *{_clean_query(query)}* exactamente, pero "
@@ -1872,10 +2877,21 @@ class Agent:
                     "estas opciones parecidas:"
                 )
             )
+        if policy and policy.brand:
+            intro += (
+                f"\n\nSegún la regla de {policy.brand_area}, priorizo "
+                f"*{policy.brand}* en esta categoría."
+            )
+        elif policy and policy.promotion_min is not None:
+            intro += (
+                "\n\nSegún la regla de promociones, priorizo primero los "
+                f"productos con al menos {policy.promotion_min:g}% de "
+                "descuento y stock."
+            )
         return AgentReply(
             [
                 Outbound(text=intro),
-                self._search_list(products),
+                *self._search_cards(products),
                 Outbound(
                     kind="buttons",
                     text="¿Seguimos con algo más?",
@@ -1908,7 +2924,7 @@ class Agent:
                     Outbound(
                         kind="buttons",
                         text=(
-                            f"No encontré stock en {label}. "
+                            f"No encontré disponibilidad en {label}. "
                             "¿Querés ver otra categoría?"
                         ),
                         buttons=[
@@ -1927,7 +2943,11 @@ class Agent:
                         "title": self._truncate(product["name"], 24),
                         "description": (
                             f"Bs {product.get('promo_price') or product['price']}"
-                            f" · stock {product.get('stock', 0)}"
+                            + (
+                                f" · {product['brand']}"
+                                if product.get("brand")
+                                else ""
+                            )
                         )[:72],
                     }
                     for product in products[:9]
@@ -1991,15 +3011,18 @@ class Agent:
                 lines.append(
                     f"Por {tier['quantity']} unidades: Bs {tier['price']} c/u"
                 )
-        lines.append(f"Stock: {stock}")
         attrs = product.get("attributes") or {}
+        if product.get("category"):
+            lines.append(f"Categoría: {product['category']}")
         if attrs.get("model"):
             lines.append(f"Modelo: {attrs['model']}")
         if attrs.get("weight_kg"):
             lines.append(f"Peso: {attrs['weight_kg']} kg")
-        description = (attrs.get("description") or "").strip()
+        description = self._card_description(
+            attrs.get("description") or "", limit=220
+        )
         if description and description.upper() != (product.get("name") or "").upper():
-            lines.append(description[:220])
+            lines.append(f"Descripción: {description}")
         if product.get("barcode"):
             lines.append(f"Código de barra: {product['barcode']}")
         # Complemento con stock validado: sube el ticket sin inventar nada.
@@ -2107,6 +3130,75 @@ class Agent:
         )
 
     @staticmethod
+    def _card_description(value: str, limit: int = 160) -> str:
+        text = re.sub(r"<[^>]+>", " ", html.unescape(value or ""))
+        text = re.sub(r"\s+", " ", text).strip()
+        if len(text) <= limit:
+            return text
+        cut = text[: limit - 1].rsplit(" ", 1)[0].rstrip()
+        return (cut or text[: limit - 1]).rstrip() + "…"
+
+    @staticmethod
+    def _search_cards(products: list[dict]) -> list[Outbound]:
+        """Tarjetas visuales sin catálogo nativo: hasta 3 fotos + botones."""
+        selected = products[:3]
+        if not selected:
+            return []
+        messages: list[Outbound] = []
+        for index, product in enumerate(selected, start=1):
+            price = product.get("promo_price") or product.get("price")
+            try:
+                price_text = f"{Decimal(str(price)):,.2f}"
+            except Exception:  # noqa: BLE001 - precio ya formateado
+                price_text = str(price)
+            caption = (
+                f"*{index}. {product['name']}*\n"
+                f"Precio: Bs {price_text}"
+            )
+            brand = (product.get("brand") or "").strip()
+            if brand:
+                caption += f"\nMarca: {brand}"
+            category = (product.get("category") or "").strip()
+            if category:
+                caption += f"\nCategoría: {category}"
+            description = Agent._card_description(
+                product.get("description") or ""
+            )
+            if description:
+                caption += f"\nDescripción: {description}"
+            image_url = (product.get("image_url") or "").strip()
+            if image_url.startswith(("http://", "https://")):
+                messages.append(
+                    Outbound(
+                        kind="image",
+                        url=image_url,
+                        text=caption[:1024],
+                    )
+                )
+            else:
+                messages.append(Outbound(text=caption[:4096]))
+        buttons = []
+        for index, product in enumerate(selected, start=1):
+            buttons.append(
+                {
+                    "id": f"add:{product['sku']}:1",
+                    "title": (
+                        "Agregar"
+                        if len(selected) == 1
+                        else f"Agregar {index}"
+                    ),
+                }
+            )
+        messages.append(
+            Outbound(
+                kind="buttons",
+                text="Elegí una opción para agregar al carrito:",
+                buttons=buttons,
+            )
+        )
+        return messages
+
+    @staticmethod
     def _search_list(products: list[dict]) -> Outbound:
         rows = []
         for product in products[:9]:
@@ -2119,7 +3211,6 @@ class Agent:
             detail = f"Bs {price_text}"
             if brand:
                 detail += f" · {brand}"
-            detail += f" · stock {product.get('stock', 0)}"
             rows.append(
                 {
                     "id": f"product:{product['sku']}",
@@ -2129,7 +3220,7 @@ class Agent:
             )
         return Outbound(
             kind="list",
-            text="Elegí una opción para ver precio, foto y stock:",
+            text="Elegí una opción para ver precio y foto:",
             button_text="Ver opciones",
             sections=[{"title": "Opciones", "rows": rows}] if rows else [],
         )
@@ -2289,6 +3380,218 @@ class Agent:
             ]
         )
 
+    async def _resolve_pending(
+        self,
+        session: AsyncSession,
+        contact: Contact,
+        text: str,
+        guard,
+    ) -> AgentReply | None:
+        slot = (guard.pending_slot or "").lower()
+        if not slot:
+            return None
+        raw = (text or "").strip()
+        if re.search(r"\b(asesor|humano|menu|menú|hola)\b", raw, re.I):
+            await conversation_guard.clear_pending(session, contact)
+            return None
+        base = guard.pending_query or ""
+        if slot == "intent":
+            await conversation_guard.clear_pending(session, contact)
+            route = intent_guard.route_answer(raw)
+            if route == "order":
+                text = await order_tracking.start(session, contact)
+                return AgentReply([Outbound(text=text)])
+            if route == "return":
+                rule = await rules_engine.return_rule(session)
+                if rule is not None:
+                    text = await return_flow.start(session, contact, rule)
+                    return AgentReply([Outbound(text=text)])
+                return await self._human_fallback(
+                    session, contact, "Consulta de devolución o garantía"
+                )
+            if route in {"shipping", "payment", "invoice"}:
+                knowledge = await self._knowledge_reply(
+                    session, contact, raw
+                )
+                if knowledge is not None:
+                    return knowledge
+                return await self._human_fallback(
+                    session, contact, raw
+                )
+            if route in {"product", "gift"}:
+                combined = f"{base} {raw}".strip()
+                event_key, event = await occasion_store.resolve(
+                    session, combined
+                )
+                if event is not None:
+                    return await self._occasion_reply(
+                        session, contact, combined, event
+                    )
+                semantic_reply = await self._semantic_reply(
+                    session, contact, combined
+                )
+                if semantic_reply is not None:
+                    return semantic_reply
+                return await self._search_reply(
+                    session, contact, combined
+                )
+            if route == "human":
+                return await self._human_fallback(
+                    session, contact, raw
+                )
+            return None
+        if slot == "topic":
+            await conversation_guard.clear_pending(session, contact)
+            combined = f"{base} {raw}".strip()
+            key, event = await occasion_store.resolve(session, combined)
+            if event is not None:
+                return await self._occasion_reply(
+                    session, contact, combined, event
+                )
+            semantic_reply = await self._semantic_reply(
+                session, contact, combined
+            )
+            if semantic_reply is not None:
+                return semantic_reply
+            return await self._search_reply(
+                session, contact, combined
+            )
+        if slot == "size":
+            size = _requested_size(raw)
+            if not size:
+                number = re.search(r"\b(\d{1,3})\b", raw)
+                size = number.group(1) if number else None
+            if not size:
+                return None
+            if "colch" in base.lower() or "cama" in base.lower():
+                query = f"{base} {size} plazas".strip()
+            else:
+                query = f"{base} {size} pulgadas".strip()
+            await conversation_guard.clear_pending(session, contact)
+            policy = await rule_policy.build(session, query)
+            return await self._search_reply(
+                session, contact, query, policy=policy
+            )
+        if slot == "budget":
+            low, high = _requested_budget(raw)
+            if low is None and high is None:
+                number = re.search(r"\b(\d{1,5})\b", raw)
+                if number:
+                    high = float(number.group(1))
+            if low is None and high is None:
+                return None
+            await conversation_guard.clear_pending(session, contact)
+            return await self._search_reply(
+                session, contact, base, min_price=low, max_price=high
+            )
+        if slot == "quantity":
+            quantity = _requested_quantity(raw)
+            if quantity <= 1:
+                return None
+            await conversation_guard.clear_pending(session, contact)
+            return await self._search_reply(
+                session, contact, base, quantity=quantity
+            )
+        if slot == "brand":
+            if not re.search(r"\b[A-Za-zÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ -]{1,40}\b", raw):
+                return None
+            await conversation_guard.clear_pending(session, contact)
+            return await self._search_reply(
+                session, contact, f"{base} {raw}".strip()
+            )
+        await conversation_guard.clear_pending(session, contact)
+        return None
+
+    async def _resolve_reference(
+        self,
+        session: AsyncSession,
+        contact: Contact,
+        text: str,
+    ) -> AgentReply | None:
+        raw = (text or "").strip()
+        snapshot = await recommendations.latest(session, contact.id)
+        if snapshot is None or not snapshot.products:
+            return None
+        if re.search(
+            r"\b(cu[aá]l|qu[eé])\s+me\s+(recomendaste|mostraste)\b",
+            raw,
+            re.I,
+        ):
+            explanation = recommendations.explain(snapshot)
+            return AgentReply([Outbound(text=explanation)])
+        ordinal = re.search(
+            r"\b(primer[oa]?|segund[oa]?|tercer[oa]?|cuart[oa]?)\b",
+            raw,
+            re.I,
+        )
+        if ordinal:
+            index = {
+                "primer": 0, "primero": 0, "primera": 0,
+                "segundo": 1, "segunda": 1,
+                "tercero": 2, "tercera": 2,
+                "cuarto": 3, "cuarta": 3,
+            }.get(_fold_word(ordinal.group(1)), 0)
+            if index < len(snapshot.products):
+                product = snapshot.products[index]
+                if product.get("sku"):
+                    return await self._product_detail(
+                        session, contact, product["sku"]
+                    )
+        if re.search(r"\b(ese|esa|eso|el mismo|la misma)\b", raw, re.I):
+            product = snapshot.products[0]
+            if product.get("sku"):
+                return await self._product_detail(
+                    session, contact, product["sku"]
+                )
+        return None
+
+    async def postprocess(
+        self,
+        session: AsyncSession,
+        contact: Contact,
+        text: str,
+        reply: AgentReply,
+    ) -> AgentReply:
+        """Garantiza salida y evita repetir exactamente la misma respuesta."""
+        if not reply.messages:
+            reply = AgentReply(
+                [
+                    Outbound(
+                        kind="buttons",
+                        text=conversation_guard.fallback_text(),
+                        buttons=[
+                            {"id": "catalog", "title": "Ver productos"},
+                            {"id": "human", "title": "Asesor"},
+                        ],
+                    )
+                ]
+            )
+        answer = "\n".join(
+            message.text or "" for message in reply.messages
+        ).strip()
+        if not answer:
+            answer = conversation_guard.fallback_text()
+        repeated = await conversation_guard.record_answer(
+            session,
+            contact,
+            user_text=text,
+            answer=answer,
+        )
+        if repeated:
+            return AgentReply(
+                [
+                    Outbound(
+                        kind="buttons",
+                        text=conversation_guard.loop_text(),
+                        buttons=[
+                            {"id": "catalog", "title": "Otras opciones"},
+                            {"id": "human", "title": "Asesor"},
+                        ],
+                    )
+                ]
+            )
+        return reply
+
     async def handle(
         self,
         session: AsyncSession,
@@ -2304,6 +3607,144 @@ class Agent:
         ).strip()
         simple = re.sub(r"\s+", " ", simple)
         toolbox = Toolbox(session, contact, self.wa)
+
+        # Refrescar el vínculo desde la DB: evitar que una mutación en memoria
+        # haga creer que el cliente ya está identificado.
+        await session.refresh(contact)
+
+        # Privacidad: sin vínculo no se consulta historial ni se deja que la IA
+        # invente "no tenés compras". Primero se pide CI/NIT.
+        if _is_purchase_query(raw) and not (
+            contact.tax_id or contact.sap_card_code
+        ):
+            return AgentReply(
+                [
+                    Outbound(
+                        text=(
+                            "Para ver tus compras, ¿me pasás tu CI o NIT? "
+                            "Lo uso solo para consultar tu historial. "
+                            "Si sos persona, el CI; si es empresa, el NIT."
+                        )
+                    )
+                ]
+            )
+
+        # Flujo de devolución activo: cada respuesta alimenta el flujo, no una
+        # búsqueda de productos.
+        active_flow = await return_flow.get_active(session, contact)
+        if active_flow:
+            if HANDOFF_RE.search(raw):
+                active_flow.status = "cancelled"
+                await session.commit()
+            else:
+                outcome = await return_flow.answer(
+                    session, active_flow, raw
+                )
+                if outcome.get("needs_handoff"):
+                    await toolbox.tool_human_handoff(
+                        "Flujo de devolución finalizado"
+                    )
+                return AgentReply([Outbound(text=outcome["text"])])
+
+        if re.search(
+            r"\b(devoluci[oó]n|devolver|cambiar\s+un\s+producto)\b",
+            raw,
+            re.IGNORECASE,
+        ):
+            rule = await rules_engine.return_rule(session)
+            if rule is not None:
+                text = await return_flow.start(session, contact, rule)
+                return AgentReply([Outbound(text=text)])
+
+        # Seguimiento VTEX: se pide el ID del correo y se consulta OMS.
+        active_tracking = await order_tracking.get_active(session, contact)
+        if active_tracking:
+            if HANDOFF_RE.search(raw):
+                active_tracking.status = "cancelled"
+                await session.commit()
+            elif re.search(
+                r"\b(quiero\s+pagar|pagar\s+con|qr|tarjeta|transferencia|"
+                r"cuotas?|devoluci[oó]n|garant[ií]a|reclamo|env[ií]o|"
+                r"retiro|sucursal|asesor|busco|precio|comprar)\b",
+                raw,
+                re.IGNORECASE,
+            ):
+                # El cliente cambió de tema: no tratar su mensaje como ID.
+                active_tracking.status = "cancelled"
+                await session.commit()
+            else:
+                outcome = await order_tracking.lookup(
+                    session, active_tracking, raw
+                )
+                if outcome.get("needs_handoff"):
+                    await toolbox.tool_human_handoff(
+                        "Seguimiento de pedido sin resultado"
+                    )
+                return AgentReply([Outbound(text=outcome["text"])])
+
+        if TRACKING_RE.search(raw):
+            text = await order_tracking.start(session, contact)
+            return AgentReply([Outbound(text=text)])
+
+        guard = await conversation_guard.get_for_contact(session, contact)
+        if guard is not None:
+            reference_reply = await self._resolve_reference(
+                session, contact, raw
+            )
+            if reference_reply is not None:
+                return reference_reply
+            pending_reply = await self._resolve_pending(
+                session, contact, raw, guard
+            )
+            if pending_reply is not None:
+                return pending_reply
+
+        ambiguous_question = intent_guard.detect(raw)
+        if ambiguous_question:
+            return await self._clarify_reply(
+                session,
+                contact,
+                question=ambiguous_question,
+                query=raw,
+                slot="intent",
+            )
+
+        event_key, event = await occasion_store.resolve(session, raw)
+        if event is not None:
+            return await self._occasion_reply(
+                session, contact, raw, event
+            )
+
+        if SEMANTIC_QUERY_RE.search(raw):
+            semantic_reply = await self._semantic_reply(
+                session, contact, raw
+            )
+            if semantic_reply is not None:
+                return semantic_reply
+            return await self._clarify_reply(
+                session,
+                contact,
+                question=(
+                    "Para darte una buena recomendación, ¿qué tipo de cosa "
+                    "buscás: algo para el hogar, para regalar, para "
+                    "entretenerte o para una ocasión especial?"
+                ),
+                query=raw,
+            )
+
+        if RECOMMENDATION_EXPLAIN_RE.search(raw):
+            result = await toolbox.tool_explain_recommendation()
+            if result.get("ok"):
+                return AgentReply([Outbound(text=result["explanation"])])
+
+        policy = await rule_policy.build(session, raw)
+        rule_policy.log_applied(
+            policy, contact_id=contact.id, query=raw
+        )
+        if policy.has_product_rules and SEARCH_RE.search(raw):
+            return await self._search_reply(
+                session, contact, raw, policy=policy
+            )
 
         if simple in {
             "hola",
@@ -2356,12 +3797,20 @@ class Agent:
                 ]
             )
 
-        if normalized == "human":
+        if normalized == "human" or HANDOFF_RE.search(raw):
             await toolbox.tool_human_handoff("El cliente pidió un asesor")
+            return AgentReply([Outbound(text=persona.handoff())])
+
+        if COMPLAINT_RE.search(raw):
+            await toolbox.tool_human_handoff("Reclamo o cambio de producto")
             return AgentReply(
                 [
                     Outbound(
-                        text=persona.handoff()
+                        text=(
+                            "Lamento lo ocurrido. Ya avisé a alguien del equipo "
+                            "para revisar el caso. ¿Me contás qué producto es y "
+                            "qué pasó?"
+                        )
                     )
                 ]
             )
@@ -2377,13 +3826,57 @@ class Agent:
             if knowledge_reply is not None:
                 return knowledge_reply
 
-        if CHECKOUT_RE.search(raw) and normalized not in {
-            "formas de pago",
-            "medios de pago",
-        }:
+        if PAYMENT_METHOD_RE.search(raw):
+            return AgentReply(
+                [
+                    Outbound(
+                        kind="buttons",
+                        text=(
+                            "No tengo confirmados los medios de pago en este "
+                            "momento. ¿Querés que lo revise un asesor?"
+                        ),
+                        buttons=[
+                            {"id": "human", "title": "Asesor"},
+                            {"id": "catalog", "title": "Ver productos"},
+                        ],
+                    )
+                ]
+            )
+
+        if (
+            CHECKOUT_RE.search(raw)
+            and not PAYMENT_METHOD_RE.search(raw)
+            and normalized not in {
+                "formas de pago",
+                "medios de pago",
+            }
+        ):
             return await self._checkout_reply(session, contact)
 
+        if _is_purchase_query(raw):
+            if not (contact.tax_id or contact.sap_card_code):
+                return AgentReply(
+                    [
+                        Outbound(
+                            text=(
+                                "Para ver tus compras, ¿me pasás tu CI o NIT? "
+                                "Lo uso solo para consultar tu historial. "
+                                "Si sos persona, el CI; si es empresa, el NIT."
+                            )
+                        )
+                    ]
+                )
+            if settings.deepseek_api_key:
+                return await self._llm_handle(
+                    session, contact, raw, history or [], memory
+                )
+            return await self._purchase_history_reply(session, contact)
+
         if SEARCH_RE.search(raw):
+            if settings.deepseek_api_key:
+                return await self._llm_handle(
+                    session, contact, raw, history or [], memory
+                )
             return await self._search_reply(session, contact, raw)
 
         if normalized.startswith("cat:"):
@@ -2573,24 +4066,29 @@ class Agent:
             )
         # Respuesta corta a una pregunta anterior ("2 plazas", "marca Flex"):
         # se combina con la última búsqueda si por sí sola no encuentra nada.
-        if 1 <= len(simple.split()) <= 4 and simple not in _CONTROL_WORDS:
+        if (
+            1 <= len(simple.split()) <= 4
+            and simple not in _CONTROL_WORDS
+            and not any(word in _STOPWORDS for word in simple.split())
+        ):
             conversation = await session.scalar(
                 select(Conversation).where(Conversation.contact_id == contact.id)
             )
             last = (conversation.last_query or "").strip() if conversation else ""
             if last and _fold_word(last) not in simple:
+                display = _clean_query(raw) or raw
                 probe = await Toolbox(session, contact, self.wa).tool_search_products(
-                    query=f"{last} {raw}".strip(), limit=3
+                    query=f"{last} {display}".strip(), limit=3
                 )
                 if probe.get("products"):
                     return AgentReply(
                         [
                             Outbound(
                                 text=(
-                                    f"Con *{raw.strip()}* tengo estas opciones:"
+                                    f"Con *{display}* tengo estas opciones:"
                                 )
                             ),
-                            self._search_list(probe["products"]),
+                            *self._search_cards(probe["products"]),
                             Outbound(
                                 kind="buttons",
                                 text="¿Seguimos?",
@@ -2633,8 +4131,7 @@ class Agent:
             lines.append(
                 f"- {promo['name']} (SKU {promo['sku']}): "
                 f"Bs {promo['final_price']} antes Bs {promo['base_price']} "
-                f"(-{promo['discount_percent']}%), hasta {valid}, "
-                f"stock {promo.get('stock', 0)}."
+                f"(-{promo['discount_percent']}%), hasta {valid}."
             )
         return "\n".join(lines)
 
@@ -2647,6 +4144,8 @@ class Agent:
         responder en la primera pasada.
         """
         if not RECO_RE.search(text or ""):
+            return None
+        if EXPLAIN_RE.search(text or ""):
             return None
         try:
             result = await toolbox.tool_get_best_sellers(limit=5)
@@ -2662,8 +4161,7 @@ class Agent:
         ]
         for product in products[:5]:
             lines.append(
-                f"- {product['name']} — Bs {product['price']} "
-                f"(stock {product['stock']})"
+                f"- {product['name']} — Bs {product['price']}"
             )
         return "\n".join(lines)
 
@@ -2752,6 +4250,44 @@ class Agent:
                     ),
                 }
             )
+        conversation = await session.scalar(
+            select(Conversation).where(Conversation.contact_id == contact.id)
+        )
+        if conversation is None:
+            conversation = Conversation(contact_id=contact.id)
+            session.add(conversation)
+            await session.flush()
+        state = await conversation_state.get_state(session, conversation.id)
+        state_text = conversation_state.state_text(state)
+        if state_text:
+            messages.append(
+                {
+                    "role": "system",
+                    "content": (
+                        "Estado estructurado de la conversación: "
+                        f"{state_text}. Mantené el rubro si el cliente solo "
+                        "agrega marca o medida; cambialo si pide otro rubro."
+                    ),
+                }
+            )
+        policy = await rule_policy.build(
+            session,
+            text,
+            category=state.category,
+            intent=state.intent,
+        )
+        rule_policy.log_applied(
+            policy, contact_id=contact.id, query=text
+        )
+        messages.append(
+            {
+                "role": "system",
+                "content": (
+                    f"Áreas detectadas: {', '.join(policy.areas)}.\n"
+                    + policy.prompt_text()
+                ),
+            }
+        )
         promo_context = await self._promotion_preflight(text, toolbox)
         if promo_context:
             messages.append({"role": "system", "content": promo_context})
@@ -2776,7 +4312,17 @@ class Agent:
             )
             choice = completion.choices[0].message
             if not choice.tool_calls:
-                answer = (choice.content or "").strip()
+                answer = _remove_stock_phrases(
+                    _remove_query_echo((choice.content or "").strip(), text)
+                )
+                if PURCHASE_RE.search(text) and not (
+                    contact.tax_id or contact.sap_card_code
+                ):
+                    answer = (
+                        "Para buscar tus compras, ¿me pasás tu CI o NIT? "
+                        "Lo uso solo para consultar tu historial. "
+                        "Si sos persona, el CI; si es empresa, el NIT."
+                    )
                 if toolbox.last_checkout and (
                     toolbox.last_checkout["payment_url"] not in answer
                 ):
@@ -2811,7 +4357,7 @@ class Agent:
                 elif toolbox.last_search:
                     products = toolbox.last_search.get("products") or []
                     if products:
-                        outbound.append(self._search_list(products))
+                        outbound.extend(self._search_cards(products))
                 if toolbox.last_checkout:
                     outbound.append(
                         Outbound(
@@ -2898,6 +4444,16 @@ class Agent:
             logger.exception("No se pudo cerrar la respuesta del LLM")
 
         if answer:
+            products = (toolbox.last_search or {}).get("products") or []
+            if policy.violates_brand(answer, products):
+                logger.warning(
+                    "Respuesta no cumple la marca prioritaria %s; "
+                    "se replantea con búsqueda determinista",
+                    policy.brand,
+                )
+                return await self._search_reply(
+                    session, contact, text, policy=policy
+                )
             return AgentReply([Outbound(text=answer)])
 
         logger.warning(
@@ -3044,7 +4600,7 @@ class Agent:
         for index, product in enumerate(products, start=1):
             lines.append(
                 f"\n{index}. *{product['name']}* — {money(product['price'])}"
-                f"\n   SKU: {product['sku']} · stock: {product['stock']}"
+                f"\n   SKU: {product['sku']}"
             )
         lines.append(
             "\nPara agregar: escribe *agregar* seguido del SKU y la cantidad "

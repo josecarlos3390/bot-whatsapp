@@ -193,13 +193,42 @@ async def ingest_inbound(
             reply = AgentReply(
                 [
                     Outbound(
+                        kind="buttons",
                         text=(
-                            "Tuve un problema procesando tu mensaje. ¿Puedes repetirlo "
-                            "o escribir *asesor* para que te atienda una persona?"
-                        )
+                            "No pude procesar eso en este momento. ¿Querés "
+                            "que lo veamos de otra forma o te derivo con un "
+                            "asesor?"
+                        ),
+                        buttons=[
+                            {"id": "catalog", "title": "Ver productos"},
+                            {"id": "human", "title": "Asesor"},
+                        ],
                     )
                 ]
             )
+
+    try:
+        reply = await agent.postprocess(
+            session, contact, text, reply
+        )
+    except Exception:  # noqa: BLE001 - nunca dejar el envío sin respuesta
+        logger.exception("Fallo la guarda de conversación")
+        await session.rollback()
+        reply = AgentReply(
+            [
+                Outbound(
+                    kind="buttons",
+                    text=(
+                        "No quiero dejarte sin respuesta. ¿Buscás un producto "
+                        "o preferís hablar con un asesor?"
+                    ),
+                    buttons=[
+                        {"id": "catalog", "title": "Ver productos"},
+                        {"id": "human", "title": "Asesor"},
+                    ],
+                )
+            ]
+        )
 
     if resumed_notice:
         reply.messages.insert(

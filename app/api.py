@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import hmac
 import html
 import io
 import json
 import logging
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
 import qrcode
@@ -31,6 +32,7 @@ from .config import settings
 from .db import SessionLocal, get_session
 from .models import (
     Advisor,
+    AreaUser,
     Contact,
     Conversation,
     Handoff,
@@ -46,16 +48,71 @@ from .runtime import whatsapp
 from .sap import SapError, get_sap
 from .services import catalog
 from .services import advisors as advisor_service
+from .services import area_rules
+from .services import area_users
+from .services import occasion_store
+from .services import overview as overview_service
+from .services import rule_simulator
 from .services import feedback as feedback_service
 from .services import handoffs
 from .services import knowledge
 from .services import native_commerce
+from .services import refresh as refresh_service
 from .services.ingest import ingest_inbound
 from .services.orders import CheckoutError, confirm_payment
 from .whatsapp import extract_order, extract_text, verify_signature
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+class AreaRulePayload(BaseModel):
+    area: str
+    name: str
+    rule_type: str
+    condition: dict = {}
+    action: dict = {}
+    priority: int = 0
+    status: str = "draft"
+    valid_from: date | None = None
+    valid_to: date | None = None
+
+
+class AreaUserIn(BaseModel):
+    username: str
+    password: str
+    area: str
+    display_name: str | None = None
+
+
+class AreaUserPatch(BaseModel):
+    display_name: str | None = None
+    area: str | None = None
+    active: bool | None = None
+    password: str | None = None
+
+
+class PasswordChange(BaseModel):
+    password: str
+
+
+class OccasionPayload(BaseModel):
+    name: str
+    aliases: list[str] = []
+    direct: list[str] = []
+    exclude: list[str] = []
+    exclude_categories: list[str] = []
+    bridges: list[dict] = []
+    area: str = "marketing"
+    status: str = "draft"
+    priority: int = 100
+    valid_from: date | None = None
+    valid_to: date | None = None
+
+
+class SimulationPayload(BaseModel):
+    query: str
+    area: str = "ecommerce"
 
 _redis_pool = None
 
@@ -70,6 +127,46 @@ async def _redis():
 def require_admin(x_admin_token: str = Header(default="")) -> None:
     if settings.admin_token and x_admin_token != settings.admin_token:
         raise HTTPException(status_code=401, detail="Token de administración inválido")
+
+
+def require_internal_refresh(
+    request: Request,
+    x_internal_token: str = Header(default=""),
+) -> None:
+    """Solo el propio bot (localhost) puede refrescar un SKU."""
+    if not settings.internal_refresh_token:
+        raise HTTPException(
+            status_code=503,
+            detail="Refresco interno no configurado",
+        )
+    host = request.client.host if request.client else ""
+    if host not in ("127.0.0.1", "::1"):
+        raise HTTPException(
+            status_code=403,
+            detail="El refresco interno solo acepta localhost",
+        )
+    if not hmac.compare_digest(
+        x_internal_token, settings.internal_refresh_token
+    ):
+        raise HTTPException(status_code=401, detail="Token interno inválido")
+
+
+async def require_area_user(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    token = request.cookies.get("area_session", "")
+    username = advisor_service.parse_session(token) if token else None
+    if not username:
+        raise HTTPException(status_code=401, detail="Sesión de área requerida")
+    user = await area_users.get_by_username(session, username)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Usuario de área inactivo")
+    return {
+        "username": user.username,
+        "display_name": user.display_name,
+        "area": user.area,
+    }
 
 
 async def require_advisor(
@@ -120,9 +217,23 @@ async def require_admin_role(
     return advisor
 
 
+async def require_center_admin(
+    advisor: dict = Depends(require_advisor),
+) -> dict:
+    """Admin del centro: sesión de asesor admin o token de administración."""
+    if not advisor.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Requiere administrador")
+    return advisor
+
+
 class LoginIn(BaseModel):
     username: str
     password: str
+
+
+@router.get("/advisor/login", include_in_schema=False)
+async def advisor_login_redirect() -> RedirectResponse:
+    return RedirectResponse(url="/console/login", status_code=303)
 
 
 @router.get("/advisor/login", response_class=HTMLResponse)
@@ -577,12 +688,1000 @@ async def admin_feedback_acknowledge(
     return await feedback_service.acknowledge(session, feedback_id)
 
 
+@router.get("/admin/area-rules/view", response_class=HTMLResponse)
+async def admin_area_rules_view() -> HTMLResponse:
+    return HTMLResponse(
+        """<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Reglas por área · ROHO</title>
+<style>
+body{font-family:system-ui,Arial,sans-serif;margin:0;background:#f6f7f9;color:#17212b}
+header{background:#0f172a;color:#fff;padding:14px 22px}
+main{max-width:1100px;margin:20px auto;padding:0 16px}
+.card{background:#fff;border:1px solid #dde3ea;border-radius:10px;padding:16px;margin-bottom:16px}
+label{display:block;font-size:13px;font-weight:600;margin:10px 0 4px}
+input,select,textarea{width:100%;padding:9px;border:1px solid #cbd5e1;border-radius:7px;box-sizing:border-box}
+textarea{min-height:70px;font-family:ui-monospace,monospace;font-size:12px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+button{padding:9px 13px;border:0;border-radius:7px;cursor:pointer;margin:4px 4px 0 0}
+.primary{background:#0f172a;color:#fff}.ok{background:#0f766e;color:#fff}.danger{background:#b91c1c;color:#fff}
+.muted{color:#64748b;font-size:13px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{border-bottom:1px solid #e2e8f0;padding:8px;text-align:left;vertical-align:top}
+.badge{padding:2px 7px;border-radius:20px;background:#e2e8f0;font-size:11px}
+.published{background:#ccfbf1;color:#115e59}.draft{background:#fef3c7;color:#92400e}
+pre{white-space:pre-wrap;margin:0;font-size:11px}
+</style>
+</head>
+<body>
+<header><strong>ROHO · Reglas por área</strong> <span class="muted">Centro de instrucciones del bot</span></header>
+<main>
+<div class="card">
+  <label>Token de administración</label>
+  <div class="row"><input id="token" type="password" placeholder="X-Admin-Token"><button class="primary" onclick="saveToken()">Guardar token</button></div>
+  <p class="muted">El token se guarda solo en este navegador. No se muestra en la URL.</p>
+</div>
+
+<div class="card">
+  <h3 id="formTitle">Nueva regla</h3>
+  <input id="ruleId" type="hidden">
+  <div class="row">
+    <div><label>Área</label><select id="area"><option>ecommerce</option><option>calidad</option><option>marketing</option><option>operaciones</option><option>general</option></select></div>
+    <div><label>Tipo</label><select id="ruleType"><option>brand_priority</option><option>return_flow</option><option>response_rule</option><option>required_questions</option></select></div>
+  </div>
+  <label>Nombre</label><input id="name" placeholder="Ej: Priorizar LG en heladeras">
+  <div class="row">
+    <div><label>Prioridad</label><input id="priority" type="number" value="100"></div>
+    <div><label>Estado</label><select id="status"><option>draft</option><option>published</option><option>archived</option></select></div>
+  </div>
+  <label>Condición (JSON)</label><textarea id="condition">{"category":"heladera"}</textarea>
+  <label>Acción (JSON)</label><textarea id="action">{"brand":"LG"}</textarea>
+  <button class="primary" onclick="saveRule()">Guardar</button>
+  <button onclick="resetForm()">Limpiar</button>
+  <p id="msg" class="muted"></p>
+</div>
+
+<div class="card">
+  <h3>Reglas cargadas</h3>
+  <table><thead><tr><th>Área</th><th>Nombre</th><th>Tipo</th><th>Prioridad</th><th>Estado</th><th>Condición / Acción</th><th></th></tr></thead><tbody id="rows"></tbody></table>
+</div>
+</main>
+<script>
+const API='/admin/area-rules';
+let cache=[];
+function token(){return localStorage.getItem('roho_admin_token')||''}
+function saveToken(){localStorage.setItem('roho_admin_token',document.getElementById('token').value);load()}
+function hdr(){return {'Content-Type':'application/json','X-Admin-Token':token()}}
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+async function api(path,opts){const r=await fetch(path,Object.assign({headers:hdr()},opts||{}));const b=await r.json().catch(()=>({}));if(!r.ok)throw new Error(b.detail||('HTTP '+r.status));return b}
+async function load(){try{const b=await api(API);cache=b.rules||[];document.getElementById('rows').innerHTML=cache.map(r=>`<tr><td>${esc(r.area)}</td><td>${esc(r.name)}</td><td>${esc(r.rule_type)}</td><td>${r.priority}</td><td><span class="badge ${r.status}">${esc(r.status)}</span></td><td><pre>${esc(JSON.stringify(r.condition))}\n${esc(JSON.stringify(r.action))}</pre></td><td><button onclick="editRule('${r.id}')">Editar</button>${r.status!=='published'?`<button class="ok" onclick="publishRule('${r.id}')">Publicar</button>`:''}<button class="danger" onclick="deleteRule('${r.id}')">Eliminar</button></td></tr>`).join('');document.getElementById('msg').textContent=''}catch(e){document.getElementById('msg').textContent=e.message}}
+function editRule(id){const r=cache.find(x=>x.id===id);if(!r)return;document.getElementById('ruleId').value=r.id;document.getElementById('area').value=r.area;document.getElementById('ruleType').value=r.rule_type;document.getElementById('name').value=r.name;document.getElementById('priority').value=r.priority;document.getElementById('status').value=r.status;document.getElementById('condition').value=JSON.stringify(r.condition,null,2);document.getElementById('action').value=JSON.stringify(r.action,null,2);document.getElementById('formTitle').textContent='Editar regla';window.scrollTo({top:0,behavior:'smooth'})}
+async function saveRule(){try{const id=document.getElementById('ruleId').value;const body={area:document.getElementById('area').value,name:document.getElementById('name').value,rule_type:document.getElementById('ruleType').value,priority:Number(document.getElementById('priority').value),status:document.getElementById('status').value,condition:JSON.parse(document.getElementById('condition').value||'{}'),action:JSON.parse(document.getElementById('action').value||'{}')};await api(id?API+'/'+id:API,{method:id?'PUT':'POST',body:JSON.stringify(body)});document.getElementById('msg').textContent='Guardado';resetForm();await load()}catch(e){document.getElementById('msg').textContent=e.message}}
+async function publishRule(id){try{await api(API+'/'+id+'/publish',{method:'POST'});await load()}catch(e){document.getElementById('msg').textContent=e.message}}
+async function deleteRule(id){if(!confirm('¿Eliminar esta regla?'))return;try{await api(API+'/'+id,{method:'DELETE'});await load()}catch(e){document.getElementById('msg').textContent=e.message}}
+function resetForm(){document.getElementById('ruleId').value='';document.getElementById('name').value='';document.getElementById('priority').value=100;document.getElementById('status').value='draft';document.getElementById('condition').value='{"category":"heladera"}';document.getElementById('action').value='{"brand":"LG"}';document.getElementById('formTitle').textContent='Nueva regla'}
+document.getElementById('token').value=token();load();
+</script>
+</body>
+</html>"""
+    )
+
+
+@router.get("/admin/center", response_class=HTMLResponse)
+async def admin_center_page() -> HTMLResponse:
+    return HTMLResponse(
+        """<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Centro de administración · ROHO</title>
+<style>
+body{font-family:system-ui,Arial,sans-serif;margin:0;background:#f6f7f9;color:#17212b}
+header{background:#0f172a;color:#fff;padding:14px 22px}
+main{max-width:1000px;margin:20px auto;padding:0 16px}
+.card{background:#fff;border:1px solid #dde3ea;border-radius:10px;padding:16px;margin-bottom:16px}
+label{display:block;font-size:13px;font-weight:600;margin:10px 0 4px}
+input,select{width:100%;box-sizing:border-box;padding:9px;border:1px solid #cbd5e1;border-radius:7px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+button{padding:9px 13px;border:0;border-radius:7px;cursor:pointer;margin:4px 4px 0 0}
+.primary{background:#0f172a;color:#fff}.ok{background:#0f766e;color:#fff}.danger{background:#b91c1c;color:#fff}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{border-bottom:1px solid #e2e8f0;padding:8px;text-align:left}
+.badge{padding:2px 7px;border-radius:20px;background:#e2e8f0;font-size:11px}
+.muted{color:#64748b;font-size:13px}
+</style></head><body>
+<header><strong>ROHO · Centro de administración</strong></header>
+<main>
+<div id="loginCard" class="card">
+<h3>Ingresar como administrador</h3>
+<div class="row"><div><label>Usuario</label><input id="loginUser" autocomplete="username"></div><div><label>Contraseña</label><input id="loginPass" type="password" autocomplete="current-password"></div></div>
+<button class="primary" onclick="login()">Ingresar</button>
+<p class="muted">Usá una cuenta con rol administrador.</p>
+</div>
+<div id="app" style="display:none">
+<div class="card">
+<h3>Crear usuario de área</h3>
+<div class="row"><div><label>Usuario</label><input id="username" placeholder="ecommerce"></div><div><label>Nombre visible</label><input id="display" placeholder="Encargado de Ecommerce"></div></div>
+<div class="row"><div><label>Área</label><select id="area"><option>ecommerce</option><option>calidad</option><option>marketing</option><option>operaciones</option><option>general</option></select></div><div><label>Contraseña</label><input id="password" type="password" placeholder="mínimo 8 caracteres"></div></div>
+<button class="primary" onclick="createUser()">Crear usuario</button>
+<p id="msg" class="muted"></p>
+</div>
+<div class="card"><h3>Usuarios de área</h3>
+<table><thead><tr><th>Usuario</th><th>Nombre</th><th>Área</th><th>Estado</th></tr></thead><tbody id="users"></tbody></table>
+<p><a href="/admin/area-rules/view">Ir al administrador de reglas →</a> · <a href="/advisor/logout">Salir</a></p>
+</div>
+</div>
+</main>
+<script>
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+async function api(path,opts){const r=await fetch(path,Object.assign({headers:{'Content-Type':'application/json'}},opts||{}));const b=await r.json().catch(()=>({}));if(!r.ok)throw new Error(b.detail||('HTTP '+r.status));return b}
+async function me(){try{const m=await api('/advisor/me');if(!m.is_admin){document.getElementById('msg').textContent='La cuenta no tiene rol administrador';return}document.getElementById('loginCard').style.display='none';document.getElementById('app').style.display='block';await load()}catch(e){document.getElementById('loginCard').style.display='block';document.getElementById('app').style.display='none'}}
+async function login(){try{const u=document.getElementById('loginUser').value,p=document.getElementById('loginPass').value;const r=await fetch('/advisor/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});if(!r.ok)throw new Error('Usuario o contraseña incorrectos');await me()}catch(e){document.getElementById('msg').textContent=e.message}}
+async function load(){try{const b=await api('/admin/area-users');document.getElementById('users').innerHTML=(b.users||[]).map(u=>`<tr><td>${esc(u.username)}</td><td>${esc(u.display_name)}</td><td>${esc(u.area)}</td><td><span class="badge">${u.active?'activo':'inactivo'}</span></td></tr>`).join('')}catch(e){document.getElementById('msg').textContent=e.message}}
+async function createUser(){try{const body={username:document.getElementById('username').value,password:document.getElementById('password').value,display_name:document.getElementById('display').value,area:document.getElementById('area').value};await api('/admin/area-users',{method:'POST',body:JSON.stringify(body)});document.getElementById('msg').textContent='Usuario creado';document.getElementById('username').value='';document.getElementById('password').value='';await load()}catch(e){document.getElementById('msg').textContent=e.message}}
+me();
+</script></body></html>"""
+    )
+
+
+@router.get("/areas/panel", response_class=HTMLResponse)
+async def area_rules_panel() -> HTMLResponse:
+    return HTMLResponse(
+        """<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mis reglas · ROHO</title>
+<style>
+body{font-family:system-ui,Arial,sans-serif;margin:0;background:#f6f7f9;color:#17212b}
+header{background:#0f172a;color:#fff;padding:14px 22px;display:flex;justify-content:space-between;align-items:center}
+main{max-width:1000px;margin:20px auto;padding:0 16px}
+.card{background:#fff;border:1px solid #dde3ea;border-radius:12px;padding:18px;margin-bottom:16px}
+label{display:block;font-size:13px;font-weight:600;margin:10px 0 4px}
+input,select,textarea{width:100%;box-sizing:border-box;padding:9px;border:1px solid #cbd5e1;border-radius:7px}
+textarea{min-height:70px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+button{padding:9px 13px;border:0;border-radius:7px;cursor:pointer;margin:4px 4px 0 0}
+.primary{background:#0f172a;color:#fff}.ok{background:#0f766e;color:#fff}.danger{background:#b91c1c;color:#fff}.ghost{background:#e2e8f0}
+.muted{color:#64748b;font-size:13px}.qrow{border:1px solid #e2e8f0;border-radius:8px;padding:10px;margin:8px 0}
+.badge{padding:2px 7px;border-radius:20px;background:#e2e8f0;font-size:11px}.published{background:#ccfbf1;color:#115e59}.draft{background:#fef3c7;color:#92400e}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{border-bottom:1px solid #e2e8f0;padding:8px;text-align:left;vertical-align:top}
+pre{white-space:pre-wrap;margin:0;font-size:11px}
+</style></head><body>
+<header><strong id="who">Mis reglas</strong><span><a style="color:#cbd5e1" href="/areas/logout">Salir</a></span></header>
+<main>
+<div class="card">
+<h3 id="formTitle">Nueva regla</h3>
+<input id="ruleId" type="hidden">
+<label>¿Qué querés hacer?</label>
+<select id="kind" onchange="toggleKind()">
+<option value="brand_priority">Priorizar una marca cuando pregunten por una categoría</option>
+<option value="return_flow">Crear un flujo de preguntas para devoluciones</option>
+</select>
+<label>Nombre de la regla</label><input id="name" placeholder="Ej: Priorizar LG en heladeras">
+<div id="brandBox">
+  <div class="row"><div><label>Categoría</label><input id="category" placeholder="heladera, televisor, colchón..."></div>
+  <div><label>Marca que querés priorizar</label><input id="brand" placeholder="LG"></div></div>
+</div>
+<div id="flowBox" style="display:none">
+  <label>Preguntas del flujo (una por una)</label>
+  <div id="questions"></div>
+  <button class="ghost" onclick="addQuestion()">+ Agregar pregunta</button>
+  <p class="muted">Marcá “Debe responder Sí” para que esa respuesta sea obligatoria.</p>
+</div>
+<div class="row"><div><label>Prioridad</label><input id="priority" type="number" value="100"></div>
+<div><label>Estado</label><select id="status"><option>draft</option><option>published</option></select></div></div>
+<button class="primary" onclick="saveRule()">Guardar regla</button>
+<button class="ghost" onclick="resetForm()">Limpiar</button>
+<p id="msg" class="muted"></p>
+</div>
+<div class="card"><h3>Mis reglas cargadas</h3>
+<table><thead><tr><th>Nombre</th><th>Tipo</th><th>Detalle</th><th>Estado</th><th></th></tr></thead><tbody id="rows"></tbody></table>
+</div>
+</main>
+<script>
+let me=null, cache=[];
+async function api(path,opts){const r=await fetch(path,Object.assign({headers:{'Content-Type':'application/json'}},opts||{}));if(r.status===401){location.href='/areas/login';throw new Error('sin sesión')}const b=await r.json().catch(()=>({}));if(!r.ok)throw new Error(b.detail||('HTTP '+r.status));return b}
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function toggleKind(){const flow=document.getElementById('kind').value==='return_flow';document.getElementById('brandBox').style.display=flow?'none':'block';document.getElementById('flowBox').style.display=flow?'block':'none'}
+function addQuestion(text='',key='',requireYes=false){const box=document.getElementById('questions');const row=document.createElement('div');row.className='qrow';row.innerHTML=`<div class="row"><div><label>Pregunta</label><input class="qtext" value="${esc(text)}" placeholder="¿Tenés la factura original?"></div><div><label>Clave</label><input class="qkey" value="${esc(key)}" placeholder="factura"></div></div><label><input type="checkbox" class="qreq" ${requireYes?'checked':''}> Debe responder Sí</label> <button class="danger" onclick="this.closest('.qrow').remove()">Quitar</button>`;box.appendChild(row)}
+function questionsFromForm(){return [...document.querySelectorAll('.qrow')].map(r=>({text:r.querySelector('.qtext').value.trim(),key:r.querySelector('.qkey').value.trim()||r.querySelector('.qtext').value.trim().toLowerCase().replace(/[^a-z0-9]+/g,'_'),type:'yes_no',_req:r.querySelector('.qreq').checked})).filter(q=>q.text)}
+function resetForm(){document.getElementById('ruleId').value='';document.getElementById('name').value='';document.getElementById('category').value='';document.getElementById('brand').value='';document.getElementById('priority').value=100;document.getElementById('status').value='draft';document.getElementById('kind').value='brand_priority';document.getElementById('questions').innerHTML='';addQuestion();toggleKind();document.getElementById('formTitle').textContent='Nueva regla'}
+async function load(){me=await api('/areas/me');document.getElementById('who').textContent='Reglas de '+me.area+' · '+me.display_name;const b=await api('/areas/rules');cache=b.rules||[];document.getElementById('rows').innerHTML=cache.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.rule_type)}</td><td>${detail(r)}</td><td><span class="badge ${r.status}">${esc(r.status)}</span></td><td><button onclick="editRule('${r.id}')">Editar</button>${r.status!=='published'?`<button class="ok" onclick="publishRule('${r.id}')">Publicar</button>`:''}<button class="danger" onclick="deleteRule('${r.id}')">Eliminar</button></td></tr>`).join('')}
+function detail(r){if(r.rule_type==='brand_priority')return `Categoría: ${esc(r.condition.category||'')} → ${esc(r.action.brand||'')}`;if(r.rule_type==='return_flow')return `${(r.action.questions||[]).length} preguntas`;return esc(JSON.stringify(r.condition))+' → '+esc(JSON.stringify(r.action))}
+function editRule(id){const r=cache.find(x=>x.id===id);if(!r)return;document.getElementById('ruleId').value=r.id;document.getElementById('name').value=r.name;document.getElementById('priority').value=r.priority;document.getElementById('status').value=r.status;document.getElementById('kind').value=r.rule_type==='return_flow'?'return_flow':'brand_priority';toggleKind();if(r.rule_type==='brand_priority'){document.getElementById('category').value=r.condition.category||'';document.getElementById('brand').value=r.action.brand||''}else{document.getElementById('questions').innerHTML='';for(const q of r.action.questions||[])addQuestion(q.text||'',q.key||'',!!(r.action.requirements||{})[q.key])}document.getElementById('formTitle').textContent='Editar regla';window.scrollTo({top:0,behavior:'smooth'})}
+async function saveRule(){try{const id=document.getElementById('ruleId').value;const kind=document.getElementById('kind').value;const name=document.getElementById('name').value.trim();if(!name)throw new Error('Poné un nombre a la regla');let condition={},action={};if(kind==='brand_priority'){const cat=document.getElementById('category').value.trim();const brand=document.getElementById('brand').value.trim();if(!cat||!brand)throw new Error('Completá categoría y marca');condition={category:cat};action={brand}}else{const qs=questionsFromForm();if(!qs.length)throw new Error('Agregá al menos una pregunta');action={questions:qs.map(q=>({key:q.key,text:q.text,type:'yes_no'})),requirements:Object.fromEntries(qs.filter(q=>q._req).map(q=>[q.key,true]))};condition={intent:'devolucion'}}const body={area:'general',name,rule_type:kind,condition,action,priority:Number(document.getElementById('priority').value),status:document.getElementById('status').value};await api(id?'/areas/rules/'+id:'/areas/rules',{method:id?'PUT':'POST',body:JSON.stringify(body)});document.getElementById('msg').textContent='Guardado';resetForm();await load()}catch(e){document.getElementById('msg').textContent=e.message}}
+async function publishRule(id){try{await api('/areas/rules/'+id+'/publish',{method:'POST'});await load()}catch(e){document.getElementById('msg').textContent=e.message}}
+async function deleteRule(id){if(!confirm('¿Eliminar esta regla?'))return;try{await api('/areas/rules/'+id,{method:'DELETE'});await load()}catch(e){document.getElementById('msg').textContent=e.message}}
+resetForm();load();
+</script></body></html>"""
+    )
+
+
+@router.get("/areas/login", include_in_schema=False)
+async def area_login_redirect() -> RedirectResponse:
+    return RedirectResponse(url="/console/login?mode=area", status_code=303)
+
+
+@router.get("/areas/login", response_class=HTMLResponse)
+async def area_login_page() -> HTMLResponse:
+    return HTMLResponse(
+        """<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ingresar · Reglas por área</title>
+<style>
+body{font-family:system-ui,sans-serif;background:#f5f6f8;display:grid;place-items:center;min-height:100vh;margin:0}
+.card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:24px;width:330px;box-shadow:0 8px 30px #0001}
+h1{font-size:20px;margin:0 0 6px}label{display:block;font-size:13px;margin:12px 0 4px;color:#374151}
+input{width:100%;box-sizing:border-box;padding:10px;border:1px solid #d1d5db;border-radius:8px}
+button{width:100%;margin-top:16px;padding:11px;border:0;border-radius:8px;background:#111827;color:#fff;font-weight:700;cursor:pointer}
+#err{color:#b91c1c;font-size:13px;margin-top:10px}
+</style></head><body><div class="card">
+<h1>Reglas por área</h1>
+<p class="muted">Ingresá con el usuario de tu área.</p>
+<label>Usuario</label><input id="username" autocomplete="username">
+<label>Contraseña</label><input id="password" type="password" autocomplete="current-password">
+<button id="go">Ingresar</button><div id="err"></div>
+</div><script>
+document.getElementById('go').onclick=async()=>{
+  const r=await fetch('/areas/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:document.getElementById('username').value,password:document.getElementById('password').value})});
+  if(!r.ok){document.getElementById('err').textContent='Usuario o contraseña incorrectos';return}
+  location.href='/areas/panel';
+};
+</script></body></html>"""
+    )
+
+
+@router.post("/areas/login")
+async def area_login(
+    request: Request,
+    payload: LoginIn,
+    session: AsyncSession = Depends(get_session),
+):
+    user = await area_users.authenticate(
+        session, payload.username, payload.password
+    )
+    if user is None:
+        raise HTTPException(status_code=401, detail="Credenciales inválidas")
+    response = JSONResponse({"ok": True, "area": user.area})
+    response.set_cookie(
+        "area_session",
+        advisor_service.make_session(user.username),
+        httponly=True,
+        secure=request.url.scheme == "https",
+        samesite="lax",
+        max_age=settings.advisor_session_hours * 3600,
+    )
+    return response
+
+
+@router.get("/areas/logout")
+async def area_logout() -> RedirectResponse:
+    response = RedirectResponse(url="/console/login?mode=area", status_code=303)
+    response.delete_cookie("area_session")
+    return response
+
+
+@router.get("/auth/me")
+async def auth_me(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Resuelve la sesión una sola vez: admin/asesor o usuario de área."""
+    advisor_token = request.cookies.get("advisor_session", "")
+    advisor_name = (
+        advisor_service.parse_session(advisor_token) if advisor_token else None
+    )
+    if advisor_name:
+        advisor = await advisor_service.current_advisor(session, advisor_name)
+        if advisor is not None:
+            role = advisor.role or ("admin" if advisor.is_admin else "agent")
+            return {
+                "kind": "advisor",
+                "advisor": {
+                    "username": advisor.username,
+                    "display_name": advisor.display_name,
+                    "is_admin": role == "admin",
+                    "is_supervisor": role in {"admin", "supervisor"},
+                    "role": role,
+                    "on_duty": advisor.on_duty,
+                },
+            }
+    area_token = request.cookies.get("area_session", "")
+    area_name = (
+        advisor_service.parse_session(area_token) if area_token else None
+    )
+    if area_name:
+        user = await area_users.get_by_username(session, area_name)
+        if user is not None:
+            return {
+                "kind": "area",
+                "area": {
+                    "username": user.username,
+                    "display_name": user.display_name,
+                    "area": user.area,
+                },
+            }
+    raise HTTPException(status_code=401, detail="Sesión requerida")
+
+
+@router.get("/areas/me")
+async def area_me(user: dict = Depends(require_area_user)) -> dict:
+    return user
+
+
+@router.post("/areas/rules/simulate")
+async def area_rules_simulate(
+    payload: SimulationPayload,
+    user: dict = Depends(require_area_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    return await rule_simulator.simulate(
+        session, query=payload.query, area=user["area"]
+    )
+
+
+@router.post(
+    "/admin/rules/simulate",
+    dependencies=[Depends(require_center_admin)],
+)
+async def admin_rules_simulate(
+    payload: SimulationPayload,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    return await rule_simulator.simulate(
+        session, query=payload.query, area=payload.area
+    )
+
+
+@router.get("/areas/rules")
+async def area_rules_list(
+    user: dict = Depends(require_area_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    rows = await area_rules.list_rules(session, area=user["area"])
+    return {"ok": True, "area": user["area"], "rules": [area_rules.to_dict(r) for r in rows]}
+
+
+@router.post("/areas/rules")
+async def area_rule_create(
+    payload: AreaRulePayload,
+    user: dict = Depends(require_area_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    try:
+        rule = await area_rules.create_rule(
+            session,
+            area=user["area"],
+            name=payload.name,
+            rule_type=payload.rule_type,
+            condition=payload.condition,
+            action=payload.action,
+            priority=payload.priority,
+            status=payload.status,
+            valid_from=payload.valid_from,
+            valid_to=payload.valid_to,
+            changed_by=user["username"],
+        )
+    except area_rules.RuleError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "rule": area_rules.to_dict(rule)}
+
+
+@router.put("/areas/rules/{rule_id}")
+async def area_rule_update(
+    rule_id: str,
+    payload: AreaRulePayload,
+    user: dict = Depends(require_area_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    rule = await area_rules.get_rule(session, rule_id)
+    if rule is None or rule.area != user["area"]:
+        raise HTTPException(status_code=404, detail="Regla no encontrada")
+    try:
+        rule = await area_rules.update_rule(
+            session,
+            rule,
+            name=payload.name,
+            rule_type=payload.rule_type,
+            condition=payload.condition,
+            action=payload.action,
+            priority=payload.priority,
+            status=payload.status,
+            valid_from=payload.valid_from,
+            valid_to=payload.valid_to,
+            changed_by=user["username"],
+        )
+    except area_rules.RuleError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "rule": area_rules.to_dict(rule)}
+
+
+@router.post("/areas/rules/{rule_id}/publish")
+async def area_rule_publish(
+    rule_id: str,
+    user: dict = Depends(require_area_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    rule = await area_rules.get_rule(session, rule_id)
+    if rule is None or rule.area != user["area"]:
+        raise HTTPException(status_code=404, detail="Regla no encontrada")
+    rule = await area_rules.set_status(
+        session, rule, "published", changed_by=user["username"]
+    )
+    return {"ok": True, "rule": area_rules.to_dict(rule)}
+
+
+@router.delete("/areas/rules/{rule_id}")
+async def area_rule_delete(
+    rule_id: str,
+    user: dict = Depends(require_area_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    rule = await area_rules.get_rule(session, rule_id)
+    if rule is None or rule.area != user["area"]:
+        raise HTTPException(status_code=404, detail="Regla no encontrada")
+    await area_rules.delete_rule(session, rule)
+    return {"ok": True}
+
+
+@router.get(
+    "/admin/area-users",
+    dependencies=[Depends(require_center_admin)],
+)
+async def admin_area_users(session: AsyncSession = Depends(get_session)) -> dict:
+    rows = await area_users.list_users(session)
+    return {
+        "ok": True,
+        "users": [
+            {
+                "id": row.id,
+                "username": row.username,
+                "display_name": row.display_name,
+                "area": row.area,
+                "active": row.active,
+            }
+            for row in rows
+        ],
+    }
+
+
+@router.post(
+    "/admin/area-users",
+    dependencies=[Depends(require_center_admin)],
+)
+async def admin_area_user_create(
+    payload: AreaUserIn,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    try:
+        user = await area_users.create_user(
+            session,
+            username=payload.username,
+            password=payload.password,
+            area=payload.area,
+            display_name=payload.display_name,
+        )
+    except area_users.AreaUserError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "id": user.id, "area": user.area}
+
+
+@router.patch(
+    "/admin/area-users/{user_id}",
+    dependencies=[Depends(require_center_admin)],
+)
+async def admin_area_user_patch(
+    user_id: str,
+    payload: AreaUserPatch,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    user = await session.get(AreaUser, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    try:
+        user = await area_users.update_user(
+            session,
+            user,
+            display_name=payload.display_name,
+            area=payload.area,
+            active=payload.active,
+            password=payload.password,
+        )
+    except area_users.AreaUserError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "ok": True,
+        "id": user.id,
+        "username": user.username,
+        "display_name": user.display_name,
+        "area": user.area,
+        "active": user.active,
+    }
+
+
+@router.post("/areas/me/password")
+async def area_change_password(
+    payload: PasswordChange,
+    user: dict = Depends(require_area_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    area_user = await area_users.get_by_username(session, user["username"])
+    if area_user is None:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    try:
+        await area_users.update_user(
+            session, area_user, password=payload.password
+        )
+    except area_users.AreaUserError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True}
+
+
+@router.get(
+    "/admin/area-rules/{rule_id}/versions",
+    dependencies=[Depends(require_center_admin)],
+)
+async def admin_rule_versions(
+    rule_id: str,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    rule = await area_rules.get_rule(session, rule_id)
+    if rule is None:
+        raise HTTPException(status_code=404, detail="Regla no encontrada")
+    versions = await area_rules.list_versions(session, rule_id)
+    return {
+        "ok": True,
+        "versions": [
+            {
+                "id": row.id,
+                "version": row.version,
+                "changed_by": row.changed_by,
+                "created_at": row.created_at.isoformat()
+                if row.created_at
+                else None,
+                "snapshot": row.snapshot or {},
+            }
+            for row in versions
+        ],
+    }
+
+
+@router.post(
+    "/admin/area-rules/{rule_id}/rollback/{version}",
+    dependencies=[Depends(require_center_admin)],
+)
+async def admin_rule_rollback(
+    rule_id: str,
+    version: int,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    rule = await area_rules.get_rule(session, rule_id)
+    if rule is None:
+        raise HTTPException(status_code=404, detail="Regla no encontrada")
+    try:
+        rule = await area_rules.rollback_rule(session, rule, version)
+    except area_rules.RuleError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "rule": area_rules.to_dict(rule)}
+
+
+@router.get("/areas/rules/{rule_id}/versions")
+async def area_rule_versions(
+    rule_id: str,
+    user: dict = Depends(require_area_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    rule = await area_rules.get_rule(session, rule_id)
+    if rule is None or rule.area != user["area"]:
+        raise HTTPException(status_code=404, detail="Regla no encontrada")
+    versions = await area_rules.list_versions(session, rule_id)
+    return {
+        "ok": True,
+        "versions": [
+            {
+                "id": row.id,
+                "version": row.version,
+                "changed_by": row.changed_by,
+                "created_at": row.created_at.isoformat()
+                if row.created_at
+                else None,
+                "snapshot": row.snapshot or {},
+            }
+            for row in versions
+        ],
+    }
+
+
+@router.post("/areas/rules/{rule_id}/rollback/{version}")
+async def area_rule_rollback(
+    rule_id: str,
+    version: int,
+    user: dict = Depends(require_area_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    rule = await area_rules.get_rule(session, rule_id)
+    if rule is None or rule.area != user["area"]:
+        raise HTTPException(status_code=404, detail="Regla no encontrada")
+    try:
+        rule = await area_rules.rollback_rule(
+            session, rule, version, changed_by=user["username"]
+        )
+    except area_rules.RuleError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "rule": area_rules.to_dict(rule)}
+
+
+@router.get("/areas/occasions")
+async def area_occasions(
+    user: dict = Depends(require_area_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    rows = await occasion_store.list_occasions(session)
+    return {
+        "ok": True,
+        "area": user["area"],
+        "occasions": [occasion_store.to_dict(row) for row in rows],
+    }
+
+
+@router.post("/areas/occasions")
+async def area_occasion_create(
+    payload: OccasionPayload,
+    user: dict = Depends(require_area_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    try:
+        row = await occasion_store.create_occasion(
+            session,
+            name=payload.name,
+            aliases=payload.aliases,
+            direct=payload.direct,
+            exclude=payload.exclude,
+            exclude_categories=payload.exclude_categories,
+            bridges=payload.bridges,
+            area=user["area"],
+            status=payload.status,
+            priority=payload.priority,
+            valid_from=payload.valid_from,
+            valid_to=payload.valid_to,
+            changed_by=user["username"],
+        )
+    except occasion_store.OccasionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "occasion": occasion_store.to_dict(row)}
+
+
+@router.put("/areas/occasions/{occasion_id}")
+async def area_occasion_update(
+    occasion_id: str,
+    payload: OccasionPayload,
+    user: dict = Depends(require_area_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    row = await occasion_store.get_occasion(session, occasion_id)
+    if row is None or row.area != user["area"]:
+        raise HTTPException(status_code=404, detail="Ocasión no encontrada")
+    try:
+        row = await occasion_store.update_occasion(
+            session,
+            row,
+            name=payload.name,
+            aliases=payload.aliases,
+            direct=payload.direct,
+            exclude=payload.exclude,
+            exclude_categories=payload.exclude_categories,
+            bridges=payload.bridges,
+            area=user["area"],
+            status=payload.status,
+            priority=payload.priority,
+            valid_from=payload.valid_from,
+            valid_to=payload.valid_to,
+            changed_by=user["username"],
+        )
+    except occasion_store.OccasionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "occasion": occasion_store.to_dict(row)}
+
+
+@router.post("/areas/occasions/{occasion_id}/publish")
+async def area_occasion_publish(
+    occasion_id: str,
+    user: dict = Depends(require_area_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    row = await occasion_store.get_occasion(session, occasion_id)
+    if row is None or row.area != user["area"]:
+        raise HTTPException(status_code=404, detail="Ocasión no encontrada")
+    row = await occasion_store.publish_occasion(
+        session, row, changed_by=user["username"]
+    )
+    return {"ok": True, "occasion": occasion_store.to_dict(row)}
+
+
+@router.delete("/areas/occasions/{occasion_id}")
+async def area_occasion_delete(
+    occasion_id: str,
+    user: dict = Depends(require_area_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    row = await occasion_store.get_occasion(session, occasion_id)
+    if row is None or row.area != user["area"]:
+        raise HTTPException(status_code=404, detail="Ocasión no encontrada")
+    await occasion_store.delete_occasion(session, row)
+    return {"ok": True}
+
+
+@router.get(
+    "/admin/overview",
+    dependencies=[Depends(require_center_admin)],
+)
+async def admin_overview(
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    return await overview_service.overview(session)
+
+
+@router.get(
+    "/admin/occasions",
+    dependencies=[Depends(require_center_admin)],
+)
+async def admin_occasions(
+    area: str | None = None,
+    status: str | None = None,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    rows = await occasion_store.list_occasions(
+        session, area=area, status=status
+    )
+    return {
+        "ok": True,
+        "occasions": [occasion_store.to_dict(row) for row in rows],
+    }
+
+
+@router.post(
+    "/admin/occasions/seed",
+    dependencies=[Depends(require_center_admin)],
+)
+async def admin_occasions_seed(
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    added = await occasion_store.seed_examples(session)
+    return {"ok": True, "added": added}
+
+
+@router.post(
+    "/admin/occasions",
+    dependencies=[Depends(require_center_admin)],
+)
+async def admin_occasion_create(
+    payload: OccasionPayload,
+    admin: dict = Depends(require_center_admin),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    try:
+        row = await occasion_store.create_occasion(
+            session,
+            name=payload.name,
+            aliases=payload.aliases,
+            direct=payload.direct,
+            exclude=payload.exclude,
+            exclude_categories=payload.exclude_categories,
+            bridges=payload.bridges,
+            area=payload.area,
+            status=payload.status,
+            priority=payload.priority,
+            valid_from=payload.valid_from,
+            valid_to=payload.valid_to,
+            changed_by=admin["username"],
+        )
+    except occasion_store.OccasionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "occasion": occasion_store.to_dict(row)}
+
+
+@router.put(
+    "/admin/occasions/{occasion_id}",
+    dependencies=[Depends(require_center_admin)],
+)
+async def admin_occasion_update(
+    occasion_id: str,
+    payload: OccasionPayload,
+    admin: dict = Depends(require_center_admin),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    row = await occasion_store.get_occasion(session, occasion_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Ocasión no encontrada")
+    try:
+        row = await occasion_store.update_occasion(
+            session,
+            row,
+            name=payload.name,
+            aliases=payload.aliases,
+            direct=payload.direct,
+            exclude=payload.exclude,
+            exclude_categories=payload.exclude_categories,
+            bridges=payload.bridges,
+            area=payload.area,
+            status=payload.status,
+            priority=payload.priority,
+            valid_from=payload.valid_from,
+            valid_to=payload.valid_to,
+            changed_by=admin["username"],
+        )
+    except occasion_store.OccasionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "occasion": occasion_store.to_dict(row)}
+
+
+@router.post(
+    "/admin/occasions/{occasion_id}/publish",
+    dependencies=[Depends(require_center_admin)],
+)
+async def admin_occasion_publish(
+    occasion_id: str,
+    admin: dict = Depends(require_center_admin),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    row = await occasion_store.get_occasion(session, occasion_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Ocasión no encontrada")
+    row = await occasion_store.publish_occasion(
+        session, row, changed_by=admin["username"]
+    )
+    return {"ok": True, "occasion": occasion_store.to_dict(row)}
+
+
+@router.delete(
+    "/admin/occasions/{occasion_id}",
+    dependencies=[Depends(require_center_admin)],
+)
+async def admin_occasion_delete(
+    occasion_id: str,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    row = await occasion_store.get_occasion(session, occasion_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Ocasión no encontrada")
+    await occasion_store.delete_occasion(session, row)
+    return {"ok": True}
+
+
+@router.get(
+    "/admin/area-rules",
+    dependencies=[Depends(require_center_admin)],
+)
+async def admin_area_rules(
+    area: str | None = None,
+    status: str | None = None,
+    rule_type: str | None = None,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    rules = await area_rules.list_rules(
+        session, area=area, status=status, rule_type=rule_type
+    )
+    return {"ok": True, "rules": [area_rules.to_dict(rule) for rule in rules]}
+
+
+@router.post(
+    "/admin/area-rules",
+    dependencies=[Depends(require_center_admin)],
+)
+async def admin_area_rule_create(
+    payload: AreaRulePayload,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    try:
+        rule = await area_rules.create_rule(
+            session,
+            area=payload.area,
+            name=payload.name,
+            rule_type=payload.rule_type,
+            condition=payload.condition,
+            action=payload.action,
+            priority=payload.priority,
+            status=payload.status,
+            valid_from=payload.valid_from,
+            valid_to=payload.valid_to,
+        )
+    except area_rules.RuleError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "rule": area_rules.to_dict(rule)}
+
+
+@router.put(
+    "/admin/area-rules/{rule_id}",
+    dependencies=[Depends(require_center_admin)],
+)
+async def admin_area_rule_update(
+    rule_id: str,
+    payload: AreaRulePayload,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    rule = await area_rules.get_rule(session, rule_id)
+    if rule is None:
+        raise HTTPException(status_code=404, detail="Regla no encontrada")
+    try:
+        rule = await area_rules.update_rule(
+            session,
+            rule,
+            name=payload.name,
+            rule_type=payload.rule_type,
+            condition=payload.condition,
+            action=payload.action,
+            priority=payload.priority,
+            status=payload.status,
+            valid_from=payload.valid_from,
+            valid_to=payload.valid_to,
+        )
+    except area_rules.RuleError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "rule": area_rules.to_dict(rule)}
+
+
+@router.post(
+    "/admin/area-rules/{rule_id}/publish",
+    dependencies=[Depends(require_center_admin)],
+)
+async def admin_area_rule_publish(
+    rule_id: str,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    rule = await area_rules.get_rule(session, rule_id)
+    if rule is None:
+        raise HTTPException(status_code=404, detail="Regla no encontrada")
+    try:
+        rule = await area_rules.set_status(session, rule, "published")
+    except area_rules.RuleError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "rule": area_rules.to_dict(rule)}
+
+
+@router.delete(
+    "/admin/area-rules/{rule_id}",
+    dependencies=[Depends(require_center_admin)],
+)
+async def admin_area_rule_delete(
+    rule_id: str,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    rule = await area_rules.get_rule(session, rule_id)
+    if rule is None:
+        raise HTTPException(status_code=404, detail="Regla no encontrada")
+    await area_rules.delete_rule(session, rule)
+    return {"ok": True}
+
+
 @router.post(
     "/admin/knowledge/reload",
     dependencies=[Depends(require_admin)],
 )
 async def admin_knowledge_reload() -> dict:
     return {"ok": True, "articles": knowledge.reload()}
+
+
+@router.post(
+    "/internal/catalog/refresh",
+    dependencies=[Depends(require_internal_refresh)],
+)
+async def admin_catalog_refresh(
+    sku: str,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Refresca un SKU desde VTEX (precio, ficha y promoción)."""
+    try:
+        result = await refresh_service.refresh_item(session, sku)
+    except SapError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)[:300]) from exc
+    if not result.get("ok"):
+        status = 409 if "SAP_MODE" in str(result.get("error")) else 404
+        raise HTTPException(
+            status_code=status,
+            detail=result.get("error", "No se pudo refrescar el SKU"),
+        )
+    return result
 
 
 @router.get(

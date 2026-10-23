@@ -14,8 +14,10 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..config import settings
 from ..models import Contact, Conversation, CustomerCandidate, Message
-from ..sap import ServiceLayerSap
+from ..sap import ServiceLayerSap, get_sap
+from . import vtex_customers
 from .purchases import history_summary, sync_contact_purchases
 
 logger = logging.getLogger(__name__)
@@ -167,13 +169,27 @@ async def link_customer(
             "Pedile el carnet/NIT de nuevo."
         )
     contact.sap_card_code = code
+    if settings.sap_mode == "vtex":
+        contact.tax_id = code[:20]
     await session.commit()
 
-    sap = ServiceLayerSap(session)
-    try:
-        inserted = await sync_contact_purchases(session, contact, sap)
-    finally:
-        await sap.close()
+    if settings.sap_mode == "vtex":
+        sap = get_sap(session)
+        try:
+            inserted = await vtex_customers.sync_contact(
+                session,
+                contact,
+                sap,
+                document=document or code,
+            )
+        finally:
+            await sap.close()
+    else:
+        sap = ServiceLayerSap(session)
+        try:
+            inserted = await sync_contact_purchases(session, contact, sap)
+        finally:
+            await sap.close()
 
     await session.execute(
         delete(CustomerCandidate).where(

@@ -27,7 +27,10 @@ import {
 } from "lucide-react";
 import { api, onUnauthorized } from "./api";
 import { Badge, Button, Card, Dialog, Input, Skeleton, Textarea, cn } from "./ui";
-import type { Advisor, AdvisorMetric, Handoff, HandoffDetail } from "./types";
+import type { Advisor, AdvisorMetric, AreaUser, AuthMe, Handoff, HandoffDetail } from "./types";
+import { AdminCenter, AdminRulesPage, AreaRulesPage } from "./areas";
+import { OccasionsPage } from "./occasions";
+import { OverviewPage } from "./overview";
 
 const ThemeContext = createContext<{ dark: boolean; toggle: () => void } | null>(null);
 
@@ -116,8 +119,19 @@ function loginRedirect(navigate: ReturnType<typeof useNavigate>) {
   navigate("/login", { replace: true });
 }
 
-function Login({ onLogin }: { onLogin: (me: Advisor) => void }) {
+function Login({
+  onLogin,
+  onAreaLogin
+}: {
+  onLogin: (me: Advisor) => void;
+  onAreaLogin: (user: AreaUser) => void;
+}) {
   const navigate = useNavigate();
+  const [mode, setMode] = useState<"advisor" | "area">(() =>
+    new URLSearchParams(window.location.search).get("mode") === "area"
+      ? "area"
+      : "advisor"
+  );
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -128,13 +142,23 @@ function Login({ onLogin }: { onLogin: (me: Advisor) => void }) {
     setBusy(true);
     setError("");
     try {
+      if (mode === "area") {
+        await api("/areas/login", {
+          method: "POST",
+          body: JSON.stringify({ username, password })
+        });
+        const user = await api<AreaUser>("/areas/me");
+        onAreaLogin(user);
+        navigate("/rules", { replace: true });
+        return;
+      }
       await api("/advisor/login", {
         method: "POST",
         body: JSON.stringify({ username, password })
       });
       const me = await api<Advisor>("/advisor/me");
       onLogin(me);
-      navigate("/inbox", { replace: true });
+      navigate(me.is_admin ? "/overview" : "/inbox", { replace: true });
     } catch {
       setError("Usuario o contraseña incorrectos.");
     } finally {
@@ -143,36 +167,42 @@ function Login({ onLogin }: { onLogin: (me: Advisor) => void }) {
   }
 
   return (
-    <div className="relative grid min-h-screen place-items-center bg-[radial-gradient(circle_at_top,#7f1d1d,#020617)] px-4">
+    <div className="relative grid min-h-screen place-items-center bg-[radial-gradient(circle_at_top,#5c111c,#1b090c_55%,#0e0507)] px-4">
       <div className="absolute right-4 top-4">
         <ThemeToggle />
       </div>
-      <form onSubmit={submit} className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-2xl">
+      <form onSubmit={submit} className="w-full max-w-sm rounded-2xl border border-[#d8b06a]/30 bg-[#fffaf3] p-8 shadow-2xl shadow-black/40">
         <div className="mb-6 flex items-center gap-3">
-          <div className="grid h-11 w-11 place-items-center rounded-xl bg-red-600 font-black text-white">R</div>
+          <div className="grid h-11 w-11 place-items-center rounded-xl bg-[#b8863b] font-black text-[#2a0c0d] shadow-inner">R</div>
           <div>
-            <div className="text-xs font-bold uppercase tracking-[.2em] text-slate-400">ROHO Homecenter</div>
-            <h1 className="text-xl font-bold text-slate-900">Consola de asesores</h1>
+            <div className="text-xs font-bold uppercase tracking-[.22em] text-[#a8792f]">ROHO Homecenter</div>
+            <h1 className="font-serif text-xl font-semibold tracking-tight text-[#3d1a17]">
+              {mode === "area" ? "Portal de áreas" : "Consola de asesores"}
+            </h1>
           </div>
         </div>
-        <label htmlFor="advisor-username" className="mb-1 block text-sm font-medium text-slate-600">
+        <div className="mb-4 grid grid-cols-2 gap-2 rounded-lg bg-[#f1e6d6] p-1">
+          <button type="button" onClick={() => setMode("advisor")} className={`rounded-md px-3 py-1.5 text-sm font-semibold ${mode === "advisor" ? "bg-white text-[#3d1a17] shadow-sm" : "text-[#8b6d59]"}`}>Consola</button>
+          <button type="button" onClick={() => setMode("area")} className={`rounded-md px-3 py-1.5 text-sm font-semibold ${mode === "area" ? "bg-white text-[#3d1a17] shadow-sm" : "text-[#8b6d59]"}`}>Área</button>
+        </div>
+        <label htmlFor="advisor-username" className="mb-1 block text-sm font-medium text-[#765b4b]">
           Usuario
         </label>
         <input
           id="advisor-username"
-          className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-600"
+          className="mb-4 w-full rounded-lg border border-[#d9c3aa] bg-white px-3 py-2 text-[#3d1a17] outline-none transition focus:border-[#a8792f] focus:ring-1 focus:ring-[#a8792f]"
           value={username}
           onChange={(event) => setUsername(event.target.value)}
           autoComplete="username"
           autoFocus
           required
         />
-        <label htmlFor="advisor-password" className="mb-1 block text-sm font-medium text-slate-600">
+        <label htmlFor="advisor-password" className="mb-1 block text-sm font-medium text-[#765b4b]">
           Contraseña
         </label>
         <input
           id="advisor-password"
-          className="mb-2 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-600"
+          className="mb-2 w-full rounded-lg border border-[#d9c3aa] bg-white px-3 py-2 text-[#3d1a17] outline-none transition focus:border-[#a8792f] focus:ring-1 focus:ring-[#a8792f]"
           type="password"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
@@ -186,10 +216,11 @@ function Login({ onLogin }: { onLogin: (me: Advisor) => void }) {
         )}
         <button
           disabled={busy}
-          className="mt-3 w-full rounded-lg bg-red-600 px-4 py-2.5 font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+          className="mt-3 w-full rounded-lg bg-[#6b1d2b] px-4 py-2.5 font-semibold text-[#fffaf3] shadow-sm transition hover:bg-[#54131f] disabled:opacity-50"
         >
           {busy ? "Ingresando…" : "Ingresar"}
         </button>
+        {mode === "area" && <p className="mt-3 text-center text-xs text-[#9a7d68]">Solo vas a ver las reglas de tu área.</p>}
       </form>
     </div>
   );
@@ -208,13 +239,13 @@ function Header({
 }) {
   const location = useLocation();
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-800 bg-slate-950/95 text-white backdrop-blur">
+    <header className="sticky top-0 z-40 border-b border-[#d8b06a]/25 bg-[linear-gradient(135deg,#3b0f14_0%,#240a0d_55%,#160709_100%)] text-white shadow-lg shadow-black/20 backdrop-blur">
       <div className="mx-auto flex max-w-[1500px] flex-wrap items-center gap-3 px-4 py-3 lg:px-6">
         <div className="flex items-center gap-2">
-          <div className="grid h-8 w-8 place-items-center rounded-lg bg-red-600 text-sm font-black text-white">R</div>
+          <div className="grid h-9 w-9 place-items-center rounded-xl border border-[#e2bf7d]/50 bg-[#b8863b] text-sm font-black text-[#2a0c0d]">R</div>
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-[.2em] text-slate-400">ROHO</div>
-            <div className="text-sm font-semibold">Consola de asesores</div>
+            <div className="text-[10px] font-bold uppercase tracking-[.28em] text-[#d8b06a]">ROHO</div>
+            <div className="font-serif text-sm font-semibold tracking-tight">Consola de asesores</div>
           </div>
         </div>
         <nav className="ml-4 flex items-center gap-1 text-sm">
@@ -239,6 +270,34 @@ function Header({
             >
               <BarChart3 size={15} /> Métricas
             </Link>
+          )}
+          {me.is_admin && (
+            <>
+              <Link
+                to="/overview"
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${location.pathname === "/overview" ? "bg-white/10 text-white" : "text-slate-300 hover:bg-white/5"}`}
+              >
+                <BarChart3 size={15} /> Operación
+              </Link>
+              <Link
+                to="/admin/center"
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${location.pathname.startsWith("/admin/center") ? "bg-white/10 text-white" : "text-slate-300 hover:bg-white/5"}`}
+              >
+                <ShieldCheck size={15} /> Administración
+              </Link>
+              <Link
+                to="/rules"
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${location.pathname === "/rules" ? "bg-white/10 text-white" : "text-slate-300 hover:bg-white/5"}`}
+              >
+                <StickyNote size={15} /> Reglas
+              </Link>
+              <Link
+                to="/occasions"
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${location.pathname === "/occasions" ? "bg-white/10 text-white" : "text-slate-300 hover:bg-white/5"}`}
+              >
+                <Bell size={15} /> Ocasiones
+              </Link>
+            </>
           )}
         </nav>
         <div className="ml-auto flex items-center gap-3 text-sm">
@@ -471,6 +530,48 @@ function DetailPanel({
             : "Sin pedidos"}
         </ContextBox>
       </div>
+
+      <details className="border-b border-slate-100 px-4 py-2">
+        <summary className="flex cursor-pointer items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-500">
+          <StickyNote size={14} /> Contexto del bot
+        </summary>
+        <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div className="mb-1 font-bold uppercase tracking-wide text-slate-400">Pregunta pendiente</div>
+            {detail.context?.pending?.question ? (
+              <>
+                <div className="text-slate-700">{detail.context.pending.question}</div>
+                <div className="mt-1 text-[10px] text-slate-400">Dato esperado: {detail.context.pending.slot || "—"}</div>
+              </>
+            ) : "Sin pregunta pendiente"}
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div className="mb-1 font-bold uppercase tracking-wide text-slate-400">Intención y filtros</div>
+            {detail.context?.state ? (
+              <div className="space-y-0.5 text-slate-700">
+                <div>Intención: {detail.context.state.intent || "—"}</div>
+                <div>Categoría: {detail.context.state.category || "—"} · Marca: {detail.context.state.brand || "—"}</div>
+                <div>Medida: {detail.context.state.size || "—"} · SKU: {detail.context.state.last_sku || "—"}</div>
+              </div>
+            ) : "Sin estado guardado"}
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 sm:col-span-2">
+            <div className="mb-1 font-bold uppercase tracking-wide text-slate-400">Última recomendación</div>
+            {detail.context?.last_recommendation ? (
+              <>
+                <div className="text-slate-700">Consulta: {detail.context.last_recommendation.query || "—"}</div>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {detail.context.last_recommendation.products.map((product) => (
+                    <span key={`${product.sku}-${product.name}`} className="rounded-full bg-white px-2 py-1 text-[11px] text-slate-600">
+                      {product.name} {product.price != null ? `· Bs ${product.price}` : ""}
+                    </span>
+                  ))}
+                </div>
+              </>
+            ) : "Sin recomendaciones registradas"}
+          </div>
+        </div>
+      </details>
 
       <details className="border-b border-slate-100 px-4 py-2">
         <summary className="flex cursor-pointer items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-500">
@@ -1204,33 +1305,70 @@ function MetricsPage({ me }: { me: Advisor }) {
 
 export default function App() {
   const [me, setMe] = useState<Advisor | null>(null);
+  const [areaUser, setAreaUser] = useState<AreaUser | null>(null);
   const [checking, setChecking] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
     onUnauthorized(() => {
       setMe(null);
+      setAreaUser(null);
       setChecking(false);
       loginRedirect(navigate);
     });
-    api<Advisor>("/advisor/me")
-      .then(setMe)
-      .catch(() => setMe(null))
+    api<AuthMe>("/auth/me")
+      .then((session) => {
+        if (session.kind === "advisor") {
+          setMe(session.advisor);
+        } else {
+          setAreaUser(session.area);
+        }
+      })
+      .catch(() => {
+        setMe(null);
+        setAreaUser(null);
+      })
       .finally(() => setChecking(false));
   }, [navigate]);
+
+  function logout() {
+    window.location.href = areaUser ? "/areas/logout" : "/advisor/logout";
+  }
 
   if (checking) {
     return <div className="grid min-h-screen place-items-center text-sm text-slate-500">Cargando consola…</div>;
   }
 
+  const home = me ? (me.is_admin ? "/overview" : "/inbox") : areaUser ? "/rules" : "/login";
+
   return (
     <ThemeProvider>
       <Routes>
-      <Route path="/login" element={me ? <Navigate to="/inbox" replace /> : <Login onLogin={setMe} />} />
-      <Route path="/inbox" element={me ? <Inbox me={me} /> : <Navigate to="/login" replace />} />
-      <Route path="/agents" element={me?.is_admin ? <Agents me={me} /> : <Navigate to="/inbox" replace />} />
-      <Route path="/metrics" element={me && (me.is_admin || me.role === "supervisor") ? <MetricsPage me={me} /> : <Navigate to="/inbox" replace />} />
-      <Route path="*" element={<Navigate to={me ? "/inbox" : "/login"} replace />} />
+        <Route
+          path="/login"
+          element={
+            me || areaUser
+              ? <Navigate to={home} replace />
+              : <Login onLogin={(user) => { setMe(user); setAreaUser(null); }} onAreaLogin={(user) => { setAreaUser(user); setMe(null); }} />
+          }
+        />
+        <Route path="/inbox" element={me ? <Inbox me={me} /> : <Navigate to={home} replace />} />
+        <Route path="/agents" element={me?.is_admin ? <Agents me={me} /> : <Navigate to={home} replace />} />
+        <Route path="/metrics" element={me && (me.is_admin || me.role === "supervisor") ? <MetricsPage me={me} /> : <Navigate to={home} replace />} />
+        <Route path="/overview" element={me?.is_admin ? <OverviewPage onLogout={logout} /> : <Navigate to={home} replace />} />
+        <Route path="/admin/center" element={me?.is_admin ? <AdminCenter me={me} onLogout={logout} /> : <Navigate to={home} replace />} />
+        <Route path="/occasions" element={me?.is_admin ? <OccasionsPage me={me} onLogout={logout} /> : areaUser ? <OccasionsPage areaUser={areaUser} onLogout={logout} /> : <Navigate to="/login" replace />} />
+        <Route
+          path="/rules"
+          element={
+            me?.is_admin
+              ? <AdminRulesPage onLogout={logout} />
+              : areaUser
+                ? <AreaRulesPage user={areaUser} onLogout={logout} />
+                : <Navigate to="/login" replace />
+          }
+        />
+        <Route path="*" element={<Navigate to={home} replace />} />
       </Routes>
     </ThemeProvider>
   );

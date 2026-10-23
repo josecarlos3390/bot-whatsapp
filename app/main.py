@@ -17,6 +17,7 @@ from .runtime import whatsapp
 from .sap import close_live_reader, warmup_live_reader
 from .seed import seed_demo
 from .services.sap_consumer import sap_event_consumer
+from .services.occasion_store import seed_examples as seed_occasions
 
 logging.basicConfig(
     level=getattr(logging, settings.log_level.upper(), logging.INFO),
@@ -42,6 +43,10 @@ async def lifespan(app: FastAPI):
             added = await seed_demo(session)
         if added:
             logger.info("Catálogo demo cargado: %s productos", added)
+    async with SessionLocal() as session:
+        added_occasions = await seed_occasions(session)
+    if added_occasions:
+        logger.info("Ocasiones de ejemplo cargadas: %s", added_occasions)
     if settings.sap_mode == "service_layer" and settings.sap_live_reads:
         # En segundo plano: el login de SAP no debe retrasar el arranque HTTP.
         app.state.sap_warmup = asyncio.create_task(_warm_sap())

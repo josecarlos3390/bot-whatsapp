@@ -18,6 +18,10 @@ from ..models import (
     Cart,
     Contact,
     Conversation,
+    ConversationFlow,
+    ConversationGuard,
+    ConversationRecommendation,
+    ConversationState,
     CustomerProfile,
     Handoff,
     HandoffEvent,
@@ -601,6 +605,28 @@ async def get_handoff(
             .limit(30)
         )
     ).all()
+    state = await session.scalar(
+        select(ConversationState).where(
+            ConversationState.conversation_id == conversation.id
+        )
+    )
+    guard = await session.scalar(
+        select(ConversationGuard).where(
+            ConversationGuard.conversation_id == conversation.id
+        )
+    )
+    recommendation = await session.scalar(
+        select(ConversationRecommendation)
+        .where(ConversationRecommendation.conversation_id == conversation.id)
+        .order_by(ConversationRecommendation.created_at.desc())
+        .limit(1)
+    )
+    flow = await session.scalar(
+        select(ConversationFlow).where(
+            ConversationFlow.conversation_id == conversation.id,
+            ConversationFlow.status == "active",
+        )
+    )
     if advisor:
         await mark_read(session, handoff.id, advisor)
     is_mine = bool(advisor_name and handoff.assigned_to == advisor_name)
@@ -693,6 +719,54 @@ async def get_handoff(
         "unread": False,
         "conversation_id": conversation.id,
         "bot_paused": conversation.bot_paused,
+        "context": {
+            "state": {
+                "intent": state.intent,
+                "category": state.category,
+                "brand": state.brand,
+                "size": state.size,
+                "min_price": str(state.min_price) if state.min_price is not None else None,
+                "max_price": str(state.max_price) if state.max_price is not None else None,
+                "last_sku": state.last_sku,
+            }
+            if state
+            else None,
+            "pending": {
+                "slot": guard.pending_slot,
+                "question": guard.pending_question,
+                "query": guard.pending_query,
+            }
+            if guard
+            else None,
+            "last_recommendation": {
+                "query": recommendation.query,
+                "category": recommendation.category,
+                "brand": recommendation.brand,
+                "size": recommendation.size,
+                "products": [
+                    {
+                        "sku": product.get("sku"),
+                        "name": product.get("name"),
+                        "brand": product.get("brand"),
+                        "price": product.get("price"),
+                    }
+                    for product in (recommendation.products or [])[:4]
+                    if isinstance(product, dict)
+                ],
+                "created_at": recommendation.created_at.isoformat()
+                if recommendation.created_at
+                else None,
+            }
+            if recommendation
+            else None,
+            "active_flow": {
+                "flow": flow.flow,
+                "step": flow.step,
+                "status": flow.status,
+            }
+            if flow
+            else None,
+        },
         "messages": [
             {
                 "id": message.id,

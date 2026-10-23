@@ -40,6 +40,7 @@ SYNONYMS: dict[str, list[str]] = {    "living": ["sala", "sofa", "sillon", "mueb
     "grifo": ["griferia", "llave"],
     "aire": ["acondicionador", "split", "climatizacion"],
     "acondicionador": ["aire", "split", "climatizacion"],
+    "acondicionado": ["aire", "acondicionador", "split", "climatizacion"],
     "split": ["aire", "acondicionador", "climatizacion"],
     "lavadora": ["lavarropas", "linea blanca"],
     "lavarropas": ["lavadora", "linea blanca"],
@@ -83,10 +84,12 @@ INTENT_CATEGORY: dict[str, str] = {
     "herramienta": "HERRAMIENTAS",
 }
 QUERY_STOPWORDS = {
-    "busco", "buscar", "buscando", "necesito", "necesita", "quiero",
-    "queria", "quisiera", "un", "una", "unos", "unas", "el", "la",
-    "los", "las", "de", "del", "para", "por", "con", "sin", "en",
-    "mi", "me", "algo", "algun", "alguna", "tienen", "tiene", "tienes",
+    "busco", "buscar", "buscando", "buscaba", "estoy", "necesito",
+    "necesita", "quiero", "queria", "quisiera", "comprar", "compro",
+    "deseo", "ver", "opciones", "mostrar", "un", "una", "unos", "unas",
+    "el", "la", "los", "las", "de", "del", "para", "por", "con", "sin",
+    "en", "mi", "mis", "tu", "tus", "su", "sus", "me", "algo",
+    "algun", "alguna", "tienen", "tiene", "tienes", "y", "hay",
     "hola", "buenas", "por favor", "favor",
 }
 TYPO_FIXES = {
@@ -95,6 +98,9 @@ TYPO_FIXES = {
     "colchom": "colchon",
     "refirgerador": "refrigerador",
     "lavadroa": "lavadora",
+    "air": "aire",
+    "televisro": "televisor",
+    "acondicinador": "acondicionador",
 }
 
 
@@ -535,11 +541,18 @@ async def facets(
             .where(
                 CatalogItem.active.is_(True),
                 CatalogItem.stock > 0,
-                CatalogItem.name.ilike(_like(term)),
+                or_(
+                    *[
+                        CatalogItem.name.ilike(_like(variant))
+                        for variant in _variants(term)
+                    ]
+                ),
             )
             .limit(300)
         )
     ).all()
+    head_query = " ".join(_base_variants(term))
+    rows = [row for row in rows if is_head_match(row, head_query)]
 
     sizes: Counter[str] = Counter()
     brands: Counter[str] = Counter()
@@ -685,7 +698,13 @@ def is_head_match(item: CatalogItem, query: str | None) -> bool:
     if not terms:
         return True
     name = _fold(item.name or "")
-    return any(name.startswith(term) for term in terms)
+    for term in terms:
+        candidates = {term, *_base_variants(term)}
+        for base in list(candidates):
+            candidates.update(SYNONYMS.get(_fold(base), []))
+        if any(name.startswith(_fold(candidate)) for candidate in candidates):
+            return True
+    return False
 
 
 def _sap_candidates(query: str, terms: list[str]) -> list[str]:

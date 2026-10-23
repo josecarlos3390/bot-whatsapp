@@ -90,6 +90,11 @@ async def local_offer(
         stock=item.stock,
         currency=item.currency,
         stock_by_store={settings.sap_warehouse: item.stock},
+        image_url=item.image_url,
+        description=item.description,
+        brand=item.brand,
+        category=item.category,
+        barcode=item.barcode,
     )
     return build_offer(sap_item, _promotions_to_periods(rows), quantity)
 

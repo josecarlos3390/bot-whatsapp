@@ -104,6 +104,7 @@ async def best_sellers(
             "category": item.category,
             "price": str(item.price),
             "currency": item.currency,
+            "stock": item.stock,
             "units_30d": stat.units_30d,
             "revenue_30d": str(stat.revenue_30d),
             "units_90d": stat.units_90d,

@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Protocol
+from urllib.parse import quote
 
 import httpx
 from sqlalchemy import select
@@ -46,6 +47,14 @@ class SapItem:
     stock: int
     currency: str = "BOB"
     stock_by_store: dict[str, int] = field(default_factory=dict)
+    # VTEX exposes list/base price and selling price separately. SAP leaves
+    # this as None and keeps using price as the base.
+    list_price: Decimal | None = None
+    image_url: str | None = None
+    description: str | None = None
+    brand: str | None = None
+    category: str | None = None
+    barcode: str | None = None
 
 
 @dataclass
@@ -79,6 +88,11 @@ class Offer:
     period_to: date | None = None
     tier_quantity: int | None = None
     tiers: list[QuantityTier] = field(default_factory=list)
+    image_url: str | None = None
+    description: str | None = None
+    brand: str | None = None
+    category: str | None = None
+    barcode: str | None = None
 
     def as_dict(self) -> dict:
         base = Decimal(self.base_price)
@@ -110,6 +124,11 @@ class Offer:
             "price_note": price_note,
             "currency": self.currency,
             "stock_by_store": self.stock_by_store,
+            "image_url": self.image_url,
+            "description": self.description,
+            "brand": self.brand,
+            "category": self.category,
+            "barcode": self.barcode,
             "period_from": self.period_from.isoformat() if self.period_from else None,
             "period_to": self.period_to.isoformat() if self.period_to else None,
             "tier_quantity": self.tier_quantity,
@@ -201,6 +220,11 @@ def build_offer(
     ) if active else None
 
     final_price = Decimal(item.price)
+    base_price = (
+        Decimal(item.list_price)
+        if item.list_price is not None and item.list_price > 0
+        else Decimal(item.price)
+    )
     tier: QuantityTier | None = None
     active_tiers: list[QuantityTier] = []
     if period is not None:
@@ -221,15 +245,15 @@ def build_offer(
             final_price = Decimal(tier.price)
 
     discount = Decimal("0")
-    if item.price > 0:
-        discount = ((Decimal(item.price) - final_price) / Decimal(item.price)) * 100
+    if base_price > 0:
+        discount = ((base_price - final_price) / base_price) * 100
         discount = discount.quantize(Decimal("0.01"))
 
     return Offer(
         sku=item.sku,
         name=item.name,
         quantity=quantity,
-        base_price=Decimal(item.price),
+        base_price=base_price,
         final_price=final_price,
         discount_percent=discount,
         currency=item.currency,
@@ -238,6 +262,11 @@ def build_offer(
         period_to=period.valid_to if period else None,
         tier_quantity=tier.quantity if tier else None,
         tiers=active_tiers,
+        image_url=item.image_url,
+        description=item.description,
+        brand=item.brand,
+        category=item.category,
+        barcode=item.barcode,
     )
 
 
@@ -819,6 +848,7 @@ class PaasSap:
         if not settings.sap_paas_url:
             raise SapError("SAP_PAAS_URL no está configurado")
         self.session = session
+        self._base_path = "api/sap"
         self._client = httpx.AsyncClient(
             base_url=settings.sap_paas_url.rstrip("/") + "/",
             timeout=25.0,
@@ -864,7 +894,7 @@ class PaasSap:
                 return cached[1]
         try:
             data = await self.get(
-                f"api/sap/items/{sku}",
+                f"{self._base_path}/items/{sku}",
                 params={"stores": ",".join(settings.sap_store_map)},
             )
         except SapNotFound:
@@ -883,6 +913,16 @@ class PaasSap:
                     or {}
                 ).items()
             },
+            list_price=(
+                Decimal(str(data["list_price"]))
+                if data.get("list_price") not in (None, "", 0, "0")
+                else None
+            ),
+            image_url=data.get("image_url"),
+            description=data.get("description"),
+            brand=data.get("brand"),
+            category=data.get("category"),
+            barcode=data.get("barcode"),
         )
         self._cache[sku] = (time.monotonic(), item)
         return item
@@ -894,7 +934,7 @@ class PaasSap:
             return []
         try:
             data = await self.get(
-                "api/sap/items",
+                f"{self._base_path}/items",
                 params={"q": term, "limit": max(1, min(int(limit), 25))},
             )
         except SapNotFound:
@@ -904,6 +944,12 @@ class PaasSap:
             {
                 "sku": item.get("sku"),
                 "name": item.get("name"),
+                "name_complete": item.get("name_complete") or item.get("name"),
+                "description": item.get("description"),
+                "brand": item.get("brand"),
+                "category": item.get("category"),
+                "barcode": item.get("barcode"),
+                "image_url": item.get("image_url"),
                 "price": float(item.get("price") or 0),
                 "stock": int(item.get("stock") or 0),
                 "currency": item.get("currency") or "BOB",
@@ -919,12 +965,12 @@ class PaasSap:
         params: dict = {"limit": max(1, min(int(limit), 500))}
         if after:
             params["after"] = after
-        data = await self.get("api/sap/items/export", params=params)
+        data = await self.get(f"{self._base_path}/items/export", params=params)
         return data if isinstance(data, list) else []
 
     async def catalog_reference(self) -> dict:
         """Grupos de artículos y fabricantes para traducir códigos a nombres."""
-        data = await self.get("api/sap/catalog-reference")
+        data = await self.get(f"{self._base_path}/catalog-reference")
         return {
             "groups": data.get("groups") or [],
             "manufacturers": data.get("manufacturers") or [],
@@ -934,7 +980,7 @@ class PaasSap:
         self, sku: str, force_refresh: bool = False
     ) -> list[PricePeriod]:
         try:
-            data = await self.get(f"api/sap/items/{sku}/pricing")
+            data = await self.get(f"{self._base_path}/items/{sku}/pricing")
         except SapNotFound:
             return []
         periods: list[PricePeriod] = []
@@ -1092,7 +1138,121 @@ class PaasSap:
         )
 
 
+class VtexPaas(PaasSap):
+    """Read-only PaasVTEX adapter for the informational bot.
+
+    SAP remains available through PaasSap/ServiceLayerSap; each deployment
+    selects its provider with SAP_MODE=sap|vtex.
+    """
+
+    _cache_ttl = 15.0
+
+    def __init__(self, session: AsyncSession) -> None:
+        super().__init__(session)
+        self._base_path = "api/vtex"
+
+    async def scroll_customers(
+        self, token: str | None = None, size: int = 100
+    ) -> dict:
+        params: dict = {"size": size}
+        if token:
+            params["token"] = token
+        data = await self.get(
+            f"{self._base_path}/customers/scroll",
+            params=params,
+        )
+        return data if isinstance(data, dict) else {}
+
+    async def get_brands(self) -> list[dict]:
+        data = await self.get(f"{self._base_path}/brands")
+        return data if isinstance(data, list) else []
+
+    async def export_items(
+        self,
+        after: str | None = None,
+        limit: int = 200,
+        brand_id: str | None = None,
+        price_range: str | None = None,
+    ) -> list[dict]:
+        params: dict = {"limit": max(1, min(int(limit), 500))}
+        if after:
+            params["after"] = after
+        if brand_id:
+            params["brand"] = str(brand_id)
+        if price_range:
+            params["price"] = price_range
+        data = await self.get(
+            f"{self._base_path}/items/export",
+            params=params,
+        )
+        return data if isinstance(data, list) else []
+
+    async def get_customer(self, term: str) -> dict | None:
+        try:
+            data = await self.get(
+                f"{self._base_path}/customers/{quote(term, safe='')}"
+            )
+        except SapNotFound:
+            return None
+        return data if isinstance(data, dict) else None
+
+    async def get_customer_purchases(
+        self, term: str, top: int = 100, skip: int = 0
+    ) -> list[dict]:
+        data = await self.get(
+            f"{self._base_path}/customers/{quote(term, safe='')}/purchases",
+            params={"top": top, "skip": skip},
+        )
+        if not isinstance(data, dict):
+            return []
+        value = data.get("value")
+        return value if isinstance(value, list) else []
+
+    async def get_order(self, order_id: str) -> dict:
+        data = await self.get(
+            f"{self._base_path}/orders/{quote(order_id, safe='')}"
+        )
+        return data if isinstance(data, dict) else {}
+
+    async def get_orders_page(
+        self,
+        page: int = 1,
+        per_page: int = 100,
+        created_from: str | None = None,
+        created_to: str | None = None,
+    ) -> dict:
+        params: dict = {"page": page, "perPage": per_page}
+        if created_from:
+            params["dateFrom"] = created_from
+        if created_to:
+            params["dateTo"] = created_to
+        data = await self.get(
+            f"{self._base_path}/orders",
+            params=params,
+        )
+        return data if isinstance(data, dict) else {}
+
+    async def create_sales_order(self, order: Order) -> SapOrderResult:
+        raise SapError(
+            "El bot está en modo informativo VTEX: no se crean pedidos."
+        )
+
+    async def create_invoice_from_order(self, order: Order) -> SapInvoiceResult:
+        raise SapError(
+            "El bot está en modo informativo VTEX: no se factura."
+        )
+
+    async def create_incoming_payment(
+        self, order: Order, invoice: SapInvoiceResult
+    ) -> SapPaymentResult:
+        raise SapError(
+            "El bot está en modo informativo VTEX: no se registran pagos."
+        )
+
+
 def get_sap(session: AsyncSession) -> SapAdapter:
+    if settings.sap_mode == "vtex":
+        return VtexPaas(session)
     if settings.sap_mode == "paas":
         return PaasSap(session)
     if settings.sap_mode != "service_layer":

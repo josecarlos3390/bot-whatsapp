@@ -200,7 +200,7 @@ async def test_status_reply_is_deterministic(session):
     session.add(order)
     await session.commit()
 
-    reply = await Agent().handle(session, contact, "estado")
+    reply = await Agent()._status_reply(session, contact)
     text = reply.messages[0].text
     assert "WA-TEST-1" in text
     assert "pagado, factura pendiente" in text

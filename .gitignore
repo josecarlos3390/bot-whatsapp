@@ -23,6 +23,9 @@ admin-web/dist/
 *.log
 .tools/
 demo-local.db
+dev.db.bak*
+logs/
+*.bak
 version-unica.bundle
 patches/
 NONE

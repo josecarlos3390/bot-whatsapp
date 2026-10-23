@@ -59,6 +59,183 @@ class Conversation(Base):
     contact: Mapped[Contact] = relationship(lazy="selectin")
 
 
+class ConversationState(Base):
+    """Slots estructurados para no perder rubro/marca/medida entre turnos."""
+
+    __tablename__ = "conversation_states"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    conversation_id: Mapped[str] = mapped_column(
+        ForeignKey("conversations.id", ondelete="CASCADE"),
+        unique=True,
+        index=True,
+    )
+    category: Mapped[str | None] = mapped_column(String(80))
+    brand: Mapped[str | None] = mapped_column(String(80))
+    size: Mapped[str | None] = mapped_column(String(40))
+    min_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    max_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    intent: Mapped[str | None] = mapped_column(String(40))
+    last_sku: Mapped[str | None] = mapped_column(String(64))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+
+class AreaRule(Base):
+    """Reglas de negocio por área, editables desde el panel."""
+
+    __tablename__ = "area_rules"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    area: Mapped[str] = mapped_column(String(40), index=True)
+    name: Mapped[str] = mapped_column(String(160))
+    rule_type: Mapped[str] = mapped_column(String(40), index=True)
+    condition: Mapped[dict] = mapped_column(JSON, default=dict)
+    action: Mapped[dict] = mapped_column(JSON, default=dict)
+    priority: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(20), default="draft", index=True)
+    valid_from: Mapped[date | None] = mapped_column(Date)
+    valid_to: Mapped[date | None] = mapped_column(Date)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    created_by: Mapped[str] = mapped_column(String(120), default="admin")
+    updated_by: Mapped[str] = mapped_column(String(120), default="admin")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+
+class AreaRuleVersion(Base):
+    """Snapshot de cada cambio para auditoría y rollback."""
+
+    __tablename__ = "area_rule_versions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    rule_id: Mapped[str] = mapped_column(
+        ForeignKey("area_rules.id", ondelete="CASCADE"), index=True
+    )
+    version: Mapped[int] = mapped_column(Integer)
+    snapshot: Mapped[dict] = mapped_column(JSON, default=dict)
+    changed_by: Mapped[str] = mapped_column(String(120), default="admin")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AreaUser(Base):
+    """Usuario encargado de cargar reglas de un área."""
+
+    __tablename__ = "area_users"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    username: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    display_name: Mapped[str] = mapped_column(String(120))
+    password_hash: Mapped[str] = mapped_column(String(300))
+    area: Mapped[str] = mapped_column(String(40), index=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ConversationFlow(Base):
+    """Flujo conversacional activo, por ejemplo una devolución."""
+
+    __tablename__ = "conversation_flows"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    conversation_id: Mapped[str] = mapped_column(
+        ForeignKey("conversations.id", ondelete="CASCADE"),
+        unique=True,
+        index=True,
+    )
+    flow: Mapped[str] = mapped_column(String(40), default="return")
+    step: Mapped[int] = mapped_column(Integer, default=0)
+    answers: Mapped[dict] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(String(20), default="active")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+
+class ConversationRecommendation(Base):
+    """Última recomendación mostrada, para poder justificarla después."""
+
+    __tablename__ = "conversation_recommendations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    conversation_id: Mapped[str] = mapped_column(
+        ForeignKey("conversations.id", ondelete="CASCADE"),
+        index=True,
+    )
+    query: Mapped[str | None] = mapped_column(String(200))
+    category: Mapped[str | None] = mapped_column(String(80))
+    brand: Mapped[str | None] = mapped_column(String(80))
+    size: Mapped[str | None] = mapped_column(String(40))
+    min_price: Mapped[float | None] = mapped_column(Float)
+    max_price: Mapped[float | None] = mapped_column(Float)
+    products: Mapped[list] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ConversationGuard(Base):
+    """Pregunta pendiente y control de repeticiones de una conversación."""
+
+    __tablename__ = "conversation_guards"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    conversation_id: Mapped[str] = mapped_column(
+        ForeignKey("conversations.id", ondelete="CASCADE"),
+        unique=True,
+        index=True,
+    )
+    pending_slot: Mapped[str | None] = mapped_column(String(40))
+    pending_question: Mapped[str | None] = mapped_column(String(500))
+    pending_query: Mapped[str | None] = mapped_column(String(200))
+    last_answer: Mapped[str | None] = mapped_column(String(1000))
+    repeat_count: Mapped[int] = mapped_column(Integer, default=0)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+
+class SemanticCache(Base):
+    """Expansión semántica de consultas, cacheada para no repetir el LLM."""
+
+    __tablename__ = "semantic_cache"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    cache_key: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    query: Mapped[str] = mapped_column(String(300))
+    payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Occasion(Base):
+    """Campaña u ocasión administrable: Halloween, Navidad, mudanza, etc."""
+
+    __tablename__ = "occasions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    name: Mapped[str] = mapped_column(String(120))
+    slug: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    aliases: Mapped[list] = mapped_column(JSON, default=list)
+    direct: Mapped[list] = mapped_column(JSON, default=list)
+    exclude: Mapped[list] = mapped_column(JSON, default=list)
+    exclude_categories: Mapped[list] = mapped_column(JSON, default=list)
+    bridges: Mapped[list] = mapped_column(JSON, default=list)
+    area: Mapped[str] = mapped_column(String(40), default="marketing", index=True)
+    status: Mapped[str] = mapped_column(String(20), default="draft", index=True)
+    priority: Mapped[int] = mapped_column(Integer, default=100)
+    valid_from: Mapped[date | None] = mapped_column(Date)
+    valid_to: Mapped[date | None] = mapped_column(Date)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    created_by: Mapped[str] = mapped_column(String(120), default="admin")
+    updated_by: Mapped[str] = mapped_column(String(120), default="admin")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+
 class CustomerProfile(Base):
     __tablename__ = "customer_profiles"
 

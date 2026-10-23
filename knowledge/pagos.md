@@ -1,17 +1,16 @@
 ---
-title: Pagos y facturación
+title: Medios de pago y facturación
 status: draft
-tags: pago, qr, factura, nit, carnet
+tags: pago, pagos, tarjeta, cuotas, factura, facturacion
 ---
 
-## Métodos de pago
-
-[COMPLETAR: QR, transferencia, efectivo, tarjeta]
+## Medios de pago
+[VERIFICAR: efectivo, tarjetas, transferencia, QR, cuotas]
 
 ## Facturación
+[VERIFICAR: factura, datos fiscales, plazos]
 
-[COMPLETAR: datos necesarios, NIT/carnet, tiempos]
-
-## Comprobantes
-
-[COMPLETAR: cómo se envía la factura]
+## Contacto
+- Teléfono: 3180100
+- WhatsApp: 72100717
+- Correo: atencionalcliente@gruporoda.com

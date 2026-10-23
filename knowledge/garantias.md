@@ -1,17 +1,19 @@
 ---
 title: Garantías
 status: draft
-tags: garantia, defecto, reclamo, cambio
+tags: garantia, garantias, cobertura, reclamo, producto
 ---
 
 ## Cobertura
-
-[COMPLETAR: qué productos tienen garantía y qué cubre]
+[VERIFICAR: qué cubre y qué no]
 
 ## Plazo
-
-[COMPLETAR: duración de la garantía]
+[VERIFICAR: plazo por producto o categoría]
 
 ## Cómo reclamar
+[VERIFICAR: canales, comprobante, revisión técnica]
 
-[COMPLETAR: documentos, pasos, tienda o canal]
+## Contacto
+- Teléfono: 3180100
+- WhatsApp: 72100717
+- Correo: atencionalcliente@gruporoda.com

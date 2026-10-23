@@ -9,6 +9,47 @@ export type Advisor = {
   id?: string;
 };
 
+export type AreaUser = {
+  username: string;
+  display_name: string;
+  area: string;
+};
+
+export type AuthMe =
+  | { kind: "advisor"; advisor: Advisor }
+  | { kind: "area"; area: AreaUser };
+
+export type AreaRule = {
+  id: string;
+  area: string;
+  name: string;
+  rule_type: string;
+  condition: Record<string, unknown>;
+  action: Record<string, unknown>;
+  priority: number;
+  status: "draft" | "published" | "archived";
+  version: number;
+  created_by?: string;
+  updated_at?: string;
+};
+
+export type Occasion = {
+  id: string;
+  name: string;
+  slug: string;
+  aliases: string[];
+  direct: string[];
+  exclude: string[];
+  exclude_categories: string[];
+  bridges: { label: string; terms: string[] }[];
+  area: string;
+  status: "draft" | "published" | "archived";
+  priority: number;
+  valid_from?: string | null;
+  valid_to?: string | null;
+  version: number;
+};
+
 export type AdvisorMetric = {
   username: string;
   advisor: string;
@@ -62,4 +103,29 @@ export type HandoffDetail = Handoff & {
   resolution_category: string | null;
   sla_paused: boolean;
   bot_paused: boolean;
+  context?: {
+    state: {
+      intent: string | null;
+      category: string | null;
+      brand: string | null;
+      size: string | null;
+      min_price: string | null;
+      max_price: string | null;
+      last_sku: string | null;
+    } | null;
+    pending: {
+      slot: string | null;
+      question: string | null;
+      query: string | null;
+    } | null;
+    last_recommendation: {
+      query: string | null;
+      category: string | null;
+      brand: string | null;
+      size: string | null;
+      products: { sku: string | null; name: string | null; brand: string | null; price: number | null }[];
+      created_at: string | null;
+    } | null;
+    active_flow: { flow: string; step: number; status: string } | null;
+  };
 };
