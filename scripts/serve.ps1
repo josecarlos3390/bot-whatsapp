@@ -13,8 +13,9 @@ Qué hace:
 - cuando el túnel estrena URL, actualiza PUBLIC_BASE_URL en .env y reinicia
   la API para que los links de pago usen la URL nueva,
 - escribe la URL vigente en .tools/tunnel-url.txt,
-- sincroniza el catálogo desde SAP al arrancar y cada 24 h (si hay
-  credenciales SAP_USER en .env); usar -NoCatalogSync para desactivarlo.
+- sincroniza el catálogo al arrancar y cada 24 h según SAP_MODE: VTEX usa
+  scripts/sync_vtex y SAP usa scripts/sync_catalog (este último necesita
+  SAP_USER en .env). Usar -NoCatalogSync para desactivarlo.
 
 Requiere cloudflared en .tools\cloudflared.exe (ver docs/despliegue.md).
 Para que sobreviva al cierre de sesión hace falta un servicio de Windows
@@ -59,19 +60,44 @@ function Test-SapCredentials {
     return [bool]($text -match "(?m)^SAP_USER=\S+")
 }
 
+function Get-CatalogMode {
+    if (-not (Test-Path $envFile)) { return "mock" }
+    $text = [System.IO.File]::ReadAllText($envFile)
+    $match = [regex]::Match($text, "(?m)^SAP_MODE=(\S+)")
+    if ($match.Success) { return $match.Groups[1].Value.Trim() }
+    return "mock"
+}
+
 function Sync-Due {
     if ($NoCatalogSync) { return $false }
-    if (-not (Test-SapCredentials)) { return $false }
+    # VTEX se sincroniza por el integrador: no necesita credenciales SAP.
+    if ((Get-CatalogMode) -ne "vtex" -and -not (Test-SapCredentials)) {
+        return $false
+    }
     if (-not (Test-Path $syncStamp)) { return $true }
     $last = (Get-Item $syncStamp).LastWriteTime
     return ((Get-Date) - $last).TotalHours -ge 24
 }
 
 function Start-CatalogSync {
-    Write-Host "[serve] sincronizando catálogo desde SAP"
+    if ((Get-CatalogMode) -eq "vtex") {
+        $source = "VTEX"
+        # Catálogo y luego promociones locales (calculadas del propio catálogo).
+        $command = (
+            "& '$python' -m scripts.sync_vtex --deactivate-missing; " +
+            "& '$python' -m scripts.sync_vtex_promotions"
+        )
+        $file = "powershell.exe"
+        $arguments = @("-NoProfile", "-Command", $command)
+    } else {
+        $source = "SAP"
+        $file = $python
+        $arguments = @("-m", "scripts.sync_catalog", "--deactivate-missing")
+    }
+    Write-Host "[serve] sincronizando catálogo desde $source"
     Write-TextNoBom -Path $syncStamp -Text (Get-Date -Format o)
-    Start-Process -FilePath $python `
-        -ArgumentList @("-m", "scripts.sync_catalog", "--deactivate-missing") `
+    Start-Process -FilePath $file `
+        -ArgumentList $arguments `
         -WorkingDirectory $root `
         -RedirectStandardOutput $syncLog `
         -RedirectStandardError (Join-Path $logDir "sync.err.log") `

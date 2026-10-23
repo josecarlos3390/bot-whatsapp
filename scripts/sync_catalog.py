@@ -317,9 +317,12 @@ async def sync(limit: int | None = None, deactivate_missing: bool = False) -> No
                 )
 
         if deactivate_missing:
+            # SQLite guarda datetimes sin zona: comparar con naive evita
+            # "can't compare offset-naive and offset-aware datetimes".
+            cutoff = started_at.replace(tzinfo=None)
             await session.execute(
                 update(CatalogItem)
-                .where(CatalogItem.synced_at < started_at)
+                .where(CatalogItem.synced_at < cutoff)
                 .values(active=False)
             )
 

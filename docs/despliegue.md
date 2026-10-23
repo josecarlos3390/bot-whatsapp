@@ -129,8 +129,10 @@ El script:
 - escribe la URL del túnel en `.tools\tunnel-url.txt`;
 - cuando el túnel estrena URL, actualiza `PUBLIC_BASE_URL` en `.env` y reinicia
   la API para que los links de pago sigan siendo válidos;
-- **sincroniza el catálogo desde SAP** al arrancar y cada 24 horas (solo si
-  `.env` tiene `SAP_USER`); se desactiva con `-NoCatalogSync`. La marca de la
+- **sincroniza el catálogo** al arrancar y cada 24 horas, según `SAP_MODE`:
+  con `vtex` corre `scripts/sync_vtex` y luego `scripts/sync_vtex_promotions`
+  (no necesita `SAP_USER`); con `paas`/`service_layer` corre
+  `scripts/sync_catalog`. Se desactiva con `-NoCatalogSync`. La marca de la
   última sincronización queda en `.tools\last-sync.txt` y el log en
   `.tools\sync.log`.
 
