@@ -75,6 +75,48 @@ class WhatsAppClient:
             )
         return response.json()["messages"][0]["id"]
 
+    async def mark_read(
+        self, message_id: str, *, typing: bool = True
+    ) -> bool:
+        """Marca el mensaje como leído y muestra "escribiendo…".
+
+        Sirve para que la espera del bot (1-3 s) se sienta como atención
+        humana y no como silencio. Nunca debe romper el flujo.
+        """
+        if settings.wa_dry_run or not settings.wa_access_token:
+            return False
+        if not settings.wa_phone_number_id:
+            return False
+        payload: dict = {
+            "messaging_product": "whatsapp",
+            "status": "read",
+            "message_id": message_id,
+        }
+        if typing:
+            payload["typing_indicator"] = {"type": "text"}
+        try:
+            response = await self._client.post(
+                (
+                    f"https://graph.facebook.com/{settings.wa_graph_version}/"
+                    f"{settings.wa_phone_number_id}/messages"
+                ),
+                headers={
+                    "Authorization": f"Bearer {settings.wa_access_token}"
+                },
+                json=payload,
+            )
+        except httpx.HTTPError:
+            logger.debug("No se pudo marcar como leído %s", message_id)
+            return False
+        if response.status_code >= 400:
+            logger.debug(
+                "WhatsApp read %s: %s",
+                response.status_code,
+                response.text[:200],
+            )
+            return False
+        return True
+
     async def send_text(self, to: str, text: str) -> str:
         return await self.send(to, Outbound(kind="text", text=text))
 

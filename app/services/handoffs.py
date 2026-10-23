@@ -820,6 +820,57 @@ async def resume_if_unattended(
     return True
 
 
+async def sweep_stale_handoffs(
+    session: AsyncSession,
+    *,
+    pending_minutes: int = 5,
+    taken_minutes: int = 120,
+) -> dict:
+    """Cierra casos que nadie atendió, aunque el cliente no vuelva a escribir.
+
+    ``resume_if_unattended`` solo corre cuando llega un mensaje; sin este
+    barrido, un pendiente queda en la cola para siempre y ensucia el SLA.
+    """
+    now = datetime.now(timezone.utc)
+    rows = (
+        await session.scalars(
+            select(Handoff).where(Handoff.status.in_(("pending", "taken")))
+        )
+    ).all()
+
+    resolved = 0
+    for handoff in rows:
+        created = _aware(handoff.created_at)
+        if created is None:
+            continue
+        limit = (
+            pending_minutes
+            if handoff.status == "pending"
+            else taken_minutes
+        )
+        if now - created < timedelta(minutes=max(int(limit), 0)):
+            continue
+
+        conversation = await session.get(Conversation, handoff.conversation_id)
+        if conversation is not None:
+            conversation.bot_paused = False
+        note = (
+            "Auto-resuelto: nadie tomó el caso a tiempo"
+            if handoff.status == "pending"
+            else "Auto-resuelto: el asesor no respondió a tiempo"
+        )
+        handoff.status = "resolved"
+        handoff.notes = note
+        handoff.sla_paused_at = None
+        handoff.resolved_at = now
+        await _event(session, handoff.id, "auto_resumed", detail=note)
+        resolved += 1
+
+    if resolved:
+        await session.commit()
+    return {"ok": True, "resolved": resolved}
+
+
 async def take_handoff(
     session: AsyncSession,
     handoff_id: str,

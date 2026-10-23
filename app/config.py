@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     handoff_auto_resume_minutes: int = 5
     handoff_sla_minutes: int = 5
     handoff_reassign_minutes: int = 5
+    # Barrido en segundo plano de casos que nadie atendió.
+    handoff_sweep_seconds: int = 300
+    handoff_taken_timeout_minutes: int = 120
     advisor_session_secret: str = "change-me-advisor-session"
     advisor_session_hours: int = 12
     telegram_bot_token: str = ""

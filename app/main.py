@@ -18,6 +18,7 @@ from .sap import close_live_reader, warmup_live_reader
 from .seed import seed_demo
 from .services.sap_consumer import sap_event_consumer
 from .services.occasion_store import seed_examples as seed_occasions
+from .services import handoffs
 
 logging.basicConfig(
     level=getattr(logging, settings.log_level.upper(), logging.INFO),
@@ -33,6 +34,32 @@ async def _warm_sap() -> None:
         logger.info("Sesión SAP precalentada")
     except Exception:  # noqa: BLE001 - no tumbar la app
         logger.exception("No se pudo precalentar la sesión SAP")
+
+
+async def _sweep_handoffs() -> None:
+    """Cierra los casos que nadie atendió, aunque el cliente no escriba.
+
+    Sin este barrido, un handoff pendiente queda en la cola para siempre y
+    ensucia el SLA (el aviso al cliente se hace cuando vuelve a escribir).
+    """
+    interval = max(settings.handoff_sweep_seconds, 60)
+    while True:
+        try:
+            await asyncio.sleep(interval)
+            async with SessionLocal() as session:
+                result = await handoffs.sweep_stale_handoffs(
+                    session,
+                    pending_minutes=settings.handoff_auto_resume_minutes,
+                    taken_minutes=settings.handoff_taken_timeout_minutes,
+                )
+            if result.get("resolved"):
+                logger.info(
+                    "Barrido de handoffs: %s cerrados", result["resolved"]
+                )
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001 - el barrido no debe matar la app
+            logger.exception("Error en el barrido de handoffs")
 
 
 @asynccontextmanager
@@ -51,9 +78,13 @@ async def lifespan(app: FastAPI):
         # En segundo plano: el login de SAP no debe retrasar el arranque HTTP.
         app.state.sap_warmup = asyncio.create_task(_warm_sap())
     await sap_event_consumer.start()
+    app.state.handoff_sweeper = asyncio.create_task(_sweep_handoffs())
     logger.info("Servicio listo (SAP_MODE=%s, WA_DRY_RUN=%s)", settings.sap_mode, settings.wa_dry_run)
     yield
     await sap_event_consumer.stop()
+    sweeper = getattr(app.state, "handoff_sweeper", None)
+    if sweeper is not None and not sweeper.done():
+        sweeper.cancel()
     task = getattr(app.state, "sap_warmup", None)
     if task is not None and not task.done():
         task.cancel()

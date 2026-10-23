@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 
@@ -73,6 +74,10 @@ async def ingest_inbound(
     if duplicate:
         logger.info("Mensaje duplicado ignorado: %s", wa_message_id)
         return []
+
+    if deliver:
+        # Doble check azul + "escribiendo…" mientras el bot arma la respuesta.
+        asyncio.create_task(whatsapp.mark_read(wa_message_id))
 
     contact = await session.scalar(select(Contact).where(Contact.wa_id == wa_id))
     if contact is None:
