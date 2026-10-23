@@ -1,4 +1,4 @@
-﻿"""Repuebla el catálogo local del bot desde PaasVTEX (solo lectura).
+"""Repuebla el catálogo local del bot desde PaasVTEX (solo lectura).
 
 Uso:
     python -m scripts.sync_vtex
@@ -72,6 +72,20 @@ def _plain(value: str | None, limit: int | None = None) -> str | None:
     return text[:limit] if limit else text
 
 
+def _specs(row: dict) -> dict[str, str]:
+    """Especificaciones de VTEX (Garantía, Medidas, Material…) limpias."""
+    raw = row.get("specifications")
+    if not isinstance(raw, dict):
+        return {}
+    cleaned: dict[str, str] = {}
+    for key, value in raw.items():
+        name = str(key).strip()[:40]
+        text = _plain(str(value), 120)
+        if name and text:
+            cleaned[name] = text
+    return cleaned
+
+
 def _keywords(row: dict) -> str | None:
     parts = [
         row.get("sku"),
@@ -80,6 +94,10 @@ def _keywords(row: dict) -> str | None:
         row.get("category"),
         row.get("barcode"),
     ]
+    # Las especificaciones también se buscan (garantía, medidas, material…).
+    specs = row.get("specifications")
+    if isinstance(specs, dict):
+        parts.extend(f"{key} {value}" for key, value in specs.items())
     text = " ".join(str(part) for part in parts if part)
     return text[:4000] or None
 
@@ -100,6 +118,9 @@ def _catalog_fields(row: dict) -> dict:
     attributes["vtex_current_price"] = str(current_price)
     if list_price > 0:
         attributes["vtex_list_price"] = str(list_price)
+    specs = _specs(row)
+    if specs:
+        attributes["specs"] = specs
     return {
         "name": _clean(row.get("name"), 200) or _clean(row.get("sku"), 64) or "?",
         "foreign_name": None,

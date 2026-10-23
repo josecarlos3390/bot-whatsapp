@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import asyncio
 import html
@@ -3037,6 +3037,26 @@ class Agent:
             lines.append(f"Modelo: {attrs['model']}")
         if attrs.get("weight_kg"):
             lines.append(f"Peso: {attrs['weight_kg']} kg")
+        specs = attrs.get("specs") or {}
+        if isinstance(specs, dict) and specs:
+            preferred = (
+                "Garantía",
+                "Garantia",
+                "Medidas",
+                "Material",
+                "Tamaño",
+                "Tamano",
+                "Potencia",
+                "Capacidad",
+                "Color",
+            )
+            ordered = [key for key in preferred if key in specs]
+            ordered += [key for key in specs if key not in ordered]
+            detail = " · ".join(
+                f"{key}: {specs[key]}" for key in ordered[:4]
+            )
+            if detail:
+                lines.append(detail[:260])
         description = self._card_description(
             attrs.get("description") or "", limit=220
         )
