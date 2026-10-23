@@ -1,4 +1,4 @@
-﻿"""Embudo de venta: registrar pasos y resumirlos para el panel.
+"""Embudo de venta: registrar pasos y resumirlos para el panel.
 
 Los pasos son los mismos con carrito propio o con el catálogo/carrito nativo de
 WhatsApp: búsqueda → ficha → carrito → checkout → pedido → pago.
@@ -95,7 +95,9 @@ async def stats(
         contacts, events = by_step.get(step, (0, 0))
         conversion = None
         if previous not in (None, 0):
-            conversion = round(contacts * 100.0 / previous, 1)
+            # Puede llegar más gente a una ficha que a una búsqueda (catálogo
+            # nativo, link o categoría): la conversión se informa tope 100%.
+            conversion = round(min(contacts, previous) * 100.0 / previous, 1)
         rows.append(
             {
                 "step": step,

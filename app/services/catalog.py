@@ -60,6 +60,27 @@ SYNONYMS: dict[str, list[str]] = {    "living": ["sala", "sofa", "sillon", "mueb
     "amarilla": ["amarillo"],
     "gris": ["grises"],
     "grises": ["gris"],
+    # Términos coloquiales que en el catálogo VTEX se escriben distinto.
+    "colchoneta": ["colchon"],
+    "frazada": ["manta"],
+    "frazadas": ["manta"],
+    "sofacama": ["sofa"],
+    "placard": ["ropero", "closet"],
+    "ropero": ["placard", "closet"],
+    "plg": ["pulgada", "pulgadas"],
+    "pulg": ["plg"],
+    "pulgada": ["plg"],
+    "pulgadas": ["plg"],
+    "micro": ["microondas"],
+    "microondas": ["micro"],
+    "aspiradora": ["aspirador"],
+    "aspirador": ["aspiradora"],
+    "ollas": ["olla"],
+    "refrigeradora": ["refri"],
+    "frigorifico": ["refri"],
+    "pantalla": ["tv"],
+    "muebles": ["mueble"],
+    "cortinas": ["cortina"],
 }
 
 INTENT_CATEGORY: dict[str, str] = {
@@ -386,13 +407,10 @@ async def search_items(
             ).all()
         )
 
-    rows = await run(expanded=False)
-    if terms and len(rows) < min(3, int(limit)):
-        expanded_rows = await run(expanded=True)
-        seen = {item.sku for item in rows}
-        rows.extend(
-            item for item in expanded_rows if item.sku not in seen
-        )
+    # Los sinónimos se aplican desde la primera pasada: si se esperaba a tener
+    # menos de 3 resultados, un falso positivo (LAVAROPA por "lavarropas")
+    # bloqueaba la búsqueda real de lavadoras.
+    rows = await run(expanded=True)
     if not rows and terms:
         corrected = _correct_terms(terms)
         if corrected != terms:
