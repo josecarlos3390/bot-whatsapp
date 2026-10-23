@@ -1,4 +1,4 @@
-"""Repuebla el catálogo local del bot desde PaasVTEX (solo lectura).
+﻿"""Repuebla el catálogo local del bot desde PaasVTEX (solo lectura).
 
 Uso:
     python -m scripts.sync_vtex
@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import html
+import re
 import logging
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -54,6 +56,22 @@ def _barcode(value: str | None) -> str | None:
     return digits or None
 
 
+_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _plain(value: str | None, limit: int | None = None) -> str | None:
+    """Quita HTML de la descripción de VTEX: el cliente la lee en el chat."""
+    text = _clean(value)
+    if not text:
+        return None
+    text = _TAG_RE.sub(" ", text)
+    text = html.unescape(text)
+    text = re.sub(r"\s+", " ", text).strip()
+    if not text:
+        return None
+    return text[:limit] if limit else text
+
+
 def _keywords(row: dict) -> str | None:
     parts = [
         row.get("sku"),
@@ -85,7 +103,7 @@ def _catalog_fields(row: dict) -> dict:
     return {
         "name": _clean(row.get("name"), 200) or _clean(row.get("sku"), 64) or "?",
         "foreign_name": None,
-        "description": _clean(row.get("description")),
+        "description": _plain(row.get("description"), 1000),
         "category": category,
         "group_code": None,
         "group_name": category,
