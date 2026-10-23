@@ -745,3 +745,25 @@ class Handoff(Base):
     sla_paused_seconds: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class FunnelEvent(Base):
+    """Paso del embudo de venta (búsqueda, ficha, carrito, checkout, pago).
+
+    Independiente de si el carrito es propio o el nativo de WhatsApp: lo que
+    importa es el paso, el contacto y el artículo.
+    """
+
+    __tablename__ = "funnel_events"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    step: Mapped[str] = mapped_column(String(32), index=True)
+    contact_id: Mapped[str | None] = mapped_column(
+        ForeignKey("contacts.id", ondelete="SET NULL"), index=True
+    )
+    conversation_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    sku: Mapped[str | None] = mapped_column(String(64))
+    query: Mapped[str | None] = mapped_column(String(160))
+    value: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, index=True
+    )

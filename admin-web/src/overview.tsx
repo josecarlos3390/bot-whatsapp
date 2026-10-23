@@ -24,6 +24,17 @@ type Overview = {
   };
   counts: Record<string, number>;
   quality: { fallbacks_24h: number; tools: { calls: number; failures: number } };
+  funnel: {
+    days: number;
+    revenue: string;
+    steps: {
+      step: string;
+      label: string;
+      contacts: number;
+      events: number;
+      conversion: number | null;
+    }[];
+  };
   alerts: { level: "critical" | "warning"; title: string; detail: string }[];
 };
 
@@ -167,6 +178,40 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
               <Metric label="Handoffs abiertos" value={data.counts.handoffs_open} hint="Pendientes o en atención" />
               <Metric label="Reglas publicadas" value={data.counts.rules_published} hint={`${data.counts.occasions_published} ocasiones`} />
             </div>
+
+            <Card className="mb-5 border-[#e5d4bf] bg-[#fffdf9] p-5">
+              <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+                <h3 className="font-serif text-lg font-semibold text-[#3d1a17]">Embudo de venta</h3>
+                <span className="text-[11px] text-[#8b6d59]">
+                  Últimos {data.funnel.days} días · {data.funnel.revenue} Bs cobrados
+                </span>
+              </div>
+              <p className="mb-3 text-xs text-[#8b6d59]">
+                Contactos únicos que llegaron a cada paso. La conversión compara con el paso anterior.
+              </p>
+              <div className="space-y-1.5">
+                {data.funnel.steps.map((row) => {
+                  const max = Math.max(...data.funnel.steps.map((item) => item.contacts), 1);
+                  const width = Math.round((row.contacts / max) * 100);
+                  return (
+                    <div key={row.step} className="flex items-center gap-3">
+                      <div className="w-40 shrink-0 text-xs text-[#5d463b]">{row.label}</div>
+                      <div className="h-6 flex-1 overflow-hidden rounded-md bg-[#f3ece1]">
+                        <div
+                          className="flex h-6 items-center justify-end rounded-md bg-[#c99a52] px-2 text-[11px] font-semibold text-white"
+                          style={{ width: `${Math.max(width, row.contacts ? 8 : 0)}%` }}
+                        >
+                          {row.contacts}
+                        </div>
+                      </div>
+                      <div className="w-16 shrink-0 text-right text-[11px] text-[#8b6d59]">
+                        {row.conversion === null ? "—" : `${row.conversion}%`}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
 
             <div className="grid gap-4 lg:grid-cols-2">
               <Card className="border-[#e5d4bf] bg-[#fffdf9] p-5">

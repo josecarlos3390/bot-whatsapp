@@ -21,7 +21,7 @@ from ..models import (
 )
 from ..payments import create_payment
 from ..sap import SapAdapter
-from . import catalog, cart as cart_service, feedback, pricing
+from . import catalog, cart as cart_service, feedback, funnel, pricing
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +108,9 @@ async def create_order(
 
         payment = await create_payment(session, order)
         cart.status = "checked_out"
+        await funnel.track(
+            session, "order_created", contact=contact, value=order.total
+        )
         await session.commit()
     except Exception:
         await session.rollback()
@@ -182,6 +185,10 @@ async def confirm_payment(
         ) + f"Factura SAP pendiente: {invoice_error}"
 
     await feedback.create_feedback_request(session, order)
+    paid_contact = await session.get(Contact, order.contact_id)
+    await funnel.track(
+        session, "payment_paid", contact=paid_contact, value=order.total
+    )
     try:
         await session.commit()
     except Exception:

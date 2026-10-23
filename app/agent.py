@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 import html
@@ -31,6 +31,7 @@ from .services import (
     conversation_state,
     conversation_guard,
     customer_analysis,
+    funnel,
     intent_guard,
     customers,
     feedback,
@@ -1223,7 +1224,7 @@ class Toolbox:
         consulta ya tiene el precio vivo sin hacer esperar al cliente.
         """
         targets = [p for p in products[:limit] if p.get("sku")]
-        if not targets or settings.sap_mode not in {"paas", "service_layer"}:
+        if not targets or settings.sap_mode not in {"paas", "service_layer", "vtex"}:
             return
 
         adapter = None
@@ -2142,7 +2143,19 @@ class Toolbox:
             refreshed = await self.session.get(Contact, self.contact_id)
             if refreshed is not None:
                 self.contact = refreshed
+            # El intento cuenta en el embudo aunque el pedido no se cree.
+            await funnel.track_and_commit(
+                self.session,
+                "checkout_start",
+                contact_id=self.contact_id,
+            )
             return {"ok": False, "error": str(exc)}
+        await funnel.track_and_commit(
+            self.session,
+            "checkout_start",
+            contact_id=self.contact_id,
+            value=order.total,
+        )
         self.last_checkout = {
             "order_number": order.number,
             "total": str(order.total),
@@ -2858,6 +2871,9 @@ class Agent:
                 ]
             )
         products = result.get("products") or []
+        await funnel.track(
+            session, "search", contact=contact, query=query
+        )
         if len(products) == 1:
             only = products[0]
             intro = (
@@ -2978,6 +2994,9 @@ class Agent:
                 ]
             )
         product = result["product"]
+        await funnel.track(
+            session, "product_view", contact=contact, sku=product.get("sku")
+        )
         stock = sum((product.get("stock_by_store") or {}).values())
         base = Decimal(
             product.get("base_price") or product.get("final_price") or 0
@@ -3097,6 +3116,13 @@ class Agent:
         added_text = persona.added(
             result.get("name") or sku,
             f"{Decimal(result['cart_total']):,.2f}",
+        )
+        await funnel.track(
+            session,
+            "cart_add",
+            contact=contact,
+            sku=sku,
+            value=Decimal(str(result.get("cart_total") or 0)),
         )
         # Nudge de escalón: si el cliente está cerca del siguiente precio por
         # cantidad, se lo mostramos con los datos reales de la oferta.
