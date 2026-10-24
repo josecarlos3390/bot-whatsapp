@@ -2422,6 +2422,48 @@ class Agent:
             ]
         )
 
+    async def _direct_reply_for_tool(
+        self, session: AsyncSession, contact: Contact, call
+    ) -> AgentReply | None:
+        """Respuesta determinística cuando la herramienta pedida ya se sabe
+        contestar, sin gastar una segunda llamada al modelo."""
+        name = getattr(call.function, "name", "")
+        if name not in ("search_products", "get_product"):
+            return None
+        try:
+            arguments = json.loads(call.function.arguments or "{}")
+        except (ValueError, TypeError):
+            return None
+        if not isinstance(arguments, dict):
+            return None
+
+        try:
+            if name == "get_product":
+                sku = str(arguments.get("sku") or "").strip()
+                if not sku:
+                    return None
+                return await self._product_detail(session, contact, sku)
+
+            query = " ".join(
+                str(arguments.get(key) or "")
+                for key in ("query", "brand", "category")
+            ).strip()
+            if arguments.get("only_discount"):
+                query = f"{query} en descuento"
+            if not query:
+                return None
+            limit = min(int(arguments.get("limit") or 5), 5)
+            return await self._search_reply(
+                session,
+                contact,
+                query,
+                limit=limit,
+                min_price=arguments.get("min_price"),
+                max_price=arguments.get("max_price"),
+            )
+        except Exception:  # noqa: BLE001 - si falla, sigue el camino normal
+            logger.exception("No se pudo responder directo; se sigue con el modelo")
+            return None
     async def _frustration_reply(
         self, session: AsyncSession, contact: Contact
     ) -> AgentReply:
@@ -2929,17 +2971,6 @@ class Agent:
                     f"No tengo *{_clean_query(query)}* exactamente, pero tengo "
                     "estas opciones parecidas:"
                 )
-            )
-        if policy and policy.brand:
-            intro += (
-                f"\n\nSegún la regla de {policy.brand_area}, priorizo "
-                f"*{policy.brand}* en esta categoría."
-            )
-        elif policy and policy.promotion_min is not None:
-            intro += (
-                "\n\nSegún la regla de promociones, priorizo primero los "
-                f"productos con al menos {policy.promotion_min:g}% de "
-                "descuento y stock."
             )
         return AgentReply(
             [
@@ -4500,7 +4531,7 @@ class Agent:
         messages.extend(history[-6:])
         messages.append({"role": "user", "content": text})
 
-        for _ in range(4):
+        for ronda in range(4):
             try:
                 completion = await self._llm().chat.completions.create(
                     model=settings.deepseek_model,
@@ -4603,6 +4634,20 @@ class Agent:
                         )
                     )
                 return AgentReply(outbound)
+
+            # Si el modelo pidió una lectura que ya sabemos responder, se
+            # contesta con el motor de reglas: evita una segunda llamada con
+            # los resultados del catálogo (~2.000 tokens) y ~1 s de latencia.
+            if ronda == 0 and len(choice.tool_calls) == 1:
+                direct = await self._direct_reply_for_tool(
+                    session, contact, choice.tool_calls[0]
+                )
+                if direct is not None:
+                    logger.info(
+                        "Respuesta directa sin segunda llamada: %s",
+                        choice.tool_calls[0].function.name,
+                    )
+                    return direct
 
             messages.append(
                 {
