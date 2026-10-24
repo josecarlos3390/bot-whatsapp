@@ -93,6 +93,8 @@ async def test_inbound_message_is_deduplicated(session, monkeypatch):
     monkeypatch.setattr(settings, "queue_enabled", False)
     monkeypatch.setattr(settings, "wa_dry_run", True)
     monkeypatch.setattr(settings, "deepseek_api_key", "")
+    # El webhook solo procesa el número configurado.
+    monkeypatch.setattr(settings, "wa_phone_number_id", "456")
 
     raw = json.dumps(_payload()).encode()
     headers = {

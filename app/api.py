@@ -1823,9 +1823,21 @@ async def verify_webhook(request: Request) -> str:
 
 
 def _iter_messages(payload: dict):
+    expected = (settings.wa_phone_number_id or "").strip()
     for entry in payload.get("entry", []):
         for change in entry.get("changes", []):
             value = change.get("value", {})
+            # Durante una migración pueden convivir dos números en la misma app:
+            # se procesan solo los mensajes del número configurado, para no
+            # contestar desde el número equivocado.
+            phone_number_id = str(
+                (value.get("metadata") or {}).get("phone_number_id") or ""
+            ).strip()
+            if expected and phone_number_id and phone_number_id != expected:
+                logger.info(
+                    "Webhook de otro número (%s); se ignora", phone_number_id
+                )
+                continue
             contacts = value.get("contacts") or []
             name = None
             if contacts:
