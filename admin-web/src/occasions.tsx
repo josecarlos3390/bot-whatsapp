@@ -189,19 +189,19 @@ export function OccasionsPage({
   }
 
   return (
-    <div className="min-h-screen bg-[#f7f2eb] text-[#2a1710]">
+    <div className="min-h-screen bg-[#f5f6f8] text-[#111111]">
       <AreaHeader
         title="Ocasiones y campañas"
         subtitle={isAdmin ? "Administración" : `${userArea} · ${areaUser?.display_name || "encargado"}`}
         onLogout={onLogout}
       />
       <main className="mx-auto max-w-[1180px] px-4 py-6 lg:px-6">
-        <div className="mb-5 rounded-2xl border border-[#d8b06a]/40 bg-[#fbf3e8] p-4">
+        <div className="mb-5 rounded-2xl border border-[#f7b4bc]/40 bg-[#f9fafb] p-4">
           <div className="flex items-start gap-3">
-            <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#6b1d2b] text-xs font-bold text-[#fffaf3]">?</div>
+            <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#c8102e] text-xs font-bold text-[#ffffff]">?</div>
             <div>
-              <div className="text-sm font-semibold text-[#3d1a17]">¿Para qué sirve esta pantalla?</div>
-              <p className="mt-1 text-xs leading-relaxed text-[#765b4b]">
+              <div className="text-sm font-semibold text-[#111111]">¿Para qué sirve esta pantalla?</div>
+              <p className="mt-1 text-xs leading-relaxed text-[#4b5563]">
                 Una ocasión le dice al bot qué buscar cuando el cliente pregunta por algo amplio:
                 “Halloween”, “baby shower”, “mudanza”. El bot busca los términos directos en VTEX,
                 excluye lo que no corresponde y, si no hay nada, ofrece la alternativa natural.
@@ -212,29 +212,29 @@ export function OccasionsPage({
         </div>
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <div className="mb-1 text-[10px] font-bold uppercase tracking-[.28em] text-[#a8792f]">Centro de contenido</div>
-            <h1 className="font-serif text-3xl font-semibold tracking-tight text-[#3d1a17]">Campañas que entienden al cliente</h1>
-            <p className="mt-1 max-w-2xl text-sm text-[#765b4b]">
+            <div className="mb-1 text-[10px] font-bold uppercase tracking-[.28em] text-[#c8102e]">Centro de contenido</div>
+            <h1 className="font-serif text-3xl font-semibold tracking-tight text-[#111111]">Campañas que entienden al cliente</h1>
+            <p className="mt-1 max-w-2xl text-sm text-[#4b5563]">
               Definí qué debe buscar el bot, qué debe excluir y qué alternativa ofrecer. Publicá para que empiece a usarlo.
             </p>
           </div>
           <div className="flex gap-2">
             {isAdmin && <Button variant="secondary" onClick={seed}>Cargar ejemplos</Button>}
-            <Link to="/rules" className="rounded-lg border border-[#d9c3aa] bg-white px-3 py-2 text-sm font-semibold text-[#5b3323] hover:bg-[#fffaf4]">Ver reglas</Link>
+            <Link to="/rules" className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm font-semibold text-[#1f2937] hover:bg-[#fffaf4]">Ver reglas</Link>
           </div>
         </div>
 
         <div className="mb-5 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl border border-[#e5d4bf] bg-white/80 p-4 shadow-sm">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-[#a8792f]">Ocasiones</div>
+          <div className="rounded-2xl border border-[#e5e7eb] bg-white/80 p-4 shadow-sm">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-[#c8102e]">Ocasiones</div>
             <div className="mt-1 text-2xl font-semibold">{occasions.length}</div>
           </div>
-          <div className="rounded-2xl border border-[#e5d4bf] bg-white/80 p-4 shadow-sm">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-[#a8792f]">Publicadas</div>
+          <div className="rounded-2xl border border-[#e5e7eb] bg-white/80 p-4 shadow-sm">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-[#c8102e]">Publicadas</div>
             <div className="mt-1 text-2xl font-semibold">{published}</div>
           </div>
-          <div className="rounded-2xl border border-[#e5d4bf] bg-[#3d1a17] p-4 text-[#f7f2eb] shadow-sm">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-[#d8b06a]">Regla de oro</div>
+          <div className="rounded-2xl border border-[#e5e7eb] bg-[#111111] p-4 text-[#f5f6f8] shadow-sm">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-[#f7b4bc]">Regla de oro</div>
             <div className="mt-1 text-sm">Primero EL catálogo. Después la inferencia.</div>
           </div>
         </div>
@@ -242,17 +242,17 @@ export function OccasionsPage({
         {error && <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
         {notice && <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">{notice}</div>}
 
-        <Card className="mb-5 border-[#e5d4bf] bg-white/80 p-4">
+        <Card className="mb-5 border-[#e5e7eb] bg-white/80 p-4">
           <div className="mb-1 flex flex-wrap items-center gap-2">
-            <h2 className="text-sm font-bold text-[#3d1a17]">Probar un mensaje</h2>
-            <span className="rounded-full bg-[#f1e6d6] px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-[#8b6d59]">Simulador</span>
+            <h2 className="text-sm font-bold text-[#111111]">Probar un mensaje</h2>
+            <span className="rounded-full bg-[#f3f4f6] px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-[#6b7280]">Simulador</span>
           </div>
-          <p className="mb-2 text-xs text-[#765b4b]">
+          <p className="mb-2 text-xs text-[#4b5563]">
             Escribí lo que diría un cliente y fijate qué ocasión detecta el bot y qué buscaría. No modifica nada.
           </p>
           <div className="flex flex-wrap gap-2">
             <Input
-              className="min-w-[240px] flex-1 border-[#d9c3aa] bg-white"
+              className="min-w-[240px] flex-1 border-[#e5e7eb] bg-white"
               value={testText}
               onChange={(event) => setTestText(event.target.value)}
               onKeyDown={(event) => { if (event.key === "Enter") void runTest(); }}
@@ -263,7 +263,7 @@ export function OccasionsPage({
             </Button>
           </div>
           {testResult && (
-            <div className="mt-3 rounded-xl border border-[#e5d4bf] bg-[#fffaf3] px-3 py-2 text-xs text-[#5b3323]">
+            <div className="mt-3 rounded-xl border border-[#e5e7eb] bg-[#ffffff] px-3 py-2 text-xs text-[#1f2937]">
               {testResult.detected ? (
                 <>
                   <div>
@@ -271,7 +271,7 @@ export function OccasionsPage({
                     {testResult.detected.matched ? <> (coincidió con «{testResult.detected.matched}»)</> : null}.
                   </div>
                   {testResult.would_search.length > 0 && (
-                    <div className="mt-1 text-[#8b6d59]">
+                    <div className="mt-1 text-[#6b7280]">
                       Buscaría: {testResult.would_search.join(", ")}
                     </div>
                   )}
@@ -283,88 +283,88 @@ export function OccasionsPage({
           )}
         </Card>
 
-        <Card className="mb-6 border-[#e5d4bf] bg-[#fffdf9] p-5">
+        <Card className="mb-6 border-[#e5e7eb] bg-[#ffffff] p-5">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-serif text-xl font-semibold text-[#3d1a17]">{editing ? "Editar ocasión" : "Nueva ocasión"}</h2>
+            <h2 className="font-serif text-xl font-semibold text-[#111111]">{editing ? "Editar ocasión" : "Nueva ocasión"}</h2>
             {editing && <Button variant="ghost" size="sm" onClick={reset}>Cancelar edición</Button>}
           </div>
           <div className="grid gap-4 md:grid-cols-2">
-            <label className="text-xs font-semibold text-[#765b4b]">Nombre
-              <Input className="mt-1 border-[#d9c3aa] bg-white" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Halloween, Navidad, Baby shower..." />
+            <label className="text-xs font-semibold text-[#4b5563]">Nombre
+              <Input className="mt-1 border-[#e5e7eb] bg-white" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Halloween, Navidad, Baby shower..." />
             </label>
-            <label className="text-xs font-semibold text-[#765b4b]" title="Área que será dueña de la ocasión y podrá mantenerla.">Área responsable
+            <label className="text-xs font-semibold text-[#4b5563]" title="Área que será dueña de la ocasión y podrá mantenerla.">Área responsable
               {isAdmin ? (
-                <select className="mt-1 w-full rounded-lg border border-[#d9c3aa] bg-white px-3 py-2 text-sm" value={form.area} onChange={(event) => setForm({ ...form, area: event.target.value })}>
+                <select className="mt-1 w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm" value={form.area} onChange={(event) => setForm({ ...form, area: event.target.value })}>
                   <option value="marketing">Marketing</option>
                   <option value="ecommerce">Ecommerce</option>
                   <option value="general">General</option>
                 </select>
               ) : (
-                <div className="mt-1 rounded-lg border border-[#e5d4bf] bg-[#f7f2eb] px-3 py-2 text-sm font-medium text-[#5b3323]">{userArea}</div>
+                <div className="mt-1 rounded-lg border border-[#e5e7eb] bg-[#f5f6f8] px-3 py-2 text-sm font-medium text-[#1f2937]">{userArea}</div>
               )}
             </label>
-            <label className="text-xs font-semibold text-[#765b4b]">Alias del cliente
-              <Input className="mt-1 border-[#d9c3aa]" value={form.aliases} onChange={(event) => setForm({ ...form, aliases: event.target.value })} placeholder="halloween, halloweén" />
+            <label className="text-xs font-semibold text-[#4b5563]">Alias del cliente
+              <Input className="mt-1 border-[#e5e7eb]" value={form.aliases} onChange={(event) => setForm({ ...form, aliases: event.target.value })} placeholder="halloween, halloweén" />
             </label>
-            <label className="text-xs font-semibold text-[#765b4b]">Prioridad
-              <Input className="mt-1 border-[#d9c3aa]" type="number" value={form.priority} onChange={(event) => setForm({ ...form, priority: Number(event.target.value) })} />
+            <label className="text-xs font-semibold text-[#4b5563]">Prioridad
+              <Input className="mt-1 border-[#e5e7eb]" type="number" value={form.priority} onChange={(event) => setForm({ ...form, priority: Number(event.target.value) })} />
             </label>
-            <label className="text-xs font-semibold text-[#765b4b]">Términos directos
-              <Input className="mt-1 border-[#d9c3aa]" value={form.direct} onChange={(event) => setForm({ ...form, direct: event.target.value })} placeholder="disfraz, dulce, calabaza, vela" />
+            <label className="text-xs font-semibold text-[#4b5563]">Términos directos
+              <Input className="mt-1 border-[#e5e7eb]" value={form.direct} onChange={(event) => setForm({ ...form, direct: event.target.value })} placeholder="disfraz, dulce, calabaza, vela" />
             </label>
-            <label className="text-xs font-semibold text-[#765b4b]">Excluir términos
-              <Input className="mt-1 border-[#d9c3aa]" value={form.exclude} onChange={(event) => setForm({ ...form, exclude: event.target.value })} placeholder="mueble, silla, navidad" />
+            <label className="text-xs font-semibold text-[#4b5563]">Excluir términos
+              <Input className="mt-1 border-[#e5e7eb]" value={form.exclude} onChange={(event) => setForm({ ...form, exclude: event.target.value })} placeholder="mueble, silla, navidad" />
             </label>
-            <label className="text-xs font-semibold text-[#765b4b]">Excluir categorías
-              <Input className="mt-1 border-[#d9c3aa]" value={form.exclude_categories} onChange={(event) => setForm({ ...form, exclude_categories: event.target.value })} placeholder="MUEBLES, PINTURA, HERRAMIENTAS" />
+            <label className="text-xs font-semibold text-[#4b5563]">Excluir categorías
+              <Input className="mt-1 border-[#e5e7eb]" value={form.exclude_categories} onChange={(event) => setForm({ ...form, exclude_categories: event.target.value })} placeholder="MUEBLES, PINTURA, HERRAMIENTAS" />
             </label>
             <div className="grid grid-cols-2 gap-3">
-              <label className="text-xs font-semibold text-[#765b4b]">Desde
-                <Input className="mt-1 border-[#d9c3aa]" type="date" value={form.valid_from} onChange={(event) => setForm({ ...form, valid_from: event.target.value })} />
+              <label className="text-xs font-semibold text-[#4b5563]">Desde
+                <Input className="mt-1 border-[#e5e7eb]" type="date" value={form.valid_from} onChange={(event) => setForm({ ...form, valid_from: event.target.value })} />
               </label>
-              <label className="text-xs font-semibold text-[#765b4b]">Hasta
-                <Input className="mt-1 border-[#d9c3aa]" type="date" value={form.valid_to} onChange={(event) => setForm({ ...form, valid_to: event.target.value })} />
+              <label className="text-xs font-semibold text-[#4b5563]">Hasta
+                <Input className="mt-1 border-[#e5e7eb]" type="date" value={form.valid_to} onChange={(event) => setForm({ ...form, valid_to: event.target.value })} />
               </label>
             </div>
-            <label className="text-xs font-semibold text-[#765b4b]">Alternativa natural
-              <Input className="mt-1 border-[#d9c3aa]" value={form.bridge_label} onChange={(event) => setForm({ ...form, bridge_label: event.target.value })} placeholder="una noche de película" />
+            <label className="text-xs font-semibold text-[#4b5563]">Alternativa natural
+              <Input className="mt-1 border-[#e5e7eb]" value={form.bridge_label} onChange={(event) => setForm({ ...form, bridge_label: event.target.value })} placeholder="una noche de película" />
             </label>
-            <label className="text-xs font-semibold text-[#765b4b]">Términos de la alternativa
-              <Input className="mt-1 border-[#d9c3aa]" value={form.bridge_terms} onChange={(event) => setForm({ ...form, bridge_terms: event.target.value })} placeholder="televisor, tv" />
+            <label className="text-xs font-semibold text-[#4b5563]">Términos de la alternativa
+              <Input className="mt-1 border-[#e5e7eb]" value={form.bridge_terms} onChange={(event) => setForm({ ...form, bridge_terms: event.target.value })} placeholder="televisor, tv" />
             </label>
-            <label className="text-xs font-semibold text-[#765b4b]">Estado
-              <select className="mt-1 w-full rounded-lg border border-[#d9c3aa] bg-white px-3 py-2 text-sm" value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}>
+            <label className="text-xs font-semibold text-[#4b5563]">Estado
+              <select className="mt-1 w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm" value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}>
                 <option value="draft">Borrador</option>
                 <option value="published">Publicada</option>
               </select>
             </label>
           </div>
           <div className="mt-5 flex gap-2">
-            <Button className="bg-[#6b1d2b] hover:bg-[#54131f]" onClick={save}>Guardar ocasión</Button>
+            <Button className="bg-[#c8102e] hover:bg-[#a30f27]" onClick={save}>Guardar ocasión</Button>
             <Button variant="ghost" onClick={reset}>Limpiar</Button>
           </div>
         </Card>
 
         <div className="mb-3 flex items-end justify-between">
           <div>
-            <h2 className="font-serif text-xl font-semibold text-[#3d1a17]">Ocasiones cargadas</h2>
-            <p className="text-xs text-[#765b4b]">Borradores no se usan. Publicá para que el bot los lea.</p>
+            <h2 className="font-serif text-xl font-semibold text-[#111111]">Ocasiones cargadas</h2>
+            <p className="text-xs text-[#4b5563]">Borradores no se usan. Publicá para que el bot los lea.</p>
           </div>
         </div>
 
         <div className="grid gap-3 md:grid-cols-2">
-          {loading ? <div className="text-sm text-[#765b4b]">Cargando…</div> : null}
-          {!loading && !occasions.length ? <div className="rounded-2xl border border-dashed border-[#d9c3aa] bg-white/60 p-6 text-sm text-[#765b4b]">{isAdmin ? "Todavía no hay ocasiones. Usá “Cargar ejemplos” o creá una." : "Tu área todavía no tiene ocasiones. Creá la primera para que el bot sepa qué buscar."}</div> : null}
+          {loading ? <div className="text-sm text-[#4b5563]">Cargando…</div> : null}
+          {!loading && !occasions.length ? <div className="rounded-2xl border border-dashed border-[#e5e7eb] bg-white/60 p-6 text-sm text-[#4b5563]">{isAdmin ? "Todavía no hay ocasiones. Usá “Cargar ejemplos” o creá una." : "Tu área todavía no tiene ocasiones. Creá la primera para que el bot sepa qué buscar."}</div> : null}
           {occasions.map((item) => (
-            <Card key={item.id} className="border-[#e5d4bf] bg-[#fffdf9] p-4">
+            <Card key={item.id} className="border-[#e5e7eb] bg-[#ffffff] p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="font-serif text-lg font-semibold text-[#3d1a17]">{item.name}</h3>
+                    <h3 className="font-serif text-lg font-semibold text-[#111111]">{item.name}</h3>
                     <Badge tone={item.status === "published" ? "green" : "amber"}>{item.status}</Badge>
-              {item.validity && <span className="text-[11px] text-[#8b6d59]">{item.validity}</span>}
+              {item.validity && <span className="text-[11px] text-[#6b7280]">{item.validity}</span>}
                   </div>
-                  <div className="mt-1 text-[11px] uppercase tracking-wide text-[#a8792f]">{item.area} · prioridad {item.priority}</div>
+                  <div className="mt-1 text-[11px] uppercase tracking-wide text-[#c8102e]">{item.area} · prioridad {item.priority}</div>
                 </div>
                 <div className="flex flex-wrap justify-end gap-1">
                   {isAdmin || item.area === userArea ? (
@@ -374,14 +374,14 @@ export function OccasionsPage({
                       <Button variant="danger" size="sm" onClick={() => remove(item.id)}>Eliminar</Button>
                     </>
                   ) : (
-                    <span className="rounded-full border border-[#e5d4bf] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#9a7d68]">Solo lectura</span>
+                    <span className="rounded-full border border-[#e5e7eb] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#9ca3af]">Solo lectura</span>
                   )}
                 </div>
               </div>
-              <div className="mt-3 grid gap-2 text-xs text-[#5d463b] sm:grid-cols-2">
-                <div><span className="font-semibold text-[#3d1a17]">Directo:</span> {item.direct.join(", ") || "—"}</div>
-                <div><span className="font-semibold text-[#3d1a17]">Excluye:</span> {[...item.exclude, ...item.exclude_categories].join(", ") || "—"}</div>
-                <div className="sm:col-span-2"><span className="font-semibold text-[#3d1a17]">Alternativa:</span> {item.bridges?.[0] ? `${item.bridges[0].label}: ${item.bridges[0].terms.join(", ")}` : "—"}</div>
+              <div className="mt-3 grid gap-2 text-xs text-[#374151] sm:grid-cols-2">
+                <div><span className="font-semibold text-[#111111]">Directo:</span> {item.direct.join(", ") || "—"}</div>
+                <div><span className="font-semibold text-[#111111]">Excluye:</span> {[...item.exclude, ...item.exclude_categories].join(", ") || "—"}</div>
+                <div className="sm:col-span-2"><span className="font-semibold text-[#111111]">Alternativa:</span> {item.bridges?.[0] ? `${item.bridges[0].label}: ${item.bridges[0].terms.join(", ")}` : "—"}</div>
               </div>
             </Card>
           ))}

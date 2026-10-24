@@ -1,4 +1,4 @@
-@import "tailwindcss";
+﻿@import "tailwindcss";
 
 :root {
   color-scheme: light;
@@ -19,6 +19,40 @@ body { margin: 0; min-width: 320px; }
 .scrollbar-thin::-webkit-scrollbar { width: 8px; }
 .scrollbar-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
 
+/* Paleta de marca en modo oscuro: superficies y textos nuevos. */
+html.dark [class~="bg-[#f5f6f8]"],
+html.dark [class~="bg-[#f9fafb]"],
+html.dark [class~="bg-[#ffffff]"],
+html.dark [class~="bg-[#f3f4f6]"] {
+  background-color: #1f2124 !important;
+}
+
+html.dark [class~="text-[#111111]"] {
+  color: #f1f3f5 !important;
+}
+
+html.dark [class~="text-[#374151]"],
+html.dark [class~="text-[#4b5563]"] {
+  color: #c7ccd4 !important;
+}
+
+html.dark [class~="text-[#6b7280]"],
+html.dark [class~="text-[#9ca3af]"] {
+  color: #9aa1ab !important;
+}
+
+html.dark [class~="border-[#e5e7eb]"],
+html.dark [class~="border-[#f3f4f6]"] {
+  border-color: #34383d !important;
+}
+
+html.dark [class~="bg-[#fdecee]"] {
+  background-color: #3a2022 !important;
+}
+
+html.dark [class~="text-[#c8102e]"] {
+  color: #ff9aa5 !important;
+}
 /* Dark mode: overrides for the existing Tailwind utility classes. */
 html.dark { color-scheme: dark; background: #141517; }
 html.dark body { background: #141517; color: #e9ecef; }

@@ -167,42 +167,42 @@ function Login({
   }
 
   return (
-    <div className="relative grid min-h-screen place-items-center bg-[radial-gradient(circle_at_top,#5c111c,#1b090c_55%,#0e0507)] px-4">
+    <div className="relative grid min-h-screen place-items-center bg-[radial-gradient(circle_at_top,#c8102e,#111111_55%,#0a0a0a)] px-4">
       <div className="absolute right-4 top-4">
         <ThemeToggle />
       </div>
-      <form onSubmit={submit} className="w-full max-w-sm rounded-2xl border border-[#d8b06a]/30 bg-[#fffaf3] p-8 shadow-2xl shadow-black/40">
+      <form onSubmit={submit} className="w-full max-w-sm rounded-2xl border border-[#f7b4bc]/30 bg-[#ffffff] p-8 shadow-2xl shadow-black/40">
         <div className="mb-6 flex items-center gap-3">
-          <div className="grid h-11 w-11 place-items-center rounded-xl bg-[#b8863b] font-black text-[#2a0c0d] shadow-inner">R</div>
+          <div className="grid h-11 w-11 place-items-center rounded-xl bg-[#1e5aa8] font-black text-[#111111] shadow-inner">R</div>
           <div>
-            <div className="text-xs font-bold uppercase tracking-[.22em] text-[#a8792f]">ROHO Homecenter</div>
-            <h1 className="font-serif text-xl font-semibold tracking-tight text-[#3d1a17]">
+            <div className="text-xs font-bold uppercase tracking-[.22em] text-[#c8102e]">ROHO Homecenter</div>
+            <h1 className="font-serif text-xl font-semibold tracking-tight text-[#111111]">
               {mode === "area" ? "Portal de áreas" : "Consola de asesores"}
             </h1>
           </div>
         </div>
-        <div className="mb-4 grid grid-cols-2 gap-2 rounded-lg bg-[#f1e6d6] p-1">
-          <button type="button" onClick={() => setMode("advisor")} className={`rounded-md px-3 py-1.5 text-sm font-semibold ${mode === "advisor" ? "bg-white text-[#3d1a17] shadow-sm" : "text-[#8b6d59]"}`}>Consola</button>
-          <button type="button" onClick={() => setMode("area")} className={`rounded-md px-3 py-1.5 text-sm font-semibold ${mode === "area" ? "bg-white text-[#3d1a17] shadow-sm" : "text-[#8b6d59]"}`}>Área</button>
+        <div className="mb-4 grid grid-cols-2 gap-2 rounded-lg bg-[#f3f4f6] p-1">
+          <button type="button" onClick={() => setMode("advisor")} className={`rounded-md px-3 py-1.5 text-sm font-semibold ${mode === "advisor" ? "bg-white text-[#111111] shadow-sm" : "text-[#6b7280]"}`}>Consola</button>
+          <button type="button" onClick={() => setMode("area")} className={`rounded-md px-3 py-1.5 text-sm font-semibold ${mode === "area" ? "bg-white text-[#111111] shadow-sm" : "text-[#6b7280]"}`}>Área</button>
         </div>
-        <label htmlFor="advisor-username" className="mb-1 block text-sm font-medium text-[#765b4b]">
+        <label htmlFor="advisor-username" className="mb-1 block text-sm font-medium text-[#4b5563]">
           Usuario
         </label>
         <input
           id="advisor-username"
-          className="mb-4 w-full rounded-lg border border-[#d9c3aa] bg-white px-3 py-2 text-[#3d1a17] outline-none transition focus:border-[#a8792f] focus:ring-1 focus:ring-[#a8792f]"
+          className="mb-4 w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-[#111111] outline-none transition focus:border-[#c8102e] focus:ring-1 focus:ring-[#c8102e]"
           value={username}
           onChange={(event) => setUsername(event.target.value)}
           autoComplete="username"
           autoFocus
           required
         />
-        <label htmlFor="advisor-password" className="mb-1 block text-sm font-medium text-[#765b4b]">
+        <label htmlFor="advisor-password" className="mb-1 block text-sm font-medium text-[#4b5563]">
           Contraseña
         </label>
         <input
           id="advisor-password"
-          className="mb-2 w-full rounded-lg border border-[#d9c3aa] bg-white px-3 py-2 text-[#3d1a17] outline-none transition focus:border-[#a8792f] focus:ring-1 focus:ring-[#a8792f]"
+          className="mb-2 w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-[#111111] outline-none transition focus:border-[#c8102e] focus:ring-1 focus:ring-[#c8102e]"
           type="password"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
@@ -216,11 +216,11 @@ function Login({
         )}
         <button
           disabled={busy}
-          className="mt-3 w-full rounded-lg bg-[#6b1d2b] px-4 py-2.5 font-semibold text-[#fffaf3] shadow-sm transition hover:bg-[#54131f] disabled:opacity-50"
+          className="mt-3 w-full rounded-lg bg-[#c8102e] px-4 py-2.5 font-semibold text-[#ffffff] shadow-sm transition hover:bg-[#a30f27] disabled:opacity-50"
         >
           {busy ? "Ingresando…" : "Ingresar"}
         </button>
-        {mode === "area" && <p className="mt-3 text-center text-xs text-[#9a7d68]">Solo vas a ver las reglas de tu área.</p>}
+        {mode === "area" && <p className="mt-3 text-center text-xs text-[#9ca3af]">Solo vas a ver las reglas de tu área.</p>}
       </form>
     </div>
   );
@@ -239,12 +239,12 @@ function Header({
 }) {
   const location = useLocation();
   return (
-    <header className="sticky top-0 z-40 border-b border-[#d8b06a]/25 bg-[linear-gradient(135deg,#3b0f14_0%,#240a0d_55%,#160709_100%)] text-white shadow-lg shadow-black/20 backdrop-blur">
+    <header className="sticky top-0 z-40 border-b border-[#f7b4bc]/25 bg-[linear-gradient(135deg,#1f2937_0%,#111827_55%,#0a0a0a_100%)] text-white shadow-lg shadow-black/20 backdrop-blur">
       <div className="mx-auto flex max-w-[1500px] flex-wrap items-center gap-3 px-4 py-3 lg:px-6">
         <div className="flex items-center gap-2">
-          <div className="grid h-9 w-9 place-items-center rounded-xl border border-[#e2bf7d]/50 bg-[#b8863b] text-sm font-black text-[#2a0c0d]">R</div>
+          <div className="grid h-9 w-9 place-items-center rounded-xl border border-[#1e5aa8]/50 bg-[#1e5aa8] text-sm font-black text-[#111111]">R</div>
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-[.28em] text-[#d8b06a]">ROHO</div>
+            <div className="text-[10px] font-bold uppercase tracking-[.28em] text-[#f7b4bc]">ROHO</div>
             <div className="font-serif text-sm font-semibold tracking-tight">Consola de asesores</div>
           </div>
         </div>

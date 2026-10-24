@@ -1,4 +1,4 @@
-# Consola de asesores (React)
+﻿# Consola de asesores (React)
 
 Frontend separado del API para la bandeja de handoffs y la administración de
 agentes.
@@ -112,3 +112,22 @@ Opciones:
 3. Mantener Vite solo para desarrollo.
 
 No usar el dev server de Vite en producción.
+
+## Paleta aplicada (rojo, blanco, negro y azul)
+
+| Rol | Color |
+| --- | --- |
+| Rojo de marca (botones, títulos, acentos) | `#C8102E` |
+| Rojo oscuro (hover, fondos de marca) | `#A30F27` |
+| Azul de acento (enlaces, datos secundarios) | `#1E5AA8` |
+| Negro (texto principal) | `#111111` |
+| Grises de texto | `#4B5563` y `#6B7280` |
+| Borde | `#E5E7EB` |
+| Fondo general | `#F5F6F8` |
+| Superficies | `#FFFFFF` |
+
+![Paleta del panel](paleta-roho.png)
+
+Las clases usan valores hex directos (`bg-[#c8102e]`), así que un cambio de
+paleta se hace con el mapa de `admin-web/src` y se reconstruye el bundle.
+El modo oscuro tiene sus equivalencias en `admin-web/src/index.css`.

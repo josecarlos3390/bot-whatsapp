@@ -16,18 +16,18 @@ export function AreaHeader({
   onLogout: () => void;
 }) {
   return (
-    <header className="border-b border-[#d8b06a]/25 bg-[linear-gradient(135deg,#3b0f14_0%,#240a0d_55%,#160709_100%)] text-[#fbf3e8] shadow-lg shadow-black/20">
+    <header className="border-b border-[#f7b4bc]/25 bg-[linear-gradient(135deg,#1f2937_0%,#111827_55%,#0a0a0a_100%)] text-[#f9fafb] shadow-lg shadow-black/20">
       <div className="mx-auto flex max-w-[1180px] flex-wrap items-center gap-3 px-4 py-3.5 lg:px-6">
-        <div className="grid h-9 w-9 place-items-center rounded-xl border border-[#e2bf7d]/50 bg-[#b8863b] text-base font-black text-[#2a0c0d] shadow-inner">
+        <div className="grid h-9 w-9 place-items-center rounded-xl border border-[#1e5aa8]/50 bg-[#1e5aa8] text-base font-black text-[#111111] shadow-inner">
           R
         </div>
         <div>
-          <div className="text-[10px] font-bold uppercase tracking-[.28em] text-[#d8b06a]">ROHO Homecenter</div>
+          <div className="text-[10px] font-bold uppercase tracking-[.28em] text-[#f7b4bc]">ROHO Homecenter</div>
           <div className="font-serif text-base font-semibold tracking-tight">{title}</div>
         </div>
-        <div className="ml-auto flex items-center gap-3 text-sm text-[#e8d8c3]">
-          <span className="hidden rounded-full border border-[#d8b06a]/20 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-wider sm:inline">{subtitle}</span>
-          <button onClick={onLogout} className="rounded-lg border border-[#d8b06a]/40 bg-white/5 px-3 py-1.5 text-xs font-semibold text-[#f3e3cd] transition hover:bg-white/10">
+        <div className="ml-auto flex items-center gap-3 text-sm text-[#e5e7eb]">
+          <span className="hidden rounded-full border border-[#f7b4bc]/20 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-wider sm:inline">{subtitle}</span>
+          <button onClick={onLogout} className="rounded-lg border border-[#f7b4bc]/40 bg-white/5 px-3 py-1.5 text-xs font-semibold text-[#fdecee] transition hover:bg-white/10">
             Salir
           </button>
         </div>
@@ -313,7 +313,7 @@ function RuleBuilder({
             <p className="text-sm text-slate-500">Cargá instrucciones sin escribir JSON.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Link to="/occasions" className="rounded-lg border border-[#d8b06a]/50 bg-white px-3 py-2 text-xs font-semibold text-[#6b1d2b] hover:bg-[#fffaf3]">
+            <Link to="/occasions" className="rounded-lg border border-[#f7b4bc]/50 bg-white px-3 py-2 text-xs font-semibold text-[#c8102e] hover:bg-[#ffffff]">
               Ocasiones y campañas
             </Link>
             {canChangeArea && (
@@ -326,19 +326,19 @@ function RuleBuilder({
             )}
           </div>
         </div>
-        <div className="mb-3 rounded-xl border border-[#d8b06a]/40 bg-[#fbf3e8] px-4 py-3 text-xs text-[#6b4d3e]">
-          <strong className="text-[#3d1a17]">¿Para qué sirve?</strong> Acá definís cómo debe responder el bot en tu área:
+        <div className="mb-3 rounded-xl border border-[#f7b4bc]/40 bg-[#f9fafb] px-4 py-3 text-xs text-[#4b5563]">
+          <strong className="text-[#111111]">¿Para qué sirve?</strong> Acá definís cómo debe responder el bot en tu área:
           qué marca priorizar, qué promociones destacar, cómo manejar devoluciones o qué indicaciones debe seguir.
           Las reglas publicadas se aplican antes de la respuesta final.
         </div>
         {error && <div className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
-        <Card className="mb-4 border-[#d8b06a]/40 bg-[#fffdf9] p-4">
+        <Card className="mb-4 border-[#f7b4bc]/40 bg-[#ffffff] p-4">
           <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
-              <h2 className="text-sm font-bold text-[#3d1a17]">Probar una consulta antes de publicar</h2>
-              <p className="text-xs text-[#765b4b]">Mirá qué productos y reglas se aplicarían, sin crear una conversación.</p>
+              <h2 className="text-sm font-bold text-[#111111]">Probar una consulta antes de publicar</h2>
+              <p className="text-xs text-[#4b5563]">Mirá qué productos y reglas se aplicarían, sin crear una conversación.</p>
             </div>
-            <span className="rounded-full bg-[#f1e6d6] px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-[#8b6d59]">Simulador</span>
+            <span className="rounded-full bg-[#f3f4f6] px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-[#6b7280]">Simulador</span>
           </div>
           <div className="mt-3 flex flex-col gap-2 sm:flex-row">
             <Input
@@ -346,29 +346,29 @@ function RuleBuilder({
               onChange={(event) => setSimQuery(event.target.value)}
               onKeyDown={(event) => { if (event.key === "Enter") void simulate(); }}
               placeholder="Ej: televisor 50 pulgadas, heladera no frost..."
-              className="border-[#d9c3aa]"
+              className="border-[#e5e7eb]"
             />
             <Button onClick={() => void simulate()} disabled={simBusy || !simQuery.trim()}>
               {simBusy ? "Simulando…" : "Simular"}
             </Button>
           </div>
           {simulation && (
-            <div className="mt-4 rounded-xl border border-[#efe2d2] bg-white p-3">
+            <div className="mt-4 rounded-xl border border-[#f3f4f6] bg-white p-3">
               {!simulation.ok ? (
                 <p className="text-sm text-red-700">{simulation.detail}</p>
               ) : (
                 <>
-                  <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-[#765b4b]">
-                    <span className="font-semibold text-[#3d1a17]">{simulation.products.length} producto(s)</span>
+                  <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-[#4b5563]">
+                    <span className="font-semibold text-[#111111]">{simulation.products.length} producto(s)</span>
                     <span>·</span>
                     <span>{simulation.rules.length} regla(s) aplicada(s)</span>
                     <span>·</span>
                     <span>área {simulation.area}</span>
                   </div>
                   {simulation.prompt_text && (
-                  <div className="mt-2 rounded-xl border border-[#e5d4bf] bg-white px-3 py-2">
-                    <div className="text-[10px] font-bold uppercase tracking-wide text-[#8b6d59]">Lo que el bot lee</div>
-                    <pre className="mt-1 whitespace-pre-wrap text-[11px] text-[#5b3323]">{simulation.prompt_text}</pre>
+                  <div className="mt-2 rounded-xl border border-[#e5e7eb] bg-white px-3 py-2">
+                    <div className="text-[10px] font-bold uppercase tracking-wide text-[#6b7280]">Lo que el bot lee</div>
+                    <pre className="mt-1 whitespace-pre-wrap text-[11px] text-[#1f2937]">{simulation.prompt_text}</pre>
                   </div>
                 )}
                 {simulation.rules.length > 0 && (
@@ -380,24 +380,24 @@ function RuleBuilder({
                   )}
                   <div className="space-y-2">
                     {simulation.products.map((product) => (
-                      <div key={product.sku} className="flex items-start justify-between gap-3 rounded-lg border border-[#f1e6d6] px-3 py-2">
+                      <div key={product.sku} className="flex items-start justify-between gap-3 rounded-lg border border-[#f3f4f6] px-3 py-2">
                         <div>
-                          <div className="text-sm font-semibold text-[#3d1a17]">{product.name}</div>
-                          <div className="text-[11px] text-[#8b6d59]">
+                          <div className="text-sm font-semibold text-[#111111]">{product.name}</div>
+                          <div className="text-[11px] text-[#6b7280]">
                             {product.brand || "Sin marca"} · {product.category || "Sin categoría"} · SKU {product.sku}
                           </div>
                         </div>
                         <div className="shrink-0 text-right">
-                          <div className="text-sm font-semibold text-[#3d1a17]">Bs {product.promo_price.toFixed(2)}</div>
+                          <div className="text-sm font-semibold text-[#111111]">Bs {product.promo_price.toFixed(2)}</div>
                           {product.promo_discount_percent > 0 && (
                             <div className="text-[10px] font-semibold text-emerald-700">-{product.promo_discount_percent}%</div>
                           )}
-                          <div className="text-[10px] text-[#8b6d59]">{product.available ? "Disponible" : "Sin stock"}</div>
+                          <div className="text-[10px] text-[#6b7280]">{product.available ? "Disponible" : "Sin stock"}</div>
                         </div>
                       </div>
                     ))}
                   </div>
-                  {simulation.note && <p className="mt-2 text-[10px] text-[#9a7d68]">{simulation.note}</p>}
+                  {simulation.note && <p className="mt-2 text-[10px] text-[#9ca3af]">{simulation.note}</p>}
                 </>
               )}
             </div>
@@ -601,8 +601,8 @@ export function AdminCenter({ me, onLogout }: { me: Advisor; onLogout: () => voi
             <Link to="/occasions" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700">Ocasiones</Link>
           </div>
         </div>
-        <div className="mb-4 rounded-xl border border-[#d8b06a]/40 bg-[#fbf3e8] px-4 py-3 text-xs text-[#6b4d3e]">
-          <strong className="text-[#3d1a17]">¿Para qué sirve?</strong> Desde acá creás las cuentas de los encargados.
+        <div className="mb-4 rounded-xl border border-[#f7b4bc]/40 bg-[#f9fafb] px-4 py-3 text-xs text-[#4b5563]">
+          <strong className="text-[#111111]">¿Para qué sirve?</strong> Desde acá creás las cuentas de los encargados.
           Cada usuario entra con su contraseña y administra las reglas y ocasiones de su área; no ve las de las demás.
         </div>
         {error && <div className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}

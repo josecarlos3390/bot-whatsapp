@@ -91,10 +91,10 @@ function StatusDot({ ok }: { ok: boolean }) {
 
 function Metric({ label, value, hint }: { label: string; value: number | string; hint?: string }) {
   return (
-    <div className="rounded-2xl border border-[#e5d4bf] bg-[#fffdf9] p-4 shadow-sm">
-      <div className="text-[10px] font-bold uppercase tracking-[.2em] text-[#a8792f]">{label}</div>
-      <div className="mt-1 font-serif text-3xl font-semibold text-[#3d1a17]">{value}</div>
-      {hint && <div className="mt-1 text-[11px] text-[#8b6d59]">{hint}</div>}
+    <div className="rounded-2xl border border-[#e5e7eb] bg-[#ffffff] p-4 shadow-sm">
+      <div className="text-[10px] font-bold uppercase tracking-[.2em] text-[#c8102e]">{label}</div>
+      <div className="mt-1 font-serif text-3xl font-semibold text-[#111111]">{value}</div>
+      {hint && <div className="mt-1 text-[11px] text-[#6b7280]">{hint}</div>}
     </div>
   );
 }
@@ -190,79 +190,79 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
     overall === "ok" ? "green" : overall === "critical" ? "red" : "amber";
 
   return (
-    <div className="min-h-screen bg-[#f7f2eb] text-[#2a1710]">
+    <div className="min-h-screen bg-[#f5f6f8] text-[#111111]">
       <AreaHeader title="Operación" subtitle="Estado consolidado del bot" onLogout={onLogout} />
       <main className="mx-auto max-w-[1180px] px-4 py-6 lg:px-6">
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <div className="mb-1 text-[10px] font-bold uppercase tracking-[.28em] text-[#a8792f]">Centro de operación</div>
-            <h1 className="font-serif text-3xl font-semibold tracking-tight text-[#3d1a17]">¿Cómo está el bot hoy?</h1>
-            <p className="mt-1 text-sm text-[#765b4b]">
+            <div className="mb-1 text-[10px] font-bold uppercase tracking-[.28em] text-[#c8102e]">Centro de operación</div>
+            <h1 className="font-serif text-3xl font-semibold tracking-tight text-[#111111]">¿Cómo está el bot hoy?</h1>
+            <p className="mt-1 text-sm text-[#4b5563]">
               Una sola vista para revisar datos, sincronización, conversaciones y reglas.
             </p>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="secondary" onClick={() => void load()}>Actualizar</Button>
-            <Link to="/inbox" className="rounded-lg bg-[#6b1d2b] px-3 py-2 text-sm font-semibold text-[#fffaf3]">Ir a atención</Link>
+            <Link to="/inbox" className="rounded-lg bg-[#c8102e] px-3 py-2 text-sm font-semibold text-[#ffffff]">Ir a atención</Link>
           </div>
         </div>
 
         {error && <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
 
-        <Card className="mb-5 overflow-hidden border-[#e5d4bf] bg-[#fffdf9]">
+        <Card className="mb-5 overflow-hidden border-[#e5e7eb] bg-[#ffffff]">
           <div className="flex flex-wrap items-center gap-4 p-5">
-            <div className="grid h-12 w-12 place-items-center rounded-2xl bg-[#3d1a17] font-serif text-lg font-semibold text-[#e2bf7d]">R</div>
+            <div className="grid h-12 w-12 place-items-center rounded-2xl bg-[#111111] font-serif text-lg font-semibold text-[#1e5aa8]">R</div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="font-serif text-xl font-semibold text-[#3d1a17]">{overallLabel}</h2>
+                <h2 className="font-serif text-xl font-semibold text-[#111111]">{overallLabel}</h2>
                 <Badge tone={overallTone as "green" | "amber" | "red"}>{overall}</Badge>
               </div>
-              <p className="text-xs text-[#8b6d59]">Actualizado {formatDate(data?.generated_at)} · refresco automático cada 30 s</p>
+              <p className="text-xs text-[#6b7280]">Actualizado {formatDate(data?.generated_at)} · refresco automático cada 30 s</p>
             </div>
-            <div className="ml-auto text-xs text-[#8b6d59]">
+            <div className="ml-auto text-xs text-[#6b7280]">
               {data?.alerts?.length ? `${data.alerts.length} alerta(s)` : "Sin alertas activas"}
             </div>
           </div>
           {data?.alerts?.length ? (
-            <div className="border-t border-[#efe2d2] bg-[#fff8ee] px-5 py-3">
+            <div className="border-t border-[#f3f4f6] bg-[#fff8ee] px-5 py-3">
               {data.alerts.map((alert, index) => (
                 <div key={`${alert.title}-${index}`} className="flex items-start gap-2 py-1 text-xs">
                   <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${alert.level === "critical" ? "bg-red-500" : "bg-amber-500"}`} />
-                  <span><strong className="text-[#3d1a17]">{alert.title}:</strong> <span className="text-[#765b4b]">{alert.detail}</span></span>
+                  <span><strong className="text-[#111111]">{alert.title}:</strong> <span className="text-[#4b5563]">{alert.detail}</span></span>
                 </div>
               ))}
             </div>
           ) : null}
         </Card>
 
-        {loading && !data ? <div className="text-sm text-[#765b4b]">Cargando estado…</div> : null}
+        {loading && !data ? <div className="text-sm text-[#4b5563]">Cargando estado…</div> : null}
 
         {data && (
           <>
             <div className="mb-5 grid gap-3 md:grid-cols-3">
-              <Card className="border-[#e5d4bf] bg-[#fffdf9] p-4">
+              <Card className="border-[#e5e7eb] bg-[#ffffff] p-4">
                 <div className="flex items-center justify-between">
-                  <div className="text-[10px] font-bold uppercase tracking-[.2em] text-[#a8792f]">Bot WhatsApp</div>
+                  <div className="text-[10px] font-bold uppercase tracking-[.2em] text-[#c8102e]">Bot WhatsApp</div>
                   <StatusDot ok={data.bot.ok} />
                 </div>
-                <div className="mt-2 text-lg font-semibold text-[#3d1a17]">{data.bot.ok ? "Escuchando" : "Sin respuesta"}</div>
-                <div className="mt-1 text-xs text-[#765b4b]">{data.bot.whatsapp_number || "Número no configurado"} · {data.bot.mode}</div>
+                <div className="mt-2 text-lg font-semibold text-[#111111]">{data.bot.ok ? "Escuchando" : "Sin respuesta"}</div>
+                <div className="mt-1 text-xs text-[#4b5563]">{data.bot.whatsapp_number || "Número no configurado"} · {data.bot.mode}</div>
               </Card>
-              <Card className="border-[#e5d4bf] bg-[#fffdf9] p-4">
+              <Card className="border-[#e5e7eb] bg-[#ffffff] p-4">
                 <div className="flex items-center justify-between">
-                  <div className="text-[10px] font-bold uppercase tracking-[.2em] text-[#a8792f]">API de integración</div>
+                  <div className="text-[10px] font-bold uppercase tracking-[.2em] text-[#c8102e]">API de integración</div>
                   <StatusDot ok={data.api.ok} />
                 </div>
-                <div className="mt-2 text-lg font-semibold text-[#3d1a17]">{data.api.ok ? "Disponible" : "No responde"}</div>
-                <div className="mt-1 truncate text-xs text-[#765b4b]">{data.api.detail || "Sin detalle"}</div>
+                <div className="mt-2 text-lg font-semibold text-[#111111]">{data.api.ok ? "Disponible" : "No responde"}</div>
+                <div className="mt-1 truncate text-xs text-[#4b5563]">{data.api.detail || "Sin detalle"}</div>
               </Card>
-              <Card className="border-[#e5d4bf] bg-[#fffdf9] p-4">
+              <Card className="border-[#e5e7eb] bg-[#ffffff] p-4">
                 <div className="flex items-center justify-between">
-                  <div className="text-[10px] font-bold uppercase tracking-[.2em] text-[#a8792f]">Sincronización VTEX</div>
+                  <div className="text-[10px] font-bold uppercase tracking-[.2em] text-[#c8102e]">Sincronización VTEX</div>
                   <StatusDot ok={!data.sync.failed} />
                 </div>
-                <div className="mt-2 text-lg font-semibold text-[#3d1a17]">{data.sync.failed ? "Con error" : "Al día"}</div>
-                <div className="mt-1 text-xs text-[#765b4b]">Última: {formatDate(data.sync.at)}</div>
+                <div className="mt-2 text-lg font-semibold text-[#111111]">{data.sync.failed ? "Con error" : "Al día"}</div>
+                <div className="mt-1 text-xs text-[#4b5563]">Última: {formatDate(data.sync.at)}</div>
               </Card>
             </div>
 
@@ -273,14 +273,14 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
               <Metric label="Reglas publicadas" value={data.counts.rules_published} hint={`${data.counts.occasions_published} ocasiones`} />
             </div>
 
-            <Card className="mb-5 border-[#e5d4bf] bg-[#fffdf9] p-5">
+            <Card className="mb-5 border-[#e5e7eb] bg-[#ffffff] p-5">
               <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
-                <h3 className="font-serif text-lg font-semibold text-[#3d1a17]">Embudo de venta</h3>
-                <span className="text-[11px] text-[#8b6d59]">
+                <h3 className="font-serif text-lg font-semibold text-[#111111]">Embudo de venta</h3>
+                <span className="text-[11px] text-[#6b7280]">
                   Últimos {data.funnel.days} días · {data.funnel.revenue} Bs cobrados
                 </span>
               </div>
-              <p className="mb-3 text-xs text-[#8b6d59]">
+              <p className="mb-3 text-xs text-[#6b7280]">
                 Contactos únicos que llegaron a cada paso. La conversión compara con el paso anterior.
               </p>
               <div className="space-y-1.5">
@@ -289,8 +289,8 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
                   const width = Math.round((row.contacts / max) * 100);
                   return (
                     <div key={row.step} className="flex items-center gap-3">
-                      <div className="w-40 shrink-0 text-xs text-[#5d463b]">{row.label}</div>
-                      <div className="h-6 flex-1 overflow-hidden rounded-md bg-[#f3ece1]">
+                      <div className="w-40 shrink-0 text-xs text-[#374151]">{row.label}</div>
+                      <div className="h-6 flex-1 overflow-hidden rounded-md bg-[#f9fafb]">
                         <div
                           className="flex h-6 items-center justify-end rounded-md bg-[#c99a52] px-2 text-[11px] font-semibold text-white"
                           style={{ width: `${Math.max(width, row.contacts ? 8 : 0)}%` }}
@@ -298,7 +298,7 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
                           {row.contacts}
                         </div>
                       </div>
-                      <div className="w-16 shrink-0 text-right text-[11px] text-[#8b6d59]">
+                      <div className="w-16 shrink-0 text-right text-[11px] text-[#6b7280]">
                         {row.conversion === null ? "—" : `${row.conversion}%`}
                       </div>
                     </div>
@@ -307,24 +307,24 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
               </div>
             </Card>
 
-            <Card className="mb-5 border-[#e5d4bf] bg-[#fffdf9] p-5">
+            <Card className="mb-5 border-[#e5e7eb] bg-[#ffffff] p-5">
               <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
-                <h3 className="font-serif text-lg font-semibold text-[#3d1a17]">Búsquedas sin resultados</h3>
-                <span className="text-[11px] text-[#8b6d59]">
+                <h3 className="font-serif text-lg font-semibold text-[#111111]">Búsquedas sin resultados</h3>
+                <span className="text-[11px] text-[#6b7280]">
                   Últimos 30 días · {(data.search_gaps ?? []).reduce((total, row) => total + row.count, 0)} casos
                 </span>
               </div>
-              <p className="mb-3 text-xs text-[#8b6d59]">
+              <p className="mb-3 text-xs text-[#6b7280]">
                 Consultas que no encontraron nada: sirven para detectar artículos que faltan o sinónimos por agregar.
               </p>
               {(data.search_gaps ?? []).length === 0 ? (
-                <p className="text-sm text-[#8b6d59]">Ninguna registrada.</p>
+                <p className="text-sm text-[#6b7280]">Ninguna registrada.</p>
               ) : (
                 <div className="space-y-1.5">
                   {(data.search_gaps ?? []).slice(0, 8).map((row) => (
-                    <div key={row.query} className="flex items-center justify-between border-b border-[#f1e6d6] py-1.5 text-sm">
-                      <span className="text-[#3d1a17]">{row.query}</span>
-                      <span className="text-[11px] text-[#8b6d59]">
+                    <div key={row.query} className="flex items-center justify-between border-b border-[#f3f4f6] py-1.5 text-sm">
+                      <span className="text-[#111111]">{row.query}</span>
+                      <span className="text-[11px] text-[#6b7280]">
                         {row.count}× · {formatDate(row.last_seen)}
                       </span>
                     </div>
@@ -333,76 +333,76 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
               )}
             </Card>
 
-            <Card className="mb-5 border-[#e5d4bf] bg-[#fffdf9] p-5">
+            <Card className="mb-5 border-[#e5e7eb] bg-[#ffffff] p-5">
               <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
-                <h3 className="font-serif text-lg font-semibold text-[#3d1a17]">Consumo del modelo</h3>
+                <h3 className="font-serif text-lg font-semibold text-[#111111]">Consumo del modelo</h3>
                 <span className={`text-[11px] ${(data.tokens?.cache_hit_rate ?? 0) >= 80 ? "text-emerald-600" : "text-amber-700"}`}>
                   Caché {data.tokens?.cache_hit_rate ?? 0}% · {(data.tokens?.calls ?? 0)} llamadas
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <div>
-                  <div className="text-[11px] uppercase tracking-wide text-[#8b6d59]">Entrada / llamada</div>
-                  <div className="text-xl font-semibold text-[#3d1a17]">{(data.tokens?.avg_prompt ?? 0).toLocaleString("es")}</div>
+                  <div className="text-[11px] uppercase tracking-wide text-[#6b7280]">Entrada / llamada</div>
+                  <div className="text-xl font-semibold text-[#111111]">{(data.tokens?.avg_prompt ?? 0).toLocaleString("es")}</div>
                 </div>
                 <div>
-                  <div className="text-[11px] uppercase tracking-wide text-[#8b6d59]">Salida / llamada</div>
-                  <div className="text-xl font-semibold text-[#3d1a17]">{(data.tokens?.avg_completion ?? 0).toLocaleString("es")}</div>
+                  <div className="text-[11px] uppercase tracking-wide text-[#6b7280]">Salida / llamada</div>
+                  <div className="text-xl font-semibold text-[#111111]">{(data.tokens?.avg_completion ?? 0).toLocaleString("es")}</div>
                 </div>
                 <div>
-                  <div className="text-[11px] uppercase tracking-wide text-[#8b6d59]">Cacheado</div>
+                  <div className="text-[11px] uppercase tracking-wide text-[#6b7280]">Cacheado</div>
                   <div className="text-xl font-semibold text-emerald-700">{(data.tokens?.cache_hit_tokens ?? 0).toLocaleString("es")}</div>
                 </div>
                 <div>
-                  <div className="text-[11px] uppercase tracking-wide text-[#8b6d59]">Total tokens</div>
-                  <div className="text-xl font-semibold text-[#3d1a17]">{(data.tokens?.total_tokens ?? 0).toLocaleString("es")}</div>
+                  <div className="text-[11px] uppercase tracking-wide text-[#6b7280]">Total tokens</div>
+                  <div className="text-xl font-semibold text-[#111111]">{(data.tokens?.total_tokens ?? 0).toLocaleString("es")}</div>
                 </div>
               </div>
             </Card>
 
-            <Card className="mb-5 border-[#e5d4bf] bg-[#fffdf9] p-5">
+            <Card className="mb-5 border-[#e5e7eb] bg-[#ffffff] p-5">
               <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
-                <h3 className="font-serif text-lg font-semibold text-[#3d1a17]">Latencia de respuesta</h3>
+                <h3 className="font-serif text-lg font-semibold text-[#111111]">Latencia de respuesta</h3>
                 <span className={`text-[11px] ${(data.latency?.slow ?? 0) > 0 ? "text-amber-700" : "text-emerald-600"}`}>
                   Últimas {data.latency?.count ?? 0} respuestas
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <div>
-                  <div className="text-[11px] uppercase tracking-wide text-[#8b6d59]">Mediana</div>
-                  <div className="text-xl font-semibold text-[#3d1a17]">{((data.latency?.p50_ms ?? 0) / 1000).toFixed(1)} s</div>
+                  <div className="text-[11px] uppercase tracking-wide text-[#6b7280]">Mediana</div>
+                  <div className="text-xl font-semibold text-[#111111]">{((data.latency?.p50_ms ?? 0) / 1000).toFixed(1)} s</div>
                 </div>
                 <div>
-                  <div className="text-[11px] uppercase tracking-wide text-[#8b6d59]">p95</div>
-                  <div className={`text-xl font-semibold ${(data.latency?.p95_ms ?? 0) >= 8000 ? "text-red-600" : "text-[#3d1a17]"}`}>
+                  <div className="text-[11px] uppercase tracking-wide text-[#6b7280]">p95</div>
+                  <div className={`text-xl font-semibold ${(data.latency?.p95_ms ?? 0) >= 8000 ? "text-red-600" : "text-[#111111]"}`}>
                     {((data.latency?.p95_ms ?? 0) / 1000).toFixed(1)} s
                   </div>
                 </div>
                 <div>
-                  <div className="text-[11px] uppercase tracking-wide text-[#8b6d59]">Máxima</div>
-                  <div className="text-xl font-semibold text-[#3d1a17]">{((data.latency?.max_ms ?? 0) / 1000).toFixed(1)} s</div>
+                  <div className="text-[11px] uppercase tracking-wide text-[#6b7280]">Máxima</div>
+                  <div className="text-xl font-semibold text-[#111111]">{((data.latency?.max_ms ?? 0) / 1000).toFixed(1)} s</div>
                 </div>
                 <div>
-                  <div className="text-[11px] uppercase tracking-wide text-[#8b6d59]">Lentas</div>
+                  <div className="text-[11px] uppercase tracking-wide text-[#6b7280]">Lentas</div>
                   <div className={`text-xl font-semibold ${(data.latency?.slow ?? 0) > 0 ? "text-red-600" : "text-emerald-700"}`}>
                     {data.latency?.slow ?? 0}
                   </div>
-                  <div className="text-[10px] text-[#8b6d59]">≥ {((data.latency?.slow_limit_ms ?? 8000) / 1000).toFixed(0)} s</div>
+                  <div className="text-[10px] text-[#6b7280]">≥ {((data.latency?.slow_limit_ms ?? 8000) / 1000).toFixed(0)} s</div>
                 </div>
               </div>
             </Card>
 
-            <Card className="mb-5 border-[#e5d4bf] bg-[#fffdf9] p-5">
+            <Card className="mb-5 border-[#e5e7eb] bg-[#ffffff] p-5">
               <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
-                <h3 className="font-serif text-lg font-semibold text-[#3d1a17]">Probar el bot</h3>
-                <span className="text-[11px] text-[#8b6d59]">No envía nada ni ensucia las métricas</span>
+                <h3 className="font-serif text-lg font-semibold text-[#111111]">Probar el bot</h3>
+                <span className="text-[11px] text-[#6b7280]">No envía nada ni ensucia las métricas</span>
               </div>
-              <p className="mb-2 text-xs text-[#8b6d59]">
+              <p className="mb-2 text-xs text-[#6b7280]">
                 Escribí como si fueras un cliente y mirá exactamente qué respondería el bot.
               </p>
               <div className="flex flex-wrap gap-2">
                 <Input
-                  className="min-w-[240px] flex-1 border-[#d9c3aa] bg-white"
+                  className="min-w-[240px] flex-1 border-[#e5e7eb] bg-white"
                   value={probe}
                   onChange={(event) => setProbe(event.target.value)}
                   onKeyDown={(event) => { if (event.key === "Enter") void runProbe(); }}
@@ -415,23 +415,23 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
               {probeError && <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{probeError}</div>}
               {probeReplies.length > 0 && (
                 <div className="mt-3 space-y-2">
-                  <div className="text-[11px] text-[#8b6d59]">
+                  <div className="text-[11px] text-[#6b7280]">
                     Respondió en {(probeMs / 1000).toFixed(1)} s
                     {probeTrace.length > 0 && <> · camino: {probeTrace.join(" → ")}</>}
                   </div>
                   {probeReplies.map((reply, index) => (
-                    <div key={index} className="rounded-xl border border-[#e5d4bf] bg-white px-3 py-2 text-sm text-[#3d1a17]">
+                    <div key={index} className="rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#111111]">
                       {reply.text && <div className="whitespace-pre-line">{reply.text}</div>}
-                      {reply.kind === "image" && <div className="mt-1 text-[11px] text-[#8b6d59]">[imagen del producto]</div>}
+                      {reply.kind === "image" && <div className="mt-1 text-[11px] text-[#6b7280]">[imagen del producto]</div>}
                       {reply.buttons.length > 0 && (
                         <div className="mt-1 flex flex-wrap gap-1">
                           {reply.buttons.map((button) => (
-                            <span key={button.title} className="rounded-full bg-[#f1e6d6] px-2 py-0.5 text-[11px] text-[#5b3323]">{button.title}</span>
+                            <span key={button.title} className="rounded-full bg-[#f3f4f6] px-2 py-0.5 text-[11px] text-[#1f2937]">{button.title}</span>
                           ))}
                         </div>
                       )}
                       {reply.sections.flatMap((section) => section.rows).length > 0 && (
-                        <ul className="mt-1 list-disc pl-4 text-[12px] text-[#5b3323]">
+                        <ul className="mt-1 list-disc pl-4 text-[12px] text-[#1f2937]">
                           {reply.sections.flatMap((section) => section.rows).map((row) => (
                             <li key={row.title}>{row.title}{row.description ? ` — ${row.description}` : ""}</li>
                           ))}
@@ -442,18 +442,18 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
                 </div>
               )}
               {probeHistory.length > 0 && (
-                <div className="mt-4 border-t border-[#f1e6d6] pt-3">
-                  <div className="mb-1 text-[11px] font-bold uppercase tracking-wide text-[#8b6d59]">Últimas pruebas</div>
+                <div className="mt-4 border-t border-[#f3f4f6] pt-3">
+                  <div className="mb-1 text-[11px] font-bold uppercase tracking-wide text-[#6b7280]">Últimas pruebas</div>
                   <div className="space-y-1">
                     {probeHistory.map((item) => (
-                      <div key={item.at + item.text} className="flex flex-wrap items-center gap-2 text-[11px] text-[#5b3323]">
-                        <span className="text-[#8b6d59]">{new Date(item.at).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })}</span>
+                      <div key={item.at + item.text} className="flex flex-wrap items-center gap-2 text-[11px] text-[#1f2937]">
+                        <span className="text-[#6b7280]">{new Date(item.at).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })}</span>
                         <span className="flex-1 truncate">{item.text}</span>
-                        <span className="text-[#8b6d59]">{(item.ms / 1000).toFixed(1)} s</span>
+                        <span className="text-[#6b7280]">{(item.ms / 1000).toFixed(1)} s</span>
                         {item.error && <span className="text-red-600">error</span>}
                         <button
                           type="button"
-                          className="rounded-full border border-[#d9c3aa] px-2 py-0.5 font-semibold text-[#5b3323] hover:bg-[#fbf3e8]"
+                          className="rounded-full border border-[#e5e7eb] px-2 py-0.5 font-semibold text-[#1f2937] hover:bg-[#f9fafb]"
                           onClick={() => { setProbe(item.text); void runProbe(item.text); }}
                         >
                           Repetir
@@ -465,14 +465,14 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
               )}
             </Card>
 
-            <Card className="mb-5 border-[#e5d4bf] bg-[#fffdf9] p-5">
+            <Card className="mb-5 border-[#e5e7eb] bg-[#ffffff] p-5">
               <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
-                <h3 className="font-serif text-lg font-semibold text-[#3d1a17]">Control de calidad</h3>
+                <h3 className="font-serif text-lg font-semibold text-[#111111]">Control de calidad</h3>
                 <span className={`text-[11px] ${(data.qa?.total ?? 0) > 0 ? "text-red-600" : "text-emerald-600"}`}>
                   Últimas {data.qa?.hours ?? 72} h · {data.qa?.total ?? 0} casos
                 </span>
               </div>
-              <p className="mb-3 text-xs text-[#8b6d59]">
+              <p className="mb-3 text-xs text-[#6b7280]">
                 Conversaciones donde algo pudo salir mal: tema delicado con producto, venta a un cliente enojado, producto sin pedido o mensaje sin respuesta.
               </p>
               {(data.qa?.total ?? 0) === 0 ? (
@@ -481,18 +481,18 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
                 <>
                   <div className="mb-3 flex flex-wrap gap-2">
                     {Object.entries(data.qa?.counts ?? {}).map(([kind, count]) => (
-                      <span key={kind} className="rounded-full bg-[#f3ece1] px-2.5 py-1 text-[11px] text-[#5d463b]">
+                      <span key={kind} className="rounded-full bg-[#f9fafb] px-2.5 py-1 text-[11px] text-[#374151]">
                         {QA_LABELS[kind] ?? kind}: <strong>{count}</strong>
                       </span>
                     ))}
                   </div>
                   <div className="space-y-1.5">
                     {(data.qa?.issues ?? []).slice(0, 6).map((issue, index) => (
-                      <div key={`${issue.kind}-${index}`} className="border-b border-[#f1e6d6] py-1.5 text-[12px] text-[#5d463b]">
-                        <span className="font-semibold text-[#3d1a17]">{QA_LABELS[issue.kind] ?? issue.kind}</span>
-                        <span className="text-[#8b6d59]"> · {formatDate(issue.at)}</span>
+                      <div key={`${issue.kind}-${index}`} className="border-b border-[#f3f4f6] py-1.5 text-[12px] text-[#374151]">
+                        <span className="font-semibold text-[#111111]">{QA_LABELS[issue.kind] ?? issue.kind}</span>
+                        <span className="text-[#6b7280]"> · {formatDate(issue.at)}</span>
                         <div className="mt-0.5">Cliente: {issue.inbound || "—"}</div>
-                        <div className="text-[11px] text-[#8b6d59]">Bot: {issue.outbound || "sin respuesta"}</div>
+                        <div className="text-[11px] text-[#6b7280]">Bot: {issue.outbound || "sin respuesta"}</div>
                       </div>
                     ))}
                   </div>
@@ -501,32 +501,32 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
             </Card>
 
             <div className="grid gap-4 lg:grid-cols-2">
-              <Card className="border-[#e5d4bf] bg-[#fffdf9] p-5">
-                <h3 className="font-serif text-lg font-semibold text-[#3d1a17]">Calidad de respuesta</h3>
-                <p className="mb-3 text-xs text-[#8b6d59]">Indicadores de las últimas 24 horas.</p>
+              <Card className="border-[#e5e7eb] bg-[#ffffff] p-5">
+                <h3 className="font-serif text-lg font-semibold text-[#111111]">Calidad de respuesta</h3>
+                <p className="mb-3 text-xs text-[#6b7280]">Indicadores de las últimas 24 horas.</p>
                 <div className="space-y-2 text-sm">
-                  <div className="flex justify-between border-b border-[#f1e6d6] py-2"><span>Fallbacks / aclaraciones</span><strong>{data.quality.fallbacks_24h}</strong></div>
-                  <div className="flex justify-between border-b border-[#f1e6d6] py-2"><span>Llamadas a herramientas</span><strong>{data.quality.tools.calls}</strong></div>
+                  <div className="flex justify-between border-b border-[#f3f4f6] py-2"><span>Fallbacks / aclaraciones</span><strong>{data.quality.fallbacks_24h}</strong></div>
+                  <div className="flex justify-between border-b border-[#f3f4f6] py-2"><span>Llamadas a herramientas</span><strong>{data.quality.tools.calls}</strong></div>
                   <div className="flex justify-between py-2"><span>Errores de herramientas</span><strong className={data.quality.tools.failures ? "text-red-600" : ""}>{data.quality.tools.failures}</strong></div>
                 </div>
               </Card>
 
-              <Card className="border-[#e5d4bf] bg-[#fffdf9] p-5">
-                <h3 className="font-serif text-lg font-semibold text-[#3d1a17]">Última sincronización</h3>
-                <div className="mt-3 space-y-2 text-xs text-[#5d463b]">
-                  <div><span className="font-semibold text-[#3d1a17]">Archivo:</span> {data.sync.file || "Sin log"}</div>
-                  <div><span className="font-semibold text-[#3d1a17]">Resultado tarea:</span> {data.sync.task.last_result ?? "desconocido"}</div>
-                  <div><span className="font-semibold text-[#3d1a17]">Próxima:</span> {data.sync.task.next_run || "—"}</div>
-                  <div className="rounded-lg bg-[#f7f2eb] p-3 text-[11px] leading-relaxed">{data.sync.summary || "Sin resumen disponible."}</div>
+              <Card className="border-[#e5e7eb] bg-[#ffffff] p-5">
+                <h3 className="font-serif text-lg font-semibold text-[#111111]">Última sincronización</h3>
+                <div className="mt-3 space-y-2 text-xs text-[#374151]">
+                  <div><span className="font-semibold text-[#111111]">Archivo:</span> {data.sync.file || "Sin log"}</div>
+                  <div><span className="font-semibold text-[#111111]">Resultado tarea:</span> {data.sync.task.last_result ?? "desconocido"}</div>
+                  <div><span className="font-semibold text-[#111111]">Próxima:</span> {data.sync.task.next_run || "—"}</div>
+                  <div className="rounded-lg bg-[#f5f6f8] p-3 text-[11px] leading-relaxed">{data.sync.summary || "Sin resumen disponible."}</div>
                 </div>
               </Card>
             </div>
 
             <div className="mt-5 flex flex-wrap gap-2">
-              <Link to="/inbox" className="rounded-lg border border-[#d9c3aa] bg-white px-3 py-2 text-sm font-semibold text-[#5b3323]">Atención al cliente</Link>
-              <Link to="/rules" className="rounded-lg border border-[#d9c3aa] bg-white px-3 py-2 text-sm font-semibold text-[#5b3323]">Reglas</Link>
-              <Link to="/occasions" className="rounded-lg border border-[#d9c3aa] bg-white px-3 py-2 text-sm font-semibold text-[#5b3323]">Ocasiones</Link>
-              <Link to="/admin/center" className="rounded-lg border border-[#d9c3aa] bg-white px-3 py-2 text-sm font-semibold text-[#5b3323]">Usuarios</Link>
+              <Link to="/inbox" className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm font-semibold text-[#1f2937]">Atención al cliente</Link>
+              <Link to="/rules" className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm font-semibold text-[#1f2937]">Reglas</Link>
+              <Link to="/occasions" className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm font-semibold text-[#1f2937]">Ocasiones</Link>
+              <Link to="/admin/center" className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm font-semibold text-[#1f2937]">Usuarios</Link>
             </div>
           </>
         )}
