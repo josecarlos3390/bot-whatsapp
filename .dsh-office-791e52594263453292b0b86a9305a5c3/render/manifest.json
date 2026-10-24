@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "backend": "native",
+  "rasterEngine": "pdfium",
+  "source": "saved",
+  "inputPath": "C:\\ProyectosPython\\chatbot-whatsapp\\docs\\Informe-Arquitectura-Bot-ROHO.pdf",
+  "sourceSha256": "0a6cf2b492aa8e9d38886fdc212265badab454357784f6e8b52988c3f2135a1a",
+  "dpi": 144,
+  "pageCount": 14,
+  "images": [
+    {
+      "index": 1,
+      "page": 1,
+      "path": "C:\\ProyectosPython\\chatbot-whatsapp\\.dsh-office-791e52594263453292b0b86a9305a5c3\\render\\page-0001.png",
+      "width": 1191,
+      "height": 1684,
+      "rectangle": {
+        "x": 0,
+        "y": 0,
+        "width": 793.7333333333333,
+        "height": 1122.5333333333333
+      },
+      "byteLength": 99508
+    },
+    {
+      "index": 2,
+      "page": 2,
+      "path": "C:\\ProyectosPython\\chatbot-whatsapp\\.dsh-office-791e52594263453292b0b86a9305a5c3\\render\\page-0002.png",
+      "width": 1191,
+      "height": 1684,
+      "rectangle": {
+        "x": 0,
+        "y": 0,
+        "width": 793.7333333333333,
+        "height": 1122.5333333333333
+      },
+      "byteLength": 72850
+    }
+  ],
+  "missingFonts": []
+}
