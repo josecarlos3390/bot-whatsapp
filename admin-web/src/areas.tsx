@@ -16,18 +16,18 @@ export function AreaHeader({
   onLogout: () => void;
 }) {
   return (
-    <header className="border-b border-[#f7b4bc]/25 bg-[linear-gradient(135deg,#1f2937_0%,#111827_55%,#0a0a0a_100%)] text-[#f9fafb] shadow-lg shadow-black/20">
+    <header className="border-b border-[#ffb3bd]/25 bg-[linear-gradient(135deg,#1f2937_0%,#111827_55%,#0a0a0a_100%)] text-[#f9fafb] shadow-lg shadow-black/20">
       <div className="mx-auto flex max-w-[1180px] flex-wrap items-center gap-3 px-4 py-3.5 lg:px-6">
-        <div className="grid h-9 w-9 place-items-center rounded-xl border border-[#1e5aa8]/50 bg-[#1e5aa8] text-base font-black text-[#111111] shadow-inner">
+        <div className="grid h-9 w-9 place-items-center rounded-xl border border-[#a90418]/50 bg-[#a90418] text-base font-black text-[#111111] shadow-inner">
           R
         </div>
         <div>
-          <div className="text-[10px] font-bold uppercase tracking-[.28em] text-[#f7b4bc]">ROHO Homecenter</div>
+          <div className="text-[10px] font-bold uppercase tracking-[.28em] text-[#ffb3bd]">ROHO Homecenter</div>
           <div className="font-serif text-base font-semibold tracking-tight">{title}</div>
         </div>
         <div className="ml-auto flex items-center gap-3 text-sm text-[#e5e7eb]">
-          <span className="hidden rounded-full border border-[#f7b4bc]/20 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-wider sm:inline">{subtitle}</span>
-          <button onClick={onLogout} className="rounded-lg border border-[#f7b4bc]/40 bg-white/5 px-3 py-1.5 text-xs font-semibold text-[#fdecee] transition hover:bg-white/10">
+          <span className="hidden rounded-full border border-[#ffb3bd]/20 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-wider sm:inline">{subtitle}</span>
+          <button onClick={onLogout} className="rounded-lg border border-[#ffb3bd]/40 bg-white/5 px-3 py-1.5 text-xs font-semibold text-[#fde7ea] transition hover:bg-white/10">
             Salir
           </button>
         </div>
@@ -313,7 +313,7 @@ function RuleBuilder({
             <p className="text-sm text-slate-500">Cargá instrucciones sin escribir JSON.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Link to="/occasions" className="rounded-lg border border-[#f7b4bc]/50 bg-white px-3 py-2 text-xs font-semibold text-[#c8102e] hover:bg-[#ffffff]">
+            <Link to="/occasions" className="rounded-lg border border-[#ffb3bd]/50 bg-white px-3 py-2 text-xs font-semibold text-[#e9082a] hover:bg-[#ffffff]">
               Ocasiones y campañas
             </Link>
             {canChangeArea && (
@@ -326,13 +326,13 @@ function RuleBuilder({
             )}
           </div>
         </div>
-        <div className="mb-3 rounded-xl border border-[#f7b4bc]/40 bg-[#f9fafb] px-4 py-3 text-xs text-[#4b5563]">
+        <div className="mb-3 rounded-xl border border-[#ffb3bd]/40 bg-[#f9fafb] px-4 py-3 text-xs text-[#4b5563]">
           <strong className="text-[#111111]">¿Para qué sirve?</strong> Acá definís cómo debe responder el bot en tu área:
           qué marca priorizar, qué promociones destacar, cómo manejar devoluciones o qué indicaciones debe seguir.
           Las reglas publicadas se aplican antes de la respuesta final.
         </div>
         {error && <div className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
-        <Card className="mb-4 border-[#f7b4bc]/40 bg-[#ffffff] p-4">
+        <Card className="mb-4 border-[#ffb3bd]/40 bg-[#ffffff] p-4">
           <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
               <h2 className="text-sm font-bold text-[#111111]">Probar una consulta antes de publicar</h2>
@@ -601,7 +601,7 @@ export function AdminCenter({ me, onLogout }: { me: Advisor; onLogout: () => voi
             <Link to="/occasions" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700">Ocasiones</Link>
           </div>
         </div>
-        <div className="mb-4 rounded-xl border border-[#f7b4bc]/40 bg-[#f9fafb] px-4 py-3 text-xs text-[#4b5563]">
+        <div className="mb-4 rounded-xl border border-[#ffb3bd]/40 bg-[#f9fafb] px-4 py-3 text-xs text-[#4b5563]">
           <strong className="text-[#111111]">¿Para qué sirve?</strong> Desde acá creás las cuentas de los encargados.
           Cada usuario entra con su contraseña y administra las reglas y ocasiones de su área; no ve las de las demás.
         </div>

@@ -92,7 +92,7 @@ function StatusDot({ ok }: { ok: boolean }) {
 function Metric({ label, value, hint }: { label: string; value: number | string; hint?: string }) {
   return (
     <div className="rounded-2xl border border-[#e5e7eb] bg-[#ffffff] p-4 shadow-sm">
-      <div className="text-[10px] font-bold uppercase tracking-[.2em] text-[#c8102e]">{label}</div>
+      <div className="text-[10px] font-bold uppercase tracking-[.2em] text-[#e9082a]">{label}</div>
       <div className="mt-1 font-serif text-3xl font-semibold text-[#111111]">{value}</div>
       {hint && <div className="mt-1 text-[11px] text-[#6b7280]">{hint}</div>}
     </div>
@@ -195,7 +195,7 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
       <main className="mx-auto max-w-[1180px] px-4 py-6 lg:px-6">
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <div className="mb-1 text-[10px] font-bold uppercase tracking-[.28em] text-[#c8102e]">Centro de operación</div>
+            <div className="mb-1 text-[10px] font-bold uppercase tracking-[.28em] text-[#e9082a]">Centro de operación</div>
             <h1 className="font-serif text-3xl font-semibold tracking-tight text-[#111111]">¿Cómo está el bot hoy?</h1>
             <p className="mt-1 text-sm text-[#4b5563]">
               Una sola vista para revisar datos, sincronización, conversaciones y reglas.
@@ -203,7 +203,7 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
           </div>
           <div className="flex items-center gap-2">
             <Button variant="secondary" onClick={() => void load()}>Actualizar</Button>
-            <Link to="/inbox" className="rounded-lg bg-[#c8102e] px-3 py-2 text-sm font-semibold text-[#ffffff]">Ir a atención</Link>
+            <Link to="/inbox" className="rounded-lg bg-[#e9082a] px-3 py-2 text-sm font-semibold text-[#ffffff]">Ir a atención</Link>
           </div>
         </div>
 
@@ -211,7 +211,7 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
 
         <Card className="mb-5 overflow-hidden border-[#e5e7eb] bg-[#ffffff]">
           <div className="flex flex-wrap items-center gap-4 p-5">
-            <div className="grid h-12 w-12 place-items-center rounded-2xl bg-[#111111] font-serif text-lg font-semibold text-[#1e5aa8]">R</div>
+            <div className="grid h-12 w-12 place-items-center rounded-2xl bg-[#111111] font-serif text-lg font-semibold text-[#a90418]">R</div>
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="font-serif text-xl font-semibold text-[#111111]">{overallLabel}</h2>
@@ -242,7 +242,7 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
             <div className="mb-5 grid gap-3 md:grid-cols-3">
               <Card className="border-[#e5e7eb] bg-[#ffffff] p-4">
                 <div className="flex items-center justify-between">
-                  <div className="text-[10px] font-bold uppercase tracking-[.2em] text-[#c8102e]">Bot WhatsApp</div>
+                  <div className="text-[10px] font-bold uppercase tracking-[.2em] text-[#e9082a]">Bot WhatsApp</div>
                   <StatusDot ok={data.bot.ok} />
                 </div>
                 <div className="mt-2 text-lg font-semibold text-[#111111]">{data.bot.ok ? "Escuchando" : "Sin respuesta"}</div>
@@ -250,7 +250,7 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
               </Card>
               <Card className="border-[#e5e7eb] bg-[#ffffff] p-4">
                 <div className="flex items-center justify-between">
-                  <div className="text-[10px] font-bold uppercase tracking-[.2em] text-[#c8102e]">API de integración</div>
+                  <div className="text-[10px] font-bold uppercase tracking-[.2em] text-[#e9082a]">API de integración</div>
                   <StatusDot ok={data.api.ok} />
                 </div>
                 <div className="mt-2 text-lg font-semibold text-[#111111]">{data.api.ok ? "Disponible" : "No responde"}</div>
@@ -258,7 +258,7 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
               </Card>
               <Card className="border-[#e5e7eb] bg-[#ffffff] p-4">
                 <div className="flex items-center justify-between">
-                  <div className="text-[10px] font-bold uppercase tracking-[.2em] text-[#c8102e]">Sincronización VTEX</div>
+                  <div className="text-[10px] font-bold uppercase tracking-[.2em] text-[#e9082a]">Sincronización VTEX</div>
                   <StatusDot ok={!data.sync.failed} />
                 </div>
                 <div className="mt-2 text-lg font-semibold text-[#111111]">{data.sync.failed ? "Con error" : "Al día"}</div>

@@ -1,4 +1,20 @@
 ﻿@import "tailwindcss";
+@import "./fonts.css";
+
+/* Tipografía de marca: los componentes usan font-serif para los titulares. */
+.font-serif {
+  font-family: Archivo, Inter, ui-sans-serif, system-ui, sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+}
+
+/* Wordmark ROHO: mayúsculas, ancho y espaciado como el logo. */
+.font-brand {
+  font-family: Archivo, Inter, ui-sans-serif, system-ui, sans-serif;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+}
 
 :root {
   color-scheme: light;
@@ -46,11 +62,11 @@ html.dark [class~="border-[#f3f4f6]"] {
   border-color: #34383d !important;
 }
 
-html.dark [class~="bg-[#fdecee]"] {
+html.dark [class~="bg-[#fde7ea]"] {
   background-color: #3a2022 !important;
 }
 
-html.dark [class~="text-[#c8102e]"] {
+html.dark [class~="text-[#e9082a]"] {
   color: #ff9aa5 !important;
 }
 /* Dark mode: overrides for the existing Tailwind utility classes. */

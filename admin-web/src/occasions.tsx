@@ -196,9 +196,9 @@ export function OccasionsPage({
         onLogout={onLogout}
       />
       <main className="mx-auto max-w-[1180px] px-4 py-6 lg:px-6">
-        <div className="mb-5 rounded-2xl border border-[#f7b4bc]/40 bg-[#f9fafb] p-4">
+        <div className="mb-5 rounded-2xl border border-[#ffb3bd]/40 bg-[#f9fafb] p-4">
           <div className="flex items-start gap-3">
-            <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#c8102e] text-xs font-bold text-[#ffffff]">?</div>
+            <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#e9082a] text-xs font-bold text-[#ffffff]">?</div>
             <div>
               <div className="text-sm font-semibold text-[#111111]">¿Para qué sirve esta pantalla?</div>
               <p className="mt-1 text-xs leading-relaxed text-[#4b5563]">
@@ -212,7 +212,7 @@ export function OccasionsPage({
         </div>
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <div className="mb-1 text-[10px] font-bold uppercase tracking-[.28em] text-[#c8102e]">Centro de contenido</div>
+            <div className="mb-1 text-[10px] font-bold uppercase tracking-[.28em] text-[#e9082a]">Centro de contenido</div>
             <h1 className="font-serif text-3xl font-semibold tracking-tight text-[#111111]">Campañas que entienden al cliente</h1>
             <p className="mt-1 max-w-2xl text-sm text-[#4b5563]">
               Definí qué debe buscar el bot, qué debe excluir y qué alternativa ofrecer. Publicá para que empiece a usarlo.
@@ -226,15 +226,15 @@ export function OccasionsPage({
 
         <div className="mb-5 grid gap-3 sm:grid-cols-3">
           <div className="rounded-2xl border border-[#e5e7eb] bg-white/80 p-4 shadow-sm">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-[#c8102e]">Ocasiones</div>
+            <div className="text-[10px] font-bold uppercase tracking-widest text-[#e9082a]">Ocasiones</div>
             <div className="mt-1 text-2xl font-semibold">{occasions.length}</div>
           </div>
           <div className="rounded-2xl border border-[#e5e7eb] bg-white/80 p-4 shadow-sm">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-[#c8102e]">Publicadas</div>
+            <div className="text-[10px] font-bold uppercase tracking-widest text-[#e9082a]">Publicadas</div>
             <div className="mt-1 text-2xl font-semibold">{published}</div>
           </div>
           <div className="rounded-2xl border border-[#e5e7eb] bg-[#111111] p-4 text-[#f5f6f8] shadow-sm">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-[#f7b4bc]">Regla de oro</div>
+            <div className="text-[10px] font-bold uppercase tracking-widest text-[#ffb3bd]">Regla de oro</div>
             <div className="mt-1 text-sm">Primero EL catálogo. Después la inferencia.</div>
           </div>
         </div>
@@ -340,7 +340,7 @@ export function OccasionsPage({
             </label>
           </div>
           <div className="mt-5 flex gap-2">
-            <Button className="bg-[#c8102e] hover:bg-[#a30f27]" onClick={save}>Guardar ocasión</Button>
+            <Button className="bg-[#e9082a] hover:bg-[#a90418]" onClick={save}>Guardar ocasión</Button>
             <Button variant="ghost" onClick={reset}>Limpiar</Button>
           </div>
         </Card>
@@ -364,7 +364,7 @@ export function OccasionsPage({
                     <Badge tone={item.status === "published" ? "green" : "amber"}>{item.status}</Badge>
               {item.validity && <span className="text-[11px] text-[#6b7280]">{item.validity}</span>}
                   </div>
-                  <div className="mt-1 text-[11px] uppercase tracking-wide text-[#c8102e]">{item.area} · prioridad {item.priority}</div>
+                  <div className="mt-1 text-[11px] uppercase tracking-wide text-[#e9082a]">{item.area} · prioridad {item.priority}</div>
                 </div>
                 <div className="flex flex-wrap justify-end gap-1">
                   {isAdmin || item.area === userArea ? (

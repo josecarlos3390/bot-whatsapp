@@ -113,18 +113,40 @@ Opciones:
 
 No usar el dev server de Vite en producción.
 
-## Paleta aplicada (rojo, blanco, negro y azul)
+## Paleta aplicada (rojo, blanco y negro)
+
+Tomada del logo oficial: el rojo exacto es `#E9082A`.
 
 | Rol | Color |
 | --- | --- |
-| Rojo de marca (botones, títulos, acentos) | `#C8102E` |
-| Rojo oscuro (hover, fondos de marca) | `#A30F27` |
-| Azul de acento (enlaces, datos secundarios) | `#1E5AA8` |
+| Rojo de marca (botones, títulos, acentos) | `#E9082A` |
+| Rojo oscuro (hover, enlaces) | `#A90418` |
+| Rojo suave (avisos, respuestas) | `#FDE7EA` |
 | Negro (texto principal) | `#111111` |
 | Grises de texto | `#4B5563` y `#6B7280` |
 | Borde | `#E5E7EB` |
 | Fondo general | `#F5F6F8` |
 | Superficies | `#FFFFFF` |
+
+Sin azul: se probó y no contrastaba con el rojo.
+
+### Tipografía
+
+- **Titulares:** Archivo 800 (la familia que más se acerca al trazo del logo).
+- **Texto de interfaz:** Inter 400/500/600/700.
+- Ambas se sirven desde el propio panel (`admin-web/public/brand/fonts`), sin
+  depender de Google en tiempo de ejecución.
+
+### Logo
+
+Assets en `admin-web/public/brand`:
+
+| Archivo | Uso |
+| --- | --- |
+| `logo-rojo.png` | fondos claros (login, documentos) |
+| `logo-blanco.png` | cabecera oscura |
+| `favicon.png` / `icono-192.png` | pestaña del navegador e íconos |
+| `logo-blanco-900.png` | documentos y presentaciones |
 
 ![Paleta del panel](paleta-roho.png)
 

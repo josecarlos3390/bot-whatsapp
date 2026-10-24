@@ -712,12 +712,12 @@ input,select,textarea{width:100%;padding:9px;border:1px solid #cbd5e1;border-rad
 textarea{min-height:70px;font-family:ui-monospace,monospace;font-size:12px}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 button{padding:9px 13px;border:0;border-radius:7px;cursor:pointer;margin:4px 4px 0 0}
-.primary{background:#0f172a;color:#fff}.ok{background:#0f766e;color:#fff}.danger{background:#b91c1c;color:#fff}
+.primary{background:#0f172a;color:#fff}.ok{background:#a90418;color:#fff}.danger{background:#b91c1c;color:#fff}
 .muted{color:#64748b;font-size:13px}
 table{width:100%;border-collapse:collapse;font-size:13px}
 th,td{border-bottom:1px solid #e2e8f0;padding:8px;text-align:left;vertical-align:top}
 .badge{padding:2px 7px;border-radius:20px;background:#e2e8f0;font-size:11px}
-.published{background:#ccfbf1;color:#115e59}.draft{background:#fef3c7;color:#92400e}
+.published{background:#fde7ea;color:#7a0312}.draft{background:#fef3c7;color:#92400e}
 pre{white-space:pre-wrap;margin:0;font-size:11px}
 </style>
 </head>
@@ -790,7 +790,7 @@ label{display:block;font-size:13px;font-weight:600;margin:10px 0 4px}
 input,select{width:100%;box-sizing:border-box;padding:9px;border:1px solid #cbd5e1;border-radius:7px}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 button{padding:9px 13px;border:0;border-radius:7px;cursor:pointer;margin:4px 4px 0 0}
-.primary{background:#0f172a;color:#fff}.ok{background:#0f766e;color:#fff}.danger{background:#b91c1c;color:#fff}
+.primary{background:#0f172a;color:#fff}.ok{background:#a90418;color:#fff}.danger{background:#b91c1c;color:#fff}
 table{width:100%;border-collapse:collapse;font-size:13px}th,td{border-bottom:1px solid #e2e8f0;padding:8px;text-align:left}
 .badge{padding:2px 7px;border-radius:20px;background:#e2e8f0;font-size:11px}
 .muted{color:#64748b;font-size:13px}
@@ -846,9 +846,9 @@ input,select,textarea{width:100%;box-sizing:border-box;padding:9px;border:1px so
 textarea{min-height:70px}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 button{padding:9px 13px;border:0;border-radius:7px;cursor:pointer;margin:4px 4px 0 0}
-.primary{background:#0f172a;color:#fff}.ok{background:#0f766e;color:#fff}.danger{background:#b91c1c;color:#fff}.ghost{background:#e2e8f0}
+.primary{background:#0f172a;color:#fff}.ok{background:#a90418;color:#fff}.danger{background:#b91c1c;color:#fff}.ghost{background:#e2e8f0}
 .muted{color:#64748b;font-size:13px}.qrow{border:1px solid #e2e8f0;border-radius:8px;padding:10px;margin:8px 0}
-.badge{padding:2px 7px;border-radius:20px;background:#e2e8f0;font-size:11px}.published{background:#ccfbf1;color:#115e59}.draft{background:#fef3c7;color:#92400e}
+.badge{padding:2px 7px;border-radius:20px;background:#e2e8f0;font-size:11px}.published{background:#fde7ea;color:#7a0312}.draft{background:#fef3c7;color:#92400e}
 table{width:100%;border-collapse:collapse;font-size:13px}th,td{border-bottom:1px solid #e2e8f0;padding:8px;text-align:left;vertical-align:top}
 pre{white-space:pre-wrap;margin:0;font-size:11px}
 </style></head><body>
@@ -2419,7 +2419,7 @@ async def admin_handoffs_view() -> HTMLResponse:
   .row{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
   .muted{color:#6b7280;font-size:13px}
   .status{font-size:12px;font-weight:700;padding:3px 8px;border-radius:999px;background:#fef3c7;color:#92400e}
-  .status.taken{background:#dbeafe;color:#1e40af}.status.resolved{background:#dcfce7;color:#166534}
+  .status.taken{background:#fde7ea;color:#a90418}.status.resolved{background:#dcfce7;color:#166534}
   .status.overdue{background:#fee2e2;color:#991b1b}
   .context{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin:12px 0}
   .context .box{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:10px;font-size:13px}

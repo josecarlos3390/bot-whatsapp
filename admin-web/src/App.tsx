@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+﻿import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   Link,
   Navigate,
@@ -167,15 +167,19 @@ function Login({
   }
 
   return (
-    <div className="relative grid min-h-screen place-items-center bg-[radial-gradient(circle_at_top,#c8102e,#111111_55%,#0a0a0a)] px-4">
+    <div className="relative grid min-h-screen place-items-center bg-[radial-gradient(circle_at_top,#e9082a,#111111_55%,#0a0a0a)] px-4">
       <div className="absolute right-4 top-4">
         <ThemeToggle />
       </div>
-      <form onSubmit={submit} className="w-full max-w-sm rounded-2xl border border-[#f7b4bc]/30 bg-[#ffffff] p-8 shadow-2xl shadow-black/40">
+      <form onSubmit={submit} className="w-full max-w-sm rounded-2xl border border-[#ffb3bd]/30 bg-[#ffffff] p-8 shadow-2xl shadow-black/40">
         <div className="mb-6 flex items-center gap-3">
-          <div className="grid h-11 w-11 place-items-center rounded-xl bg-[#1e5aa8] font-black text-[#111111] shadow-inner">R</div>
+          <img
+            src="/console/brand/logo-rojo.png"
+            alt="ROHO Homecenter"
+            className="h-11 w-11 rounded-xl object-contain"
+          />
           <div>
-            <div className="text-xs font-bold uppercase tracking-[.22em] text-[#c8102e]">ROHO Homecenter</div>
+            <div className="font-brand text-[11px] text-[#e9082a]">ROHO HOMECENTER</div>
             <h1 className="font-serif text-xl font-semibold tracking-tight text-[#111111]">
               {mode === "area" ? "Portal de áreas" : "Consola de asesores"}
             </h1>
@@ -190,7 +194,7 @@ function Login({
         </label>
         <input
           id="advisor-username"
-          className="mb-4 w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-[#111111] outline-none transition focus:border-[#c8102e] focus:ring-1 focus:ring-[#c8102e]"
+          className="mb-4 w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-[#111111] outline-none transition focus:border-[#e9082a] focus:ring-1 focus:ring-[#e9082a]"
           value={username}
           onChange={(event) => setUsername(event.target.value)}
           autoComplete="username"
@@ -202,7 +206,7 @@ function Login({
         </label>
         <input
           id="advisor-password"
-          className="mb-2 w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-[#111111] outline-none transition focus:border-[#c8102e] focus:ring-1 focus:ring-[#c8102e]"
+          className="mb-2 w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-[#111111] outline-none transition focus:border-[#e9082a] focus:ring-1 focus:ring-[#e9082a]"
           type="password"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
@@ -216,7 +220,7 @@ function Login({
         )}
         <button
           disabled={busy}
-          className="mt-3 w-full rounded-lg bg-[#c8102e] px-4 py-2.5 font-semibold text-[#ffffff] shadow-sm transition hover:bg-[#a30f27] disabled:opacity-50"
+          className="mt-3 w-full rounded-lg bg-[#e9082a] px-4 py-2.5 font-semibold text-[#ffffff] shadow-sm transition hover:bg-[#a90418] disabled:opacity-50"
         >
           {busy ? "Ingresando…" : "Ingresar"}
         </button>
@@ -239,12 +243,16 @@ function Header({
 }) {
   const location = useLocation();
   return (
-    <header className="sticky top-0 z-40 border-b border-[#f7b4bc]/25 bg-[linear-gradient(135deg,#1f2937_0%,#111827_55%,#0a0a0a_100%)] text-white shadow-lg shadow-black/20 backdrop-blur">
+    <header className="sticky top-0 z-40 border-b border-[#ffb3bd]/25 bg-[linear-gradient(135deg,#1f2937_0%,#111827_55%,#0a0a0a_100%)] text-white shadow-lg shadow-black/20 backdrop-blur">
       <div className="mx-auto flex max-w-[1500px] flex-wrap items-center gap-3 px-4 py-3 lg:px-6">
         <div className="flex items-center gap-2">
-          <div className="grid h-9 w-9 place-items-center rounded-xl border border-[#1e5aa8]/50 bg-[#1e5aa8] text-sm font-black text-[#111111]">R</div>
+          <img
+            src="/console/brand/logo-blanco.png"
+            alt="ROHO Homecenter"
+            className="h-9 w-9 rounded-lg bg-[#e9082a] p-1 object-contain"
+          />
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-[.28em] text-[#f7b4bc]">ROHO</div>
+            <div className="font-brand text-[11px] text-[#ffffff]">ROHO</div>
             <div className="font-serif text-sm font-semibold tracking-tight">Consola de asesores</div>
           </div>
         </div>
