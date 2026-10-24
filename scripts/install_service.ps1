@@ -1,4 +1,4 @@
-#Requires -RunAsAdministrator
+﻿#Requires -RunAsAdministrator
 <#
 Instala el bot como servicio de Windows con NSSM.
 
@@ -98,9 +98,11 @@ Step "Arrancando el servicio"
 & $nssm start $ServiceName | Out-Null
 Start-Sleep -Seconds 20
 
-$status = & $nssm status $ServiceName
+# NSSM imprime el estado con espacios ("S E R V I C E _ R U N N I N G").
+$status = (& $nssm status $ServiceName) -replace "\s", ""
 Write-Host "  estado: $status"
-if ($status -notmatch "RUNNING") {
+$service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+if ($status -ne "SERVICE_RUNNING" -and $service.Status -ne "Running") {
     throw "El servicio no arrancó. Revisá $logDir\service.err.log y $logDir\supervisor.log"
 }
 
