@@ -1695,7 +1695,10 @@ class Toolbox:
         return {
             "ok": True,
             "articles": articles,
-            "note": None
+            "note": (
+                "Resumí en 3 a 6 líneas lo que responde a la pregunta; no "
+                "copies el documento ni sus títulos."
+            )
             if articles
             else (
                 "No hay información publicada sobre eso. No inventes; "
@@ -2145,7 +2148,8 @@ SEMANTIC_QUERY_RE = re.compile(
 # Consultas de políticas/FAQ: se precarga la base de conocimiento.
 KNOWLEDGE_RE = re.compile(
     r"\b(pol[ií]tica(?:s)?|garant[ií]a(?:s)?|cambios?|devoluci[oó]n(?:es)?|"
-    r"env[ií]os?|delivery|horarios?|cuotas?|formas? de pago|facturaci[oó]n|"
+    r"env[ií]os?|env[ií]o|delivery|entregas?|demoras?|tarda|plazos?|"
+    r"horarios?|cuotas?|formas? de pago|facturaci[oó]n|"
     r"comprobante(?:s)?)\b",
     re.IGNORECASE,
 )
@@ -3893,6 +3897,13 @@ class Agent:
             if pending_reply is not None:
                 return pending_reply
 
+        # Las políticas publicadas (envíos, garantías) se responden primero:
+        # es mejor dar el dato que preguntar de vuelta.
+        if KNOWLEDGE_RE.search(raw):
+            knowledge_reply = await self._knowledge_reply(session, contact, raw)
+            if knowledge_reply is not None:
+                return knowledge_reply
+
         ambiguous_question = intent_guard.detect(raw)
         if ambiguous_question:
             return await self._clarify_reply(
@@ -4423,11 +4434,14 @@ class Agent:
         if not any(term and term in title for term in terms):
             return None
 
-        body = (top.get("content") or "").strip()
+        body = normalize_whatsapp_text((top.get("content") or "").strip())
+        # Sin encabezados markdown ni líneas vacías de más: se lee como chat.
+        body = re.sub(r"\n{3,}", "\n\n", body)
+        body = re.sub(r"^\s*[-*]\s+", "• ", body, flags=re.MULTILINE)
         if not body:
             return None
-        if len(body) > 900:
-            body = body[:900].rsplit(" ", 1)[0] + "…"
+        if len(body) > 700:
+            body = body[:700].rsplit(" ", 1)[0] + "…"
 
         return AgentReply(
             [

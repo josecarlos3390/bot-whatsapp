@@ -1,4 +1,4 @@
-"""File-backed knowledge base for policies, stores, shipping and FAQs."""
+﻿"""File-backed knowledge base for policies, stores, shipping and FAQs."""
 
 from __future__ import annotations
 
@@ -126,7 +126,7 @@ def search_articles(
     return [
         {
             "title": article.title,
-            "content": article.content[:2500],
+            "content": article.content[:800],
             "tags": article.tags,
             "source": article.source,
         }
