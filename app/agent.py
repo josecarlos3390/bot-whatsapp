@@ -4174,6 +4174,16 @@ class Agent:
             return await self._purchase_history_reply(session, contact)
 
         if SEARCH_RE.search(raw):
+            # Sin un término de producto ("quién eres", "gracias"), no se
+            # busca a ciegas: se responde conversando.
+            if not catalog._relevance_terms(raw):
+                if settings.deepseek_api_key:
+                    self._trace("Modelo de IA (charla)")
+                    return await self._llm_handle(
+                        session, contact, raw, history or [], memory
+                    )
+                self._trace("Reglas (charla)")
+                return await self._demo(session, contact, raw)
             if settings.deepseek_api_key:
                 self._trace("Modelo de IA")
                 return await self._llm_handle(
