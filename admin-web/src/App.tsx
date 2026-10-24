@@ -1,4 +1,4 @@
-﻿import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   Link,
   Navigate,
@@ -170,7 +170,8 @@ function Login({
 
   return (
     <div className="relative grid min-h-screen place-items-center bg-[radial-gradient(circle_at_top,#e9082a,#111111_55%,#0a0a0a)] px-4">
-      <div className="absolute right-4 top-4">
+      <div className="absolute right-4 top-4 flex items-center gap-2">
+        <LanguageToggle />
         <ThemeToggle />
       </div>
       <form onSubmit={submit} className="w-full max-w-sm rounded-2xl border border-[#ffb3bd]/30 bg-[#ffffff] p-8 shadow-2xl shadow-black/40">

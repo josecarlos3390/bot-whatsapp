@@ -1,5 +1,5 @@
-﻿import { useEffect, useMemo, useState } from "react";
-import { t } from "./i18n";
+import { useEffect, useMemo, useState } from "react";
+import { LanguageToggle, t } from "./i18n";
 import { Link } from "react-router-dom";
 import { api } from "./api";
 import { Badge, Button, Card, Input, Textarea } from "./ui";
@@ -23,11 +23,12 @@ export function AreaHeader({
           R
         </div>
         <div>
-          <div className="text-[10px] font-bold uppercase tracking-[.28em] text-[#ffb3bd]">ROHO Homecenter</div>
+          <div className="font-brand text-[10px] text-[#ffb3bd]">ROHO HOMECENTER</div>
           <div className="font-serif text-base font-semibold tracking-tight">{title}</div>
         </div>
         <div className="ml-auto flex items-center gap-3 text-sm text-[#e5e7eb]">
           <span className="hidden rounded-full border border-[#ffb3bd]/20 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-wider sm:inline">{subtitle}</span>
+          <LanguageToggle />
           <button onClick={onLogout} className="rounded-lg border border-[#ffb3bd]/40 bg-white/5 px-3 py-1.5 text-xs font-semibold text-[#fde7ea] transition hover:bg-white/10">{t("Salir")}</button>
         </div>
       </div>

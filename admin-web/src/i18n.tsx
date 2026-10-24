@@ -311,7 +311,10 @@ export function t(texto: string): string {
 export function LanguageToggle() {
   const { lang, setLang } = useI18n();
   return (
-    <div className="flex items-center rounded-full border border-slate-700 bg-slate-900/60 p-0.5 text-[11px] font-semibold">
+    <div
+      className="flex items-center rounded-full border border-[#ffb3bd]/30 bg-[#ffffff]/10 p-0.5 text-[11px] font-semibold"
+      title="Idioma / Language"
+    >
       {(["es", "en"] as Lang[]).map((opcion) => (
         <button
           key={opcion}
