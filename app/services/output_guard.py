@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import persona
 from ..models import CatalogItem
-from . import intent
+from . import intent, policy
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +98,23 @@ async def sanitize(session: AsyncSession, reply, text: str | None):
             ]
         return reply
 
-    # 3. Referencias a SKU inexistentes.
+    # 3. Temas de política: se responde con la derivación, sin venta.
+    topic = policy.detect(text)
+    if topic:
+        return AgentReply(
+            [
+                Outbound(
+                    kind="buttons",
+                    text=policy.reply(topic),
+                    buttons=[
+                        {"id": "human", "title": "Hablar con alguien"},
+                        {"id": "catalog", "title": "Seguir con productos"},
+                    ],
+                )
+            ]
+        )
+
+    # 4. Referencias a SKU inexistentes.
     ids: set[str] = set()
     for message in reply.messages:
         for section in message.sections or []:

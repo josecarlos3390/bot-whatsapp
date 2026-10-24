@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import difflib
 import logging
@@ -112,6 +112,8 @@ QUERY_STOPWORDS = {
     "en", "mi", "mis", "tu", "tus", "su", "sus", "me", "algo",
     "algun", "alguna", "tienen", "tiene", "tienes", "y", "hay",
     "hola", "buenas", "por favor", "favor",
+    # Relleno conversacional: "un colchon que sea barato" busca "colchon barato".
+    "que", "sea", "sean", "porfa", "porfavor", "che", "buenas", "tardes",
     # Palabras de pregunta: "cuanto sale un colchon" debe buscar "colchon".
     "cuanto", "cuánto", "sale", "cuesta", "precio", "tenes", "tenés",
     "vale", "cotizacion", "cotización",

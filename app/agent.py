@@ -41,6 +41,8 @@ from .services import (
     memory as memory_service,
     native_commerce,
     orders,
+    policy as policy_guard,
+    preferences,
     pricing,
     purchases,
     order_tracking,
@@ -2574,6 +2576,21 @@ class Agent:
             ]
         )
 
+    @staticmethod
+    def _policy_reply(topic: str) -> AgentReply:
+        return AgentReply(
+            [
+                Outbound(
+                    kind="buttons",
+                    text=policy_guard.reply(topic),
+                    buttons=[
+                        {"id": "human", "title": "Hablar con alguien"},
+                        {"id": "catalog", "title": "Seguir con productos"},
+                    ],
+                )
+            ]
+        )
+
     async def _frustration_reply(
         self, session: AsyncSession, contact: Contact
     ) -> AgentReply:
@@ -2946,6 +2963,14 @@ class Agent:
         quantity: int | None = None,
         policy: rule_policy.RulePolicy | None = None,
     ) -> AgentReply:
+        # Si el cliente ya dijo la medida, la búsqueda la usa sin volver a
+        # preguntarla (memoria de preferencias).
+        try:
+            query = preferences.enrich(
+                query, await preferences.known(session, contact)
+            )
+        except Exception:  # noqa: BLE001 - la memoria no bloquea la búsqueda
+            logger.debug("No se pudo leer preferencias", exc_info=True)
         original_query = query
         quantity = quantity or _requested_quantity(original_query)
         if min_price is None and max_price is None:
@@ -4016,6 +4041,13 @@ class Agent:
                 slot="intent",
             )
 
+        # Memoria: lo que el cliente ya dijo (medida, presupuesto) no se
+        # vuelve a preguntar.
+        try:
+            await preferences.remember(session, contact, raw)
+        except Exception:  # noqa: BLE001 - la memoria no frena la charla
+            logger.exception("No se pudieron guardar las preferencias")
+
         # Clasificación de intención: primero reglas, y si hay duda, el modelo
         # con lista cerrada de ocasiones. Una frase personal nunca termina en
         # una lista de productos "cercanos".
@@ -4023,6 +4055,10 @@ class Agent:
         # Temas delicados (duelo, salud, tristeza): primero la persona.
         if decision.get("sensitive"):
             return self._empathy_reply(decision)
+        # Política: salud, legal, financiero, datos o seguridad se derivan.
+        policy_topic = policy_guard.detect(raw)
+        if policy_topic:
+            return self._policy_reply(policy_topic)
         # Enojo o espera: disculpa y derivación inmediata, sin vender.
         if decision.get("frustrated"):
             return await self._frustration_reply(session, contact)
@@ -4568,6 +4604,11 @@ class Agent:
                     ),
                 }
             )
+        known_prefs = preferences.summary(
+            await preferences.known(session, contact)
+        )
+        if known_prefs:
+            messages.append({"role": "system", "content": known_prefs})
         if memory:
             messages.append(
                 {
