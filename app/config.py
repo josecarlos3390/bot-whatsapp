@@ -1,4 +1,4 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
+﻿from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -62,6 +62,8 @@ class Settings(BaseSettings):
     handoff_auto_resume_minutes: int = 5
     handoff_sla_minutes: int = 5
     handoff_reassign_minutes: int = 5
+    # Pausa a partir de la cual el mismo chat se considera una charla nueva.
+    session_gap_minutes: int = 360
     # Barrido en segundo plano de casos que nadie atendió.
     handoff_sweep_seconds: int = 300
     handoff_taken_timeout_minutes: int = 120

@@ -41,6 +41,7 @@ from .services import (
     knowledge,
     memory as memory_service,
     metrics,
+    session_flow,
     native_commerce,
     orders,
     policy as policy_guard,
@@ -3921,6 +3922,19 @@ class Agent:
             why_reply = await self._why_reply(session, contact)
             if why_reply is not None:
                 return why_reply
+
+        # ¿Charla nueva en el mismo chat? Se conserva el historial (para
+        # personalizar) pero se limpian rubro, marca, medida y pregunta
+        # pendiente de la charla anterior.
+        conversation = await session.scalar(
+            select(Conversation).where(Conversation.contact_id == contact.id)
+        )
+        session_info = await session_flow.start_new_if_needed(
+            session, conversation, contact
+        )
+        if session_info.get("new"):
+            gap = session_info.get("gap_minutes") or 0
+            self._trace(f"Charla nueva (pausa de {gap} min)")
 
         # "¿Quién eres?": se responde con la identidad, nunca con productos ni
         # como si fuera la respuesta a una pregunta pendiente.

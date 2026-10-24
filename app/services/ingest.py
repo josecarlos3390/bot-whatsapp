@@ -96,7 +96,8 @@ async def ingest_inbound(
         session.add(conversation)
         await session.flush()
 
-    conversation.last_message_at = utcnow()
+    # `last_message_at` se actualiza al final del turno: así el agente puede
+    # medir la pausa y detectar una charla nueva en el mismo chat.
     await handoff_service.resume_sla_for_conversation(session, conversation)
     conversation_id = conversation.id
     inbound = Message(
@@ -283,6 +284,7 @@ async def ingest_inbound(
                 "sections": outbound.sections,
             }
         )
+    conversation.last_message_at = utcnow()
     await session.commit()
     await memory_service.maybe_schedule_summary(conversation_id)
     return sent
