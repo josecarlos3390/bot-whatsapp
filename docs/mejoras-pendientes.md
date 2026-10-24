@@ -25,8 +25,11 @@ El cliente manda una nota de voz y el bot no responde nada.
 
 **Latencia:** +0,5-1,5 s (Groq), +2-4 s (OpenAI), +2-6 s (local).
 
-**Decisión pendiente:** proveedor. Recomendación: Groq por velocidad y costo;
-local si no se quiere sacar el audio del servidor.
+**Decisión pendiente:** proveedor y modelo. Groq no tiene modelo propio: sirve
+los pesos de Whisper, así que la calidad es la de Whisper. En español large-v3
+ronda 2,9 % de error y turbo 3,3 % en audio limpio (en audio con ruido sube).
+Recomendación: Groq con large-v3 si manda la calidad, turbo si manda la
+latencia; local si no se quiere sacar el audio del servidor.
 
 **Alcance:**
 
