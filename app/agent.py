@@ -3961,7 +3961,11 @@ class Agent:
         if decision.get("frustrated"):
             return await self._frustration_reply(session, contact)
         if decision["intent"] == "personal":
-            event = occasions.EVENTS.get(decision["occasion"] or "")
+            # La ocasión se busca en el panel (base), no sólo en el archivo
+            # inicial: lo que el equipo publica tiene que llegar al bot.
+            _key, event = await occasion_store.resolve(session, raw)
+            if event is None:
+                event = occasions.EVENTS.get(decision["occasion"] or "")
             if decision["ambiguous"]:
                 return self._ambiguity_reply(event)
             if event is not None:

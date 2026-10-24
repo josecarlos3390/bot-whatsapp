@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 import hmac
@@ -1310,6 +1310,39 @@ async def area_rule_rollback(
     except area_rules.RuleError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ok": True, "rule": area_rules.to_dict(rule)}
+
+
+@router.post("/areas/occasions/simulate")
+async def area_occasions_simulate(
+    payload: SimulationPayload,
+    user: dict = Depends(require_area_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Prueba qué ocasión detecta el bot con un mensaje real.
+
+    Sirve para revisar los términos antes de publicar una campaña.
+    """
+    key, event = await occasion_store.resolve(session, payload.query)
+    detected = None
+    matched = None
+    if event is not None:
+        folded = (payload.query or "").lower()
+        for alias in event.get("aliases") or [event.get("label", key)]:
+            if alias and str(alias).lower() in folded:
+                matched = str(alias)
+                break
+        detected = {
+            "slug": key,
+            "label": event.get("label") or key,
+            "direct": event.get("direct") or [],
+            "matched": matched,
+        }
+    return {
+        "ok": True,
+        "query": payload.query,
+        "detected": detected,
+        "would_search": (event.get("direct") or [])[:3] if event else [],
+    }
 
 
 @router.get("/areas/occasions")

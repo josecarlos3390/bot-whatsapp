@@ -48,6 +48,32 @@ export function OccasionsPage({
   const [editing, setEditing] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [testText, setTestText] = useState("");
+  const [testResult, setTestResult] = useState<{
+    detected: { label: string; matched: string | null; direct: string[] } | null;
+    would_search: string[];
+  } | null>(null);
+  const [testing, setTesting] = useState(false);
+
+  async function runTest() {
+    if (!testText.trim()) return;
+    setTesting(true);
+    try {
+      const result = await api<{
+        detected: { label: string; matched: string | null; direct: string[] } | null;
+        would_search: string[];
+      }>("/areas/occasions/simulate", {
+        method: "POST",
+        body: JSON.stringify({ query: testText.trim(), area: userArea })
+      });
+      setTestResult(result);
+      setError("");
+    } catch (exception) {
+      setError(exception instanceof Error ? exception.message : "No se pudo probar");
+    } finally {
+      setTesting(false);
+    }
+  }
 
   const load = async () => {
     try {
@@ -204,6 +230,47 @@ export function OccasionsPage({
         </div>
 
         {error && <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+
+        <Card className="mb-5 border-[#e5d4bf] bg-white/80 p-4">
+          <div className="mb-1 flex flex-wrap items-center gap-2">
+            <h2 className="text-sm font-bold text-[#3d1a17]">Probar un mensaje</h2>
+            <span className="rounded-full bg-[#f1e6d6] px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-[#8b6d59]">Simulador</span>
+          </div>
+          <p className="mb-2 text-xs text-[#765b4b]">
+            Escribí lo que diría un cliente y fijate qué ocasión detecta el bot y qué buscaría. No modifica nada.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Input
+              className="min-w-[240px] flex-1 border-[#d9c3aa] bg-white"
+              value={testText}
+              onChange={(event) => setTestText(event.target.value)}
+              onKeyDown={(event) => { if (event.key === "Enter") void runTest(); }}
+              placeholder="Ej: venden algo para halloween?"
+            />
+            <Button onClick={() => void runTest()} disabled={testing || !testText.trim()}>
+              {testing ? "Probando…" : "Probar"}
+            </Button>
+          </div>
+          {testResult && (
+            <div className="mt-3 rounded-xl border border-[#e5d4bf] bg-[#fffaf3] px-3 py-2 text-xs text-[#5b3323]">
+              {testResult.detected ? (
+                <>
+                  <div>
+                    Detecta <strong>{testResult.detected.label}</strong>
+                    {testResult.detected.matched ? <> (coincidió con «{testResult.detected.matched}»)</> : null}.
+                  </div>
+                  {testResult.would_search.length > 0 && (
+                    <div className="mt-1 text-[#8b6d59]">
+                      Buscaría: {testResult.would_search.join(", ")}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div>No detecta ninguna ocasión con ese mensaje. Probá sumar un alias o un término directo.</div>
+              )}
+            </div>
+          )}
+        </Card>
 
         <Card className="mb-6 border-[#e5d4bf] bg-[#fffdf9] p-5">
           <div className="mb-4 flex items-center justify-between">
