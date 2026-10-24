@@ -154,9 +154,8 @@ def rules(text: str | None) -> dict[str, Any]:
     negated = bool(_NEGATION_RE.match(normalized))
     question = bool(_QUESTION_RE.search(normalized))
 
-    frustrated = _has(normalized, _FRUSTRATION_TERMS) or (
-        "!!" in normalized and len(normalized.split()) <= 12
-    )
+    # Solo cuenta el enojo explícito: "hola!!" no es un reclamo.
+    frustrated = _has(normalized, _FRUSTRATION_TERMS)
     sensitive_topic = next(
         (
             topic
