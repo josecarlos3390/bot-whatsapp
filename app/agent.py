@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 import html
@@ -2157,6 +2157,12 @@ IDENTITY_RE = re.compile(
     r"a qu[eé] te dedic[aá]s|sos real|eres real)\b",
     re.IGNORECASE,
 )
+FAREWELL_RE = re.compile(
+    r"\b(hasta luego|hasta pronto|nos vemos|chau|chao|me despido|"
+    r"eso es todo|nada m[aá]s|listo,? gracias|gracias,? hasta|"
+    r"buenas noches,? gracias)\b",
+    re.IGNORECASE,
+)
 WHY_RE = re.compile(
     r"\bpor ?qu[eé]\b[^.?!]{0,60}\b(recomend\w*|elegiste|elegí|ese|esa|eso|"
     r"este|esta|esos|esas|especial)\b|\bqu[eé] tiene de especial\b",
@@ -2927,12 +2933,35 @@ class Agent:
                 )
 
         toolbox = Toolbox(session, contact, self.wa)
+        # Si el cliente cambia de rubro, no se arrastran marca ni medida de la
+        # búsqueda anterior.
+        ignore_state = False
+        term = catalog.primary_term(query)
+        if term:
+            try:
+                conversation = await session.scalar(
+                    select(Conversation).where(
+                        Conversation.contact_id == contact.id
+                    )
+                )
+                if conversation is not None:
+                    estado = await conversation_state.get_state(
+                        session, conversation.id
+                    )
+                    if estado.category and _fold_word(
+                        estado.category
+                    ) != _fold_word(term):
+                        ignore_state = True
+                        self._trace(f"Cambio de rubro: {term}")
+            except Exception:  # noqa: BLE001 - no frenar la búsqueda
+                logger.debug("No se pudo comparar el rubro", exc_info=True)
         result = await toolbox.tool_search_products(
             query=query,
             limit=min(int(limit), 5),
             min_price=min_price,
             max_price=max_price,
             quantity=quantity,
+            ignore_state=ignore_state,
         )
         products = result.get("products") or []
         if not products:
@@ -3942,6 +3971,11 @@ class Agent:
             self._trace("Identidad: quién soy")
             return self._identity_reply()
 
+        # Despedida: se cierra la charla y se limpia el contexto de trabajo.
+        if FAREWELL_RE.search(raw):
+            self._trace("Cierre por despedida")
+            return await self._farewell_reply(session, contact)
+
         guard = await conversation_guard.get_for_contact(session, contact)
         if guard is not None:
             reference_reply = await self._resolve_reference(
@@ -4498,6 +4532,48 @@ class Agent:
                 f"- {product['name']} — Bs {product['price']}"
             )
         return "\n".join(lines)
+
+    async def _farewell_reply(
+        self, session: AsyncSession, contact: Contact
+    ) -> AgentReply:
+        """Cierre amable: apaga la charla sin borrar el historial."""
+        try:
+            conversation = await session.scalar(
+                select(Conversation).where(
+                    Conversation.contact_id == contact.id
+                )
+            )
+            if conversation is not None:
+                estado = await conversation_state.get_state(
+                    session, conversation.id
+                )
+                estado.category = None
+                estado.brand = None
+                estado.size = None
+                estado.min_price = None
+                estado.max_price = None
+                estado.intent = None
+                estado.last_sku = None
+                conversation.last_query = None
+                await session.commit()
+            await conversation_guard.clear_pending(session, contact)
+        except Exception:  # noqa: BLE001 - la despedida no se pierde
+            logger.exception("No se pudo cerrar la charla")
+        return AgentReply(
+            [
+                Outbound(
+                    kind="buttons",
+                    text=(
+                        "¡Gracias a vos! 👋 Quedo por acá cuando quieras "
+                        "retomar. Si necesitás algo más, escribime."
+                    ),
+                    buttons=[
+                        {"id": "catalog", "title": "Ver productos"},
+                        {"id": "human", "title": "Hablar con alguien"},
+                    ],
+                )
+            ]
+        )
 
     @staticmethod
     def _identity_reply() -> AgentReply:

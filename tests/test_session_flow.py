@@ -1,4 +1,4 @@
-"""Charla nueva dentro del mismo chat: se conserva el historial, no el rubro."""
+﻿"""Charla nueva dentro del mismo chat: se conserva el historial, no el rubro."""
 
 from __future__ import annotations
 
@@ -92,3 +92,34 @@ async def test_saludo_tras_pausa_empieza_de_nuevo(session, monkeypatch):
     assert "rohi" in texto
     estado = await conversation_state.get_state(session, _conversation.id)
     assert estado.category is None
+
+
+async def test_despedida_cierra_y_limpia_el_contexto(session, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "deepseek_api_key", "")
+    contact, conversation = await _preparar(
+        session, "59170001404", horas=0.05, rubro="TV"
+    )
+
+    reply = await Agent().handle(session, contact, "gracias, hasta luego")
+
+    texto = " ".join(message.text or "" for message in reply.messages).lower()
+    assert "gracias a vos" in texto
+    estado = await conversation_state.get_state(session, conversation.id)
+    assert estado.category is None
+    assert estado.brand is None
+
+
+async def test_gracias_solo_no_cierra(session, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "deepseek_api_key", "")
+    contact, conversation = await _preparar(
+        session, "59170001405", horas=0.05, rubro="TV"
+    )
+
+    await Agent().handle(session, contact, "gracias!")
+
+    estado = await conversation_state.get_state(session, conversation.id)
+    assert estado.category == "TV"
