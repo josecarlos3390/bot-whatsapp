@@ -1133,7 +1133,7 @@ class Toolbox:
 
     @staticmethod
     def _product(item) -> dict:
-        return {
+        data = {
             "sku": item.sku,
             "name": item.name,
             "price": str(item.price),
@@ -1144,6 +1144,14 @@ class Toolbox:
             "image_url": getattr(item, "image_url", None),
             "description": getattr(item, "description", None),
         }
+        # Especificaciones (garantía, medidas, material…) para que el asesor
+        # pueda filtrar y argumentar sin abrir la ficha.
+        attributes = getattr(item, "attributes", None)
+        if isinstance(attributes, dict):
+            specs = attributes.get("specs")
+            if isinstance(specs, dict) and specs:
+                data["specs"] = dict(list(specs.items())[:6])
+        return data
 
     async def _attach_promotions(self, products: list[dict]) -> None:
         skus = [product["sku"] for product in products]
