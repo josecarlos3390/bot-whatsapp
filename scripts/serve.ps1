@@ -53,6 +53,9 @@ if (-not $env:SAP_PAAS_URL) { $env:SAP_PAAS_URL = "http://127.0.0.1:5050" }
 
 $syncLog = Join-Path $logDir "sync.log"
 $syncStamp = Join-Path $logDir "last-sync.txt"
+$webhookLog = Join-Path $logDir "webhook.log"
+$backupStamp = Join-Path $logDir "last-backup.txt"
+$backupLog = Join-Path $logDir "backup.log"
 
 function Test-SapCredentials {
     if (-not (Test-Path $envFile)) { return $false }
@@ -101,6 +104,41 @@ function Start-CatalogSync {
         -WorkingDirectory $root `
         -RedirectStandardOutput $syncLog `
         -RedirectStandardError (Join-Path $logDir "sync.err.log") `
+        -WindowStyle Hidden | Out-Null
+}
+
+function Start-WebhookWatch {
+    # Mantiene el webhook de Meta apuntando al túnel vigente: si la URL cambia
+    # y nadie lo actualiza, el bot deja de recibir mensajes sin avisar.
+    if ($NoTunnel) { return $null }
+    Start-Process -FilePath $python `
+        -ArgumentList @(
+            "-m", "scripts.refresh_tunnel",
+            "--log", $tunnelLog,
+            "--env", $envFile,
+            "--watch",
+            "--interval", "120"
+        ) `
+        -WorkingDirectory $root `
+        -RedirectStandardOutput $webhookLog `
+        -RedirectStandardError (Join-Path $logDir "webhook.err.log") `
+        -WindowStyle Hidden -PassThru
+}
+
+function Backup-Due {
+    if (-not (Test-Path $backupStamp)) { return $true }
+    $last = (Get-Item $backupStamp).LastWriteTime
+    return ((Get-Date) - $last).TotalHours -ge 20
+}
+
+function Start-Backup {
+    Write-Host "[serve] copia de seguridad diaria"
+    Write-TextNoBom -Path $backupStamp -Text (Get-Date -Format o)
+    Start-Process -FilePath $python `
+        -ArgumentList @("-m", "scripts.backup_db") `
+        -WorkingDirectory $root `
+        -RedirectStandardOutput $backupLog `
+        -RedirectStandardError (Join-Path $logDir "backup.err.log") `
         -WindowStyle Hidden | Out-Null
 }
 
@@ -154,11 +192,20 @@ $currentUrl = (Select-String -Path $envFile -Pattern "^PUBLIC_BASE_URL=(.*)$" -E
 Start-Sleep -Seconds 15
 
 if (Sync-Due) { Start-CatalogSync }
+if (Backup-Due) { Start-Backup }
+$webhook = Start-WebhookWatch
 
 while ($true) {
     Start-Sleep -Seconds 5
 
     if (Sync-Due) { Start-CatalogSync }
+    if (Backup-Due) { Start-Backup }
+
+    if ($webhook -and $webhook.HasExited) {
+        Write-Host "[serve] el vigilante del webhook se detuvo; reiniciando"
+        Start-Sleep -Seconds 3
+        $webhook = Start-WebhookWatch
+    }
 
     if ($bot.HasExited) {
         Write-Host "[serve] la API se detuvo; reiniciando"

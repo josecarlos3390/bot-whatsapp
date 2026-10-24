@@ -53,6 +53,15 @@ def update_env(env_path: Path, url: str) -> None:
     env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def _env_url(env_path: Path) -> str:
+    if not env_path.exists():
+        return ""
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        if line.startswith("PUBLIC_BASE_URL="):
+            return line.split("=", 1)[1].strip()
+    return ""
+
+
 def app_id() -> str:
     response = httpx.get(
         "https://graph.facebook.com/v21.0/debug_token",
@@ -104,7 +113,9 @@ def update_meta(base_url: str) -> None:
     logger.info("Meta actualizado: %s", response.text[:300])
 
 
-def refresh(log_path: Path, env_path: Path, *, dry_run: bool) -> str | None:
+def refresh(
+    log_path: Path, env_path: Path, *, dry_run: bool, force: bool = True
+) -> str | None:
     url = latest_url(log_path)
     if not url:
         logger.warning("No encontré URL en %s", log_path)
@@ -116,6 +127,9 @@ def refresh(log_path: Path, env_path: Path, *, dry_run: bool) -> str | None:
     verify_public_webhook(url)
     logger.info("URL activa: %s", url)
     if dry_run:
+        return url
+    if not force and url == _env_url(env_path):
+        # Sin cambios: no hace falta volver a registrar el webhook.
         return url
     update_env(env_path, url)
     update_meta(url)
@@ -140,7 +154,14 @@ def main() -> None:
     last = None
     while True:
         try:
-            current = refresh(log_path, env_path, dry_run=args.dry_run)
+            # La primera vuelta siempre registra: tras un reinicio el .env puede
+            # coincidir con la URL nueva y Meta seguir apuntando a la vieja.
+            current = refresh(
+                log_path,
+                env_path,
+                dry_run=args.dry_run,
+                force=(last is None),
+            )
             if current and current != last:
                 last = current
                 print(json.dumps({"public_base_url": current}))
