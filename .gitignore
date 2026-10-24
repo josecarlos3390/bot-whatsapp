@@ -1,4 +1,4 @@
-.env
+﻿.env
 .venv/
 __pycache__/
 *.py[cod]
@@ -31,3 +31,5 @@ patches/
 NONE
 
 backups/
+# Temporales de render de documentos
+.dsh-office-*
