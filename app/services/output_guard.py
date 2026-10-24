@@ -60,6 +60,101 @@ def _clean_text(text: str | None) -> str | None:
     return value
 
 
+_AMOUNT_RE = re.compile(r"bs\.?\s*(\d[\d.,]*)", re.IGNORECASE)
+_SKU_TEXT_RE = re.compile(r"sku:?\s*([a-z0-9\-]{3,})", re.IGNORECASE)
+
+
+def _parse_amount(raw: str) -> float | None:
+    value = (raw or "").strip().rstrip(".,")
+    if not value:
+        return None
+    if "," in value and "." in value:
+        value = value.replace(".", "").replace(",", ".")
+    elif "," in value:
+        value = value.replace(",", ".")
+    elif value.count(".") == 1:
+        entero, decimales = value.split(".")
+        if len(decimales) != 2:
+            value = entero + decimales
+    try:
+        return float(value)
+    except ValueError:
+        return None
+
+
+async def _allowed_prices(session: AsyncSession, sku: str) -> set[float]:
+    """Precio de lista y promociones vigentes del SKU."""
+    from decimal import Decimal
+
+    from ..models import CatalogItem, ProductPromotion
+
+    item = await session.scalar(
+        select(CatalogItem).where(CatalogItem.sku == sku)
+    )
+    if item is None:
+        return set()
+    prices = {float(item.price)}
+    promos = await session.scalars(
+        select(ProductPromotion).where(ProductPromotion.sku == sku)
+    )
+    for promo in promos:
+        prices.add(float(promo.price))
+    return prices
+
+
+async def _fix_prices(session: AsyncSession, reply) -> None:
+    """Corrige montos que no coinciden con el producto citado.
+
+    Solo actúa en fichas de un producto (no en totales del carrito).
+    """
+    skus: set[str] = set()
+    for message in reply.messages:
+        for section in message.sections or []:
+            for row in section.get("rows") or []:
+                sku = _sku_from_id(row.get("id"))
+                if sku:
+                    skus.add(sku)
+        for button in message.buttons or []:
+            sku = _sku_from_id(button.get("id"))
+            if sku:
+                skus.add(sku)
+        for match in _SKU_TEXT_RE.finditer(message.text or ""):
+            skus.add(match.group(1).upper())
+
+    if len(skus) != 1:
+        return
+    if any("carrito" in (m.text or "").lower() for m in reply.messages):
+        return
+    if not any("precio" in (m.text or "").lower() for m in reply.messages):
+        return
+
+    allowed = await _allowed_prices(session, next(iter(skus)))
+    if not allowed:
+        return
+    reference = min(allowed)
+
+    for message in reply.messages:
+        text = message.text or ""
+        if "precio" not in text.lower():
+            continue
+
+        def _replace(match: re.Match) -> str:
+            value = _parse_amount(match.group(1))
+            if value is None:
+                return match.group(0)
+            if any(abs(value - price) <= 0.5 for price in allowed):
+                return match.group(0)
+            logger.warning(
+                "Precio inventado %s para %s; se corrige a %s",
+                match.group(1),
+                next(iter(skus)),
+                reference,
+            )
+            return f"Bs {reference:,.2f}"
+
+        message.text = _AMOUNT_RE.sub(_replace, text)
+
+
 async def sanitize(session: AsyncSession, reply, text: str | None):
     """Corrige la respuesta antes de enviarla. Nunca lanza."""
     from ..agent import AgentReply, Outbound  # local: evita import circular
@@ -114,7 +209,13 @@ async def sanitize(session: AsyncSession, reply, text: str | None):
             ]
         )
 
-    # 4. Referencias a SKU inexistentes.
+    # 4. Precios que no coinciden con el catálogo.
+    try:
+        await _fix_prices(session, reply)
+    except Exception:  # noqa: BLE001 - no bloquear por el chequeo de precios
+        logger.exception("No se pudo validar precios")
+
+    # 5. Referencias a SKU inexistentes.
     ids: set[str] = set()
     for message in reply.messages:
         for section in message.sections or []:

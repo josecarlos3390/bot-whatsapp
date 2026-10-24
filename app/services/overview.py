@@ -15,7 +15,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
-from . import funnel, qa
+from . import funnel, metrics, qa
 from ..models import (
     AreaRule,
     AreaUser,
@@ -358,5 +358,6 @@ async def overview(session: AsyncSession) -> dict:
         "funnel": await funnel.stats(session, 30),
         "search_gaps": await funnel.search_gaps(session, 30),
         "qa": await qa.scan(session, 72),
+        "latency": metrics.summary(200),
         "alerts": alerts,
     }

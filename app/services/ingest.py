@@ -1,7 +1,8 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import asyncio
 import logging
+import time
 import uuid
 
 from sqlalchemy import select
@@ -12,7 +13,7 @@ from ..agent import AgentReply, Outbound
 from ..config import settings
 from ..models import Contact, Conversation, Message, utcnow
 from ..runtime import agent, whatsapp
-from . import handoffs as handoff_service, output_guard
+from . import handoffs as handoff_service, metrics, output_guard
 from . import memory as memory_service, native_commerce
 
 logger = logging.getLogger(__name__)
@@ -186,10 +187,12 @@ async def ingest_inbound(
         memory = await memory_service.memory_text(
             session, contact, conversation_id
         )
+        started = time.perf_counter()
         try:
             reply = await agent.handle(
                 session, contact, text, history, memory=memory
             )
+            metrics.record((time.perf_counter() - started) * 1000)
         except Exception:  # noqa: BLE001 - nunca dejar al cliente sin respuesta
             logger.exception(
                 "Fallo el agente para el mensaje %s", wa_message_id

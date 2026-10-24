@@ -1,4 +1,4 @@
-"""Validación de salida: la respuesta final no puede contradecir la política."""
+﻿"""Validación de salida: la respuesta final no puede contradecir la política."""
 
 from __future__ import annotations
 
@@ -111,3 +111,100 @@ async def test_respuesta_normal_no_se_toca(session):
     result = await output_guard.sanitize(session, reply, "cuanto sale un colchon")
 
     assert result.messages[0].text == "Tenemos colchones desde Bs 1.190."
+
+
+async def test_corrige_precio_inventado_en_la_ficha(session):
+    session.add(
+        CatalogItem(
+            sku="PRECIO-1",
+            name="COLCHON PRECIO",
+            price=1190,
+            stock=3,
+            active=True,
+        )
+    )
+    await session.commit()
+
+    reply = _reply(
+        [
+            Outbound(
+                kind="list",
+                text="Colchón Eco Flex\nPrecio: Bs 9.999,00",
+                sections=[
+                    {
+                        "title": "Acciones",
+                        "rows": [
+                            {"id": "add:PRECIO-1:1", "title": "Agregar 1"}
+                        ],
+                    }
+                ],
+            )
+        ]
+    )
+
+    result = await output_guard.sanitize(session, reply, "product:PRECIO-1")
+
+    texto = result.messages[0].text
+    assert "9.999" not in texto
+    assert "1,190.00" in texto
+
+
+async def test_precio_correcto_no_se_toca(session):
+    session.add(
+        CatalogItem(
+            sku="PRECIO-2",
+            name="COLCHON PRECIO",
+            price=1190,
+            stock=3,
+            active=True,
+        )
+    )
+    await session.commit()
+
+    reply = _reply(
+        [
+            Outbound(
+                kind="list",
+                text="Colchón Eco Flex\nPrecio: Bs 1,190.00",
+                sections=[
+                    {
+                        "title": "Acciones",
+                        "rows": [
+                            {"id": "add:PRECIO-2:1", "title": "Agregar 1"}
+                        ],
+                    }
+                ],
+            )
+        ]
+    )
+
+    result = await output_guard.sanitize(session, reply, "product:PRECIO-2")
+
+    assert "1,190.00" in result.messages[0].text
+
+
+async def test_total_del_carrito_no_se_toca(session):
+    session.add(
+        CatalogItem(
+            sku="PRECIO-3",
+            name="COLCHON PRECIO",
+            price=1190,
+            stock=3,
+            active=True,
+        )
+    )
+    await session.commit()
+
+    reply = _reply(
+        [
+            Outbound(
+                kind="buttons",
+                text="Tu carrito va en *Bs 3,380.00*.",
+                buttons=[{"id": "add:PRECIO-3:2", "title": "Agregar"}],
+            )
+        ]
+    )
+
+    result = await output_guard.sanitize(session, reply, "add:PRECIO-3:2")
+
+    assert "3,380.00" in result.messages[0].text

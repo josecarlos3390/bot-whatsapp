@@ -42,6 +42,14 @@ type Overview = {
     counts: Record<string, number>;
     issues: { kind: string; inbound: string; outbound: string | null; at: string | null }[];
   };
+  latency: {
+    count: number;
+    p50_ms: number;
+    p95_ms: number;
+    max_ms: number;
+    slow: number;
+    slow_limit_ms: number;
+  };
   alerts: { level: "critical" | "warning"; title: string; detail: string }[];
 };
 
@@ -252,6 +260,38 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
                   ))}
                 </div>
               )}
+            </Card>
+
+            <Card className="mb-5 border-[#e5d4bf] bg-[#fffdf9] p-5">
+              <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+                <h3 className="font-serif text-lg font-semibold text-[#3d1a17]">Latencia de respuesta</h3>
+                <span className={`text-[11px] ${(data.latency?.slow ?? 0) > 0 ? "text-amber-700" : "text-emerald-600"}`}>
+                  Últimas {data.latency?.count ?? 0} respuestas
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div>
+                  <div className="text-[11px] uppercase tracking-wide text-[#8b6d59]">Mediana</div>
+                  <div className="text-xl font-semibold text-[#3d1a17]">{((data.latency?.p50_ms ?? 0) / 1000).toFixed(1)} s</div>
+                </div>
+                <div>
+                  <div className="text-[11px] uppercase tracking-wide text-[#8b6d59]">p95</div>
+                  <div className={`text-xl font-semibold ${(data.latency?.p95_ms ?? 0) >= 8000 ? "text-red-600" : "text-[#3d1a17]"}`}>
+                    {((data.latency?.p95_ms ?? 0) / 1000).toFixed(1)} s
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[11px] uppercase tracking-wide text-[#8b6d59]">Máxima</div>
+                  <div className="text-xl font-semibold text-[#3d1a17]">{((data.latency?.max_ms ?? 0) / 1000).toFixed(1)} s</div>
+                </div>
+                <div>
+                  <div className="text-[11px] uppercase tracking-wide text-[#8b6d59]">Lentas</div>
+                  <div className={`text-xl font-semibold ${(data.latency?.slow ?? 0) > 0 ? "text-red-600" : "text-emerald-700"}`}>
+                    {data.latency?.slow ?? 0}
+                  </div>
+                  <div className="text-[10px] text-[#8b6d59]">≥ {((data.latency?.slow_limit_ms ?? 8000) / 1000).toFixed(0)} s</div>
+                </div>
+              </div>
             </Card>
 
             <Card className="mb-5 border-[#e5d4bf] bg-[#fffdf9] p-5">
