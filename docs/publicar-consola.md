@@ -156,3 +156,56 @@ que no hace falta tocar código para eso.
 4. ¿La IP interna fija del servidor del bot?
 
 Con esos cuatro datos se completa la configuración en una sesión corta.
+
+---
+
+## Solución implementada (24-oct-2026)
+
+La consola quedó publicada por **Apache (XAMPP)** en el puerto 80, con su propio
+nombre. No se abrió ningún puerto nuevo en la red: se usa el 80, que las VLANs
+ya alcanzan.
+
+**URL de acceso:** <http://roho-chatbot.gruporoda.com/console/>
+
+### Configuración aplicada
+
+Archivo `C:\xampp\apache\conf\extra\httpd-vhosts.conf`
+(respaldo: `httpd-vhosts.conf.bak-20261024`):
+
+```apache
+<VirtualHost *:80>
+    ServerName roho-chatbot.gruporoda.com
+    ProxyPreserveHost On
+    ProxyRequests Off
+    # flushpackets: el panel usa SSE (tiempo real); sin esto Apache acumula.
+    ProxyPass / http://127.0.0.1:8010/ flushpackets=on retry=0 timeout=60
+    ProxyPassReverse / http://127.0.0.1:8010/
+    ErrorLog "logs/roho-chatbot-error.log"
+    CustomLog "logs/roho-chatbot-access.log" combined
+</VirtualHost>
+```
+
+Pasos para aplicarlo o replicarlo:
+
+1. Respaldar `httpd-vhosts.conf`.
+2. Agregar el bloque.
+3. Validar sintaxis: `C:\xampp\apache\bin\httpd.exe -t` → debe decir `Syntax OK`.
+4. Reiniciar el servicio: `Restart-Service Apache2.4` (~2 segundos).
+
+### Verificación
+
+```powershell
+curl.exe -s -o NUL -w "%{http_code}" http://roho-chatbot.gruporoda.com/console/   # 200
+curl.exe -s -o NUL -w "%{http_code}" http://soporte.gruporoda.com/                # 301 (sigue igual)
+```
+
+Del lado del bot no hizo falta tocar nada: ya escucha en `0.0.0.0:8010` y el
+firewall de Windows está desactivado. La ruta entre VLANs la resuelve la red.
+
+### Pendiente
+
+- **HTTPS**: requiere un certificado para `roho-chatbot.gruporoda.com` (CA
+  interna o el que use el área de redes). Mientras tanto el acceso interno es
+  por HTTP.
+- Si se prefiere no depender de Apache, la alternativa es abrir TCP 8010 en la
+  red y usar la URL con puerto.
