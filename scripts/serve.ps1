@@ -23,6 +23,7 @@ Para que sobreviva al cierre de sesión hace falta un servicio de Windows
 #>
 param(
     [int]$Port = 8010,
+    [string]$BindHost = "",
     [switch]$NoTunnel,
     [switch]$NoCatalogSync
 )
@@ -62,6 +63,14 @@ function Test-SapCredentials {
     if (-not (Test-Path $envFile)) { return $false }
     $text = [System.IO.File]::ReadAllText($envFile)
     return [bool]($text -match "(?m)^SAP_USER=\S+")
+}
+
+function Get-EnvValue([string]$Name) {
+    if (-not (Test-Path $envFile)) { return "" }
+    $text = [System.IO.File]::ReadAllText($envFile)
+    $match = [regex]::Match($text, "(?m)^$Name=(\S+)")
+    if ($match.Success) { return $match.Groups[1].Value.Trim() }
+    return ""
 }
 
 function Get-CatalogMode {
@@ -153,8 +162,17 @@ function Start-Backup {
 }
 
 function Start-Bot {
+    # Por defecto escucha solo en local (el túnel publica el webhook). Para la
+    # consola en la red interna se configura APP_HOST=0.0.0.0 en .env.
+    $listen = $BindHost
+    if (-not $listen) { $listen = Get-EnvValue "APP_HOST" }
+    if (-not $listen) { $listen = "127.0.0.1" }
     Start-Process -FilePath $python `
-        -ArgumentList @("-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", $Port) `
+        -ArgumentList @(
+            "-m", "uvicorn", "app.main:app",
+            "--host", $listen, "--port", $Port,
+            "--proxy-headers", "--forwarded-allow-ips", "*"
+        ) `
         -WorkingDirectory $root `
         -RedirectStandardOutput $botOut `
         -RedirectStandardError $botErr `
