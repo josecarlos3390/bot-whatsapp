@@ -1,4 +1,4 @@
-﻿import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   Link,
   Navigate,
@@ -26,6 +26,7 @@ import {
   X
 } from "lucide-react";
 import { api, onUnauthorized } from "./api";
+import { LanguageToggle, useI18n } from "./i18n";
 import { Badge, Button, Card, Dialog, Input, Skeleton, Textarea, cn } from "./ui";
 import type { Advisor, AdvisorMetric, AreaUser, AuthMe, Handoff, HandoffDetail } from "./types";
 import { AdminCenter, AdminRulesPage, AreaRulesPage } from "./areas";
@@ -136,6 +137,7 @@ function Login({
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const { t } = useI18n();
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -160,7 +162,7 @@ function Login({
       onLogin(me);
       navigate(me.is_admin ? "/overview" : "/inbox", { replace: true });
     } catch {
-      setError("Usuario o contraseña incorrectos.");
+      setError(t("Usuario o contraseña incorrectos."));
     } finally {
       setBusy(false);
     }
@@ -181,16 +183,16 @@ function Login({
           <div>
             <div className="font-brand text-[11px] text-[#e9082a]">ROHO HOMECENTER</div>
             <h1 className="font-serif text-xl font-semibold tracking-tight text-[#111111]">
-              {mode === "area" ? "Portal de áreas" : "Consola de asesores"}
+              {t(mode === "area" ? "Portal de áreas" : "Consola de asesores")}
             </h1>
           </div>
         </div>
         <div className="mb-4 grid grid-cols-2 gap-2 rounded-lg bg-[#f3f4f6] p-1">
-          <button type="button" onClick={() => setMode("advisor")} className={`rounded-md px-3 py-1.5 text-sm font-semibold ${mode === "advisor" ? "bg-white text-[#111111] shadow-sm" : "text-[#6b7280]"}`}>Consola</button>
-          <button type="button" onClick={() => setMode("area")} className={`rounded-md px-3 py-1.5 text-sm font-semibold ${mode === "area" ? "bg-white text-[#111111] shadow-sm" : "text-[#6b7280]"}`}>Área</button>
+          <button type="button" onClick={() => setMode("advisor")} className={`rounded-md px-3 py-1.5 text-sm font-semibold ${mode === "advisor" ? "bg-white text-[#111111] shadow-sm" : "text-[#6b7280]"}`}>{t("Consola")}</button>
+          <button type="button" onClick={() => setMode("area")} className={`rounded-md px-3 py-1.5 text-sm font-semibold ${mode === "area" ? "bg-white text-[#111111] shadow-sm" : "text-[#6b7280]"}`}>{t("Área")}</button>
         </div>
         <label htmlFor="advisor-username" className="mb-1 block text-sm font-medium text-[#4b5563]">
-          Usuario
+          {t("Usuario")}
         </label>
         <input
           id="advisor-username"
@@ -202,7 +204,7 @@ function Login({
           required
         />
         <label htmlFor="advisor-password" className="mb-1 block text-sm font-medium text-[#4b5563]">
-          Contraseña
+          {t("Contraseña")}
         </label>
         <input
           id="advisor-password"
@@ -222,7 +224,7 @@ function Login({
           disabled={busy}
           className="mt-3 w-full rounded-lg bg-[#e9082a] px-4 py-2.5 font-semibold text-[#ffffff] shadow-sm transition hover:bg-[#a90418] disabled:opacity-50"
         >
-          {busy ? "Ingresando…" : "Ingresar"}
+          {busy ? t("Ingresando…") : t("Ingresar")}
         </button>
         {mode === "area" && <p className="mt-3 text-center text-xs text-[#9ca3af]">Solo vas a ver las reglas de tu área.</p>}
       </form>
@@ -242,6 +244,7 @@ function Header({
   onNotify: () => void;
 }) {
   const location = useLocation();
+  const { t } = useI18n();
   return (
     <header className="sticky top-0 z-40 border-b border-[#ffb3bd]/25 bg-[linear-gradient(135deg,#1f2937_0%,#111827_55%,#0a0a0a_100%)] text-white shadow-lg shadow-black/20 backdrop-blur">
       <div className="mx-auto flex max-w-[1500px] flex-wrap items-center gap-3 px-4 py-3 lg:px-6">
@@ -253,7 +256,7 @@ function Header({
           />
           <div>
             <div className="font-brand text-[11px] text-[#ffffff]">ROHO</div>
-            <div className="font-serif text-sm font-semibold tracking-tight">Consola de asesores</div>
+            <div className="font-serif text-sm font-semibold tracking-tight">{t("Consola de asesores")}</div>
           </div>
         </div>
         <nav className="ml-4 flex items-center gap-1 text-sm">
@@ -261,14 +264,14 @@ function Header({
             to="/inbox"
             className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${location.pathname.startsWith("/inbox") ? "bg-white/10 text-white" : "text-slate-300 hover:bg-white/5"}`}
           >
-            <InboxIcon size={15} /> Bandeja
+            <InboxIcon size={15} /> {t("Bandeja")}
           </Link>
           {me.is_admin && (
             <Link
               to="/agents"
               className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${location.pathname.startsWith("/agents") ? "bg-white/10 text-white" : "text-slate-300 hover:bg-white/5"}`}
             >
-              <Users size={15} /> Agentes
+              <Users size={15} /> {t("Agentes")}
             </Link>
           )}
           {(me.is_admin || me.role === "supervisor") && (
@@ -276,7 +279,7 @@ function Header({
               to="/metrics"
               className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${location.pathname.startsWith("/metrics") ? "bg-white/10 text-white" : "text-slate-300 hover:bg-white/5"}`}
             >
-              <BarChart3 size={15} /> Métricas
+              <BarChart3 size={15} /> {t("Métricas")}
             </Link>
           )}
           {me.is_admin && (
@@ -285,25 +288,25 @@ function Header({
                 to="/overview"
                 className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${location.pathname === "/overview" ? "bg-white/10 text-white" : "text-slate-300 hover:bg-white/5"}`}
               >
-                <BarChart3 size={15} /> Operación
+                <BarChart3 size={15} /> {t("Operación")}
               </Link>
               <Link
                 to="/admin/center"
                 className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${location.pathname.startsWith("/admin/center") ? "bg-white/10 text-white" : "text-slate-300 hover:bg-white/5"}`}
               >
-                <ShieldCheck size={15} /> Administración
+                <ShieldCheck size={15} /> {t("Administración")}
               </Link>
               <Link
                 to="/rules"
                 className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${location.pathname === "/rules" ? "bg-white/10 text-white" : "text-slate-300 hover:bg-white/5"}`}
               >
-                <StickyNote size={15} /> Reglas
+                <StickyNote size={15} /> {t("Reglas")}
               </Link>
               <Link
                 to="/occasions"
                 className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${location.pathname === "/occasions" ? "bg-white/10 text-white" : "text-slate-300 hover:bg-white/5"}`}
               >
-                <Bell size={15} /> Ocasiones
+                <Bell size={15} /> {t("Ocasiones")}
               </Link>
             </>
           )}
@@ -311,10 +314,11 @@ function Header({
         <div className="ml-auto flex items-center gap-3 text-sm">
           <span className={`hidden items-center gap-1.5 rounded-full px-3 py-1 text-xs md:inline-flex ${duty.length ? "bg-blue-400/15 text-blue-300" : "bg-red-400/15 text-red-300"}`}>
             <ShieldCheck size={13} />
-            {duty.length ? `Guardia: ${duty.join(", ")}` : "Sin guardia"}
+            {duty.length ? `${t("Guardia")}: ${duty.join(", ")}` : t("Sin guardia")}
           </span>
+          <LanguageToggle />
           <ThemeToggle />
-          <button onClick={onNotify} className="relative rounded-full border border-slate-700 p-2 text-slate-300 hover:bg-slate-800 hover:text-white" title="Notificaciones">
+          <button onClick={onNotify} className="relative rounded-full border border-slate-700 p-2 text-slate-300 hover:bg-slate-800 hover:text-white" title={t("Notificaciones")}>
             <Bell size={16} />
             {count > 0 && (
               <span className="absolute -right-2 -top-2 rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">{count}</span>

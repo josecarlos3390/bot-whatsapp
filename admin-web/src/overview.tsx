@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "./api";
 import { AreaHeader } from "./areas";
 import { Badge, Button, Card, Input } from "./ui";
+import { useI18n } from "./i18n";
 
 type Overview = {
   generated_at: string;
@@ -118,6 +119,7 @@ type ProbeEntry = {
 };
 
 export function OverviewPage({ onLogout }: { onLogout: () => void }) {
+  const { t } = useI18n();
   const [data, setData] = useState<Overview | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -195,8 +197,8 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
       <main className="mx-auto max-w-[1180px] px-4 py-6 lg:px-6">
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <div className="mb-1 text-[10px] font-bold uppercase tracking-[.28em] text-[#e9082a]">Centro de operación</div>
-            <h1 className="font-serif text-3xl font-semibold tracking-tight text-[#111111]">¿Cómo está el bot hoy?</h1>
+            <div className="mb-1 text-[10px] font-bold uppercase tracking-[.28em] text-[#e9082a]">{t("Centro de operación")}</div>
+            <h1 className="font-serif text-3xl font-semibold tracking-tight text-[#111111]">{t("¿Cómo está el bot hoy?")}</h1>
             <p className="mt-1 text-sm text-[#4b5563]">
               Una sola vista para revisar datos, sincronización, conversaciones y reglas.
             </p>
@@ -242,7 +244,7 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
             <div className="mb-5 grid gap-3 md:grid-cols-3">
               <Card className="border-[#e5e7eb] bg-[#ffffff] p-4">
                 <div className="flex items-center justify-between">
-                  <div className="text-[10px] font-bold uppercase tracking-[.2em] text-[#e9082a]">Bot WhatsApp</div>
+                  <div className="text-[10px] font-bold uppercase tracking-[.2em] text-[#e9082a]">{t("Bot WhatsApp")}</div>
                   <StatusDot ok={data.bot.ok} />
                 </div>
                 <div className="mt-2 text-lg font-semibold text-[#111111]">{data.bot.ok ? "Escuchando" : "Sin respuesta"}</div>
@@ -250,7 +252,7 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
               </Card>
               <Card className="border-[#e5e7eb] bg-[#ffffff] p-4">
                 <div className="flex items-center justify-between">
-                  <div className="text-[10px] font-bold uppercase tracking-[.2em] text-[#e9082a]">API de integración</div>
+                  <div className="text-[10px] font-bold uppercase tracking-[.2em] text-[#e9082a]">{t("API de integración")}</div>
                   <StatusDot ok={data.api.ok} />
                 </div>
                 <div className="mt-2 text-lg font-semibold text-[#111111]">{data.api.ok ? "Disponible" : "No responde"}</div>
@@ -258,7 +260,7 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
               </Card>
               <Card className="border-[#e5e7eb] bg-[#ffffff] p-4">
                 <div className="flex items-center justify-between">
-                  <div className="text-[10px] font-bold uppercase tracking-[.2em] text-[#e9082a]">Sincronización VTEX</div>
+                  <div className="text-[10px] font-bold uppercase tracking-[.2em] text-[#e9082a]">{t("Sincronización VTEX")}</div>
                   <StatusDot ok={!data.sync.failed} />
                 </div>
                 <div className="mt-2 text-lg font-semibold text-[#111111]">{data.sync.failed ? "Con error" : "Al día"}</div>
@@ -275,7 +277,7 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
 
             <Card className="mb-5 border-[#e5e7eb] bg-[#ffffff] p-5">
               <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
-                <h3 className="font-serif text-lg font-semibold text-[#111111]">Embudo de venta</h3>
+                <h3 className="font-serif text-lg font-semibold text-[#111111]">{t("Embudo de venta")}</h3>
                 <span className="text-[11px] text-[#6b7280]">
                   Últimos {data.funnel.days} días · {data.funnel.revenue} Bs cobrados
                 </span>
@@ -309,7 +311,7 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
 
             <Card className="mb-5 border-[#e5e7eb] bg-[#ffffff] p-5">
               <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
-                <h3 className="font-serif text-lg font-semibold text-[#111111]">Búsquedas sin resultados</h3>
+                <h3 className="font-serif text-lg font-semibold text-[#111111]">{t("Búsquedas sin resultados")}</h3>
                 <span className="text-[11px] text-[#6b7280]">
                   Últimos 30 días · {(data.search_gaps ?? []).reduce((total, row) => total + row.count, 0)} casos
                 </span>
@@ -335,7 +337,7 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
 
             <Card className="mb-5 border-[#e5e7eb] bg-[#ffffff] p-5">
               <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
-                <h3 className="font-serif text-lg font-semibold text-[#111111]">Consumo del modelo</h3>
+                <h3 className="font-serif text-lg font-semibold text-[#111111]">{t("Consumo del modelo")}</h3>
                 <span className={`text-[11px] ${(data.tokens?.cache_hit_rate ?? 0) >= 80 ? "text-emerald-600" : "text-amber-700"}`}>
                   Caché {data.tokens?.cache_hit_rate ?? 0}% · {(data.tokens?.calls ?? 0)} llamadas
                 </span>
@@ -362,7 +364,7 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
 
             <Card className="mb-5 border-[#e5e7eb] bg-[#ffffff] p-5">
               <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
-                <h3 className="font-serif text-lg font-semibold text-[#111111]">Latencia de respuesta</h3>
+                <h3 className="font-serif text-lg font-semibold text-[#111111]">{t("Latencia de respuesta")}</h3>
                 <span className={`text-[11px] ${(data.latency?.slow ?? 0) > 0 ? "text-amber-700" : "text-emerald-600"}`}>
                   Últimas {data.latency?.count ?? 0} respuestas
                 </span>
@@ -394,7 +396,7 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
 
             <Card className="mb-5 border-[#e5e7eb] bg-[#ffffff] p-5">
               <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
-                <h3 className="font-serif text-lg font-semibold text-[#111111]">Probar el bot</h3>
+                <h3 className="font-serif text-lg font-semibold text-[#111111]">{t("Probar el bot")}</h3>
                 <span className="text-[11px] text-[#6b7280]">No envía nada ni ensucia las métricas</span>
               </div>
               <p className="mb-2 text-xs text-[#6b7280]">
@@ -467,7 +469,7 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
 
             <Card className="mb-5 border-[#e5e7eb] bg-[#ffffff] p-5">
               <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
-                <h3 className="font-serif text-lg font-semibold text-[#111111]">Control de calidad</h3>
+                <h3 className="font-serif text-lg font-semibold text-[#111111]">{t("Control de calidad")}</h3>
                 <span className={`text-[11px] ${(data.qa?.total ?? 0) > 0 ? "text-red-600" : "text-emerald-600"}`}>
                   Últimas {data.qa?.hours ?? 72} h · {data.qa?.total ?? 0} casos
                 </span>
@@ -502,7 +504,7 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
 
             <div className="grid gap-4 lg:grid-cols-2">
               <Card className="border-[#e5e7eb] bg-[#ffffff] p-5">
-                <h3 className="font-serif text-lg font-semibold text-[#111111]">Calidad de respuesta</h3>
+                <h3 className="font-serif text-lg font-semibold text-[#111111]">{t("Calidad de respuesta")}</h3>
                 <p className="mb-3 text-xs text-[#6b7280]">Indicadores de las últimas 24 horas.</p>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between border-b border-[#f3f4f6] py-2"><span>Fallbacks / aclaraciones</span><strong>{data.quality.fallbacks_24h}</strong></div>
@@ -512,7 +514,7 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
               </Card>
 
               <Card className="border-[#e5e7eb] bg-[#ffffff] p-5">
-                <h3 className="font-serif text-lg font-semibold text-[#111111]">Última sincronización</h3>
+                <h3 className="font-serif text-lg font-semibold text-[#111111]">{t("Última sincronización")}</h3>
                 <div className="mt-3 space-y-2 text-xs text-[#374151]">
                   <div><span className="font-semibold text-[#111111]">Archivo:</span> {data.sync.file || "Sin log"}</div>
                   <div><span className="font-semibold text-[#111111]">Resultado tarea:</span> {data.sync.task.last_result ?? "desconocido"}</div>

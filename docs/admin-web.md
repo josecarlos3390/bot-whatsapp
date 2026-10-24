@@ -153,3 +153,22 @@ Assets en `admin-web/public/brand`:
 Las clases usan valores hex directos (`bg-[#c8102e]`), así que un cambio de
 paleta se hace con el mapa de `admin-web/src` y se reconstruye el bundle.
 El modo oscuro tiene sus equivalencias en `admin-web/src/index.css`.
+
+### Idiomas (español / inglés)
+
+El panel tiene un selector **ES | EN** en la cabecera y en el login. La
+preferencia se guarda en el navegador (`roho-lang`) y, si no hay nada elegido,
+se usa el idioma del sistema.
+
+Funciona sin librerías externas: `admin-web/src/i18n.tsx` guarda un diccionario
+cuya clave es el **texto en español**. Si una cadena todavía no está traducida,
+se muestra igual (por eso se puede ampliar por partes sin romper nada).
+
+Para traducir una cadena nueva:
+
+1. Envolver el texto: `{t("Guardar")}`.
+2. Agregar la entrada en el diccionario `EN` de `i18n.tsx`.
+
+Cubierto hasta ahora: navegación, login y tarjetas del tablero. Las pantallas de
+reglas y ocasiones están en español; se traducen agregando entradas al mismo
+diccionario.
