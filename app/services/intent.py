@@ -90,6 +90,17 @@ _SENSITIVE_TERMS = {
     ),
 }
 
+# Enojo o urgencia: se atiende primero y se deriva, sin vender.
+_FRUSTRATION_TERMS = (
+    "estafa", "robo", "mentira", "mentirosos", "increible", "increíble",
+    "no me responden", "no me responden", "nadie me atiende", "hace una hora",
+    "hace horas", "hace dias", "hace días", "esperando", "harto", "harta",
+    "cansado de", "cansada de", "pesimo", "pésimo", "malisimo", "malísimo",
+    "reclamo", "queja", "urgente", "ya pague", "ya pagué", "otra vez",
+    "insolito", "insólito", "verguenza", "vergüenza", "quiero hablar con alguien",
+    "esto no es serio", "me estafaron", "me cobraron",
+)
+
 _PERSONAL_TERMS = (
     "te cuento", "viaj", "vacacion", "vacación", "mud", "mudanza",
     "casa nueva", "departamento nuevo", "me case", "me casé", "casamiento",
@@ -143,6 +154,9 @@ def rules(text: str | None) -> dict[str, Any]:
     negated = bool(_NEGATION_RE.match(normalized))
     question = bool(_QUESTION_RE.search(normalized))
 
+    frustrated = _has(normalized, _FRUSTRATION_TERMS) or (
+        "!!" in normalized and len(normalized.split()) <= 12
+    )
     sensitive_topic = next(
         (
             topic
@@ -187,6 +201,7 @@ def rules(text: str | None) -> dict[str, Any]:
         "negated": negated,
         "sensitive": sensitive_topic is not None,
         "sensitive_topic": sensitive_topic,
+        "frustrated": frustrated,
         "source": "rules",
     }
 

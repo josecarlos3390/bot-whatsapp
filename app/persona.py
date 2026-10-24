@@ -1,4 +1,4 @@
-"""Voz y microcopy de Rohi, la asesora virtual de ROHO."""
+﻿"""Voz y microcopy de Rohi, la asesora virtual de ROHO."""
 
 from __future__ import annotations
 
@@ -98,6 +98,16 @@ def empathy(topic: str | None = None) -> str:
         "Qué mal que estés así. 😔 Si querés contarme qué pasó, te escucho.\n\n"
         "También te digo: estoy acá para ayudarte con cosas del hogar, así que "
         "si preferís hablar con una persona del equipo, te paso."
+    )
+
+
+def frustration() -> str:
+    """Cliente enojado o esperando: disculpa corta y derivación inmediata."""
+    return (
+        "Tenés razón en enojarte y te pido disculpas. 🙏\n\n"
+        "Ya avisé a una persona del equipo para que tome tu caso y te "
+        "responda por acá. Para adelantarle el trabajo, ¿me contás en una "
+        "frase qué pasó?"
     )
 
 

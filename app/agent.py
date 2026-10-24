@@ -2574,6 +2574,27 @@ class Agent:
             ]
         )
 
+    async def _frustration_reply(
+        self, session: AsyncSession, contact: Contact
+    ) -> AgentReply:
+        """Cliente enojado o esperando: disculpa y derivación inmediata."""
+        toolbox = Toolbox(session, contact, self.wa)
+        try:
+            await toolbox.tool_human_handoff(
+                "Cliente enojado o esperando respuesta"
+            )
+        except Exception:  # noqa: BLE001 - la disculpa no se pierde
+            logger.exception("No se pudo crear el handoff por frustración")
+        return AgentReply(
+            [
+                Outbound(
+                    kind="buttons",
+                    text=persona.frustration(),
+                    buttons=[{"id": "human", "title": "Hablar con alguien"}],
+                )
+            ]
+        )
+
     @staticmethod
     def _empathy_reply(decision: dict) -> AgentReply:
         """Ante algo delicado: empatía, cero venta y una salida amable."""
@@ -4002,6 +4023,9 @@ class Agent:
         # Temas delicados (duelo, salud, tristeza): primero la persona.
         if decision.get("sensitive"):
             return self._empathy_reply(decision)
+        # Enojo o espera: disculpa y derivación inmediata, sin vender.
+        if decision.get("frustrated"):
+            return await self._frustration_reply(session, contact)
         if decision["intent"] == "personal":
             event = occasions.EVENTS.get(decision["occasion"] or "")
             if decision["ambiguous"]:

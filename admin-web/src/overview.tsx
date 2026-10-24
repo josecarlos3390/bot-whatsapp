@@ -36,7 +36,21 @@ type Overview = {
     }[];
   };
   search_gaps: { query: string; count: number; last_seen: string | null }[];
+  qa: {
+    hours: number;
+    total: number;
+    counts: Record<string, number>;
+    issues: { kind: string; inbound: string; outbound: string | null; at: string | null }[];
+  };
   alerts: { level: "critical" | "warning"; title: string; detail: string }[];
+};
+
+const QA_LABELS: Record<string, string> = {
+  tema_delicitado: "Tema delicado con producto",
+  enojo_con_venta: "Venta a cliente enojado",
+  producto_sin_pedido: "Producto sin pedido",
+  frase_prohibida: "Frase prohibida",
+  sin_respuesta: "Mensaje sin respuesta"
 };
 
 function formatDate(value: string | null | undefined) {
@@ -237,6 +251,41 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
                     </div>
                   ))}
                 </div>
+              )}
+            </Card>
+
+            <Card className="mb-5 border-[#e5d4bf] bg-[#fffdf9] p-5">
+              <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+                <h3 className="font-serif text-lg font-semibold text-[#3d1a17]">Control de calidad</h3>
+                <span className={`text-[11px] ${(data.qa?.total ?? 0) > 0 ? "text-red-600" : "text-emerald-600"}`}>
+                  Últimas {data.qa?.hours ?? 72} h · {data.qa?.total ?? 0} casos
+                </span>
+              </div>
+              <p className="mb-3 text-xs text-[#8b6d59]">
+                Conversaciones donde algo pudo salir mal: tema delicado con producto, venta a un cliente enojado, producto sin pedido o mensaje sin respuesta.
+              </p>
+              {(data.qa?.total ?? 0) === 0 ? (
+                <p className="text-sm text-emerald-700">Sin anomalías detectadas.</p>
+              ) : (
+                <>
+                  <div className="mb-3 flex flex-wrap gap-2">
+                    {Object.entries(data.qa?.counts ?? {}).map(([kind, count]) => (
+                      <span key={kind} className="rounded-full bg-[#f3ece1] px-2.5 py-1 text-[11px] text-[#5d463b]">
+                        {QA_LABELS[kind] ?? kind}: <strong>{count}</strong>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="space-y-1.5">
+                    {(data.qa?.issues ?? []).slice(0, 6).map((issue, index) => (
+                      <div key={`${issue.kind}-${index}`} className="border-b border-[#f1e6d6] py-1.5 text-[12px] text-[#5d463b]">
+                        <span className="font-semibold text-[#3d1a17]">{QA_LABELS[issue.kind] ?? issue.kind}</span>
+                        <span className="text-[#8b6d59]"> · {formatDate(issue.at)}</span>
+                        <div className="mt-0.5">Cliente: {issue.inbound || "—"}</div>
+                        <div className="text-[11px] text-[#8b6d59]">Bot: {issue.outbound || "sin respuesta"}</div>
+                      </div>
+                    ))}
+                  </div>
+                </>
               )}
             </Card>
 

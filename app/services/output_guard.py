@@ -1,4 +1,4 @@
-"""Validación de salida: la última barrera antes de enviar al cliente.
+﻿"""Validación de salida: la última barrera antes de enviar al cliente.
 
 No reemplaza al modelo ni a las reglas: los audita. Si algo se escapa (una
 frase pobre, un producto que nadie pidió en un tema delicado, una referencia a
@@ -30,6 +30,8 @@ BANNED: tuple[tuple[str, str], ...] = (
         "Se me complicó la consulta. ¿Me la repetís o te paso con un asesor?",
     ),
 )
+
+BANNED_PHRASES = tuple(phrase for phrase, _ in BANNED)
 
 _ID_RE = re.compile(r"^(product|add):([^:]+)")
 
@@ -83,7 +85,20 @@ async def sanitize(session: AsyncSession, reply, text: str | None):
             ]
         )
 
-    # 2. Referencias a SKU inexistentes.
+    # 2. Cliente enojado: nada de venta, solo la disculpa y el contacto humano.
+    if decision.get("frustrated"):
+        reply.messages = _strip_products(reply.messages)
+        if not any(message.text for message in reply.messages):
+            reply.messages = [
+                Outbound(
+                    kind="buttons",
+                    text=persona.frustration(),
+                    buttons=[{"id": "human", "title": "Hablar con alguien"}],
+                )
+            ]
+        return reply
+
+    # 3. Referencias a SKU inexistentes.
     ids: set[str] = set()
     for message in reply.messages:
         for section in message.sections or []:
@@ -126,6 +141,35 @@ async def sanitize(session: AsyncSession, reply, text: str | None):
 
     reply.messages = messages
     return reply
+
+
+def _strip_products(messages: list) -> list:
+    """Quita imágenes y cualquier oferta (filas o botones de producto)."""
+    kept = []
+    for message in messages:
+        if message.kind == "image":
+            continue
+        if message.buttons:
+            message.buttons = [
+                button
+                for button in message.buttons
+                if not _sku_from_id(button.get("id"))
+            ]
+        if message.sections:
+            sections = []
+            for section in message.sections:
+                rows = [
+                    row
+                    for row in section.get("rows") or []
+                    if not _sku_from_id(row.get("id"))
+                ]
+                if rows:
+                    sections.append({**section, "rows": rows})
+            message.sections = sections
+        if message.kind == "list" and not message.sections:
+            continue
+        kept.append(message)
+    return kept
 
 
 def reply_has_product(reply) -> bool:
