@@ -1012,6 +1012,14 @@ Derivación:
 - Si derivás, el bot sigue atendiendo consultas de producto mientras el caso
   espera: no prometas que un humano va a contestar en segundos.
 
+Si el cliente cuenta algo delicado (duelo, enfermedad, tristeza, problemas
+familiares o de dinero):
+- Respondé con empatía breve y humana, sin emojis festivos y sin vender.
+- No ofrezcas productos, no mandes fotos ni listas.
+- Decí con amabilidad que tu función es ayudar con productos del hogar y
+  ofrecé pasar con una persona del equipo.
+- No des consejos médicos, legales ni financieros.
+
 Cuando el cliente cuenta algo personal (un viaje, una mudanza, un bebé, una
 fiesta) sin pedir un producto:
 - Reconocelo en una frase, con calidez: "¡Ah, se viene viaje!".
@@ -2567,20 +2575,62 @@ class Agent:
         )
 
     @staticmethod
+    def _empathy_reply(decision: dict) -> AgentReply:
+        """Ante algo delicado: empatía, cero venta y una salida amable."""
+        topic = decision.get("sensitive_topic")
+        if topic == "duelo":
+            text = (
+                "Lamento mucho lo que me contás. 😔 Perder a alguien que "
+                "querés —una mascota también es familia— es muy duro.\n\n"
+                "Te soy sincero: yo estoy acá para ayudarte con cosas del "
+                "hogar, así que no soy la mejor compañía para acompañarte en "
+                "esto. Si querés, te paso con una persona del equipo; y "
+                "cuando quieras retomamos lo que necesites."
+            )
+        elif topic == "salud":
+            text = (
+                "Siento mucho que estés pasando por eso. 😔\n\n"
+                "Yo no soy quien para darte consejos de salud, pero sí puedo "
+                "escucharte un momento. Si preferís hablar con una persona del "
+                "equipo, te paso; y cuando quieras seguimos con lo que "
+                "necesites de la casa."
+            )
+        else:
+            text = (
+                "Qué mal que estés así. 😔 Si querés contarme qué pasó, te "
+                "escucho.\n\n"
+                "También te digo: estoy acá para ayudarte con cosas del "
+                "hogar, así que si preferís hablar con una persona del equipo, "
+                "te paso."
+            )
+        return AgentReply(
+            [
+                Outbound(
+                    kind="buttons",
+                    text=text,
+                    buttons=[
+                        {"id": "human", "title": "Hablar con alguien"},
+                        {"id": "catalog", "title": "Seguir con productos"},
+                    ],
+                )
+            ]
+        )
+
+    @staticmethod
     def _personal_pivot() -> AgentReply:
-        """El cliente contó algo personal: se reconoce y se ofrece algo."""
+        """El cliente contó algo personal: se reconoce sin empujar la venta."""
         return AgentReply(
             [
                 Outbound(
                     kind="buttons",
                     text=(
-                        "¡Qué bueno que me cuentes! 🙌\n\n"
-                        "¿Querés que te ayude con algo para la casa o seguimos "
-                        "con lo que estabas mirando?"
+                        "Gracias por contarme.\n\n"
+                        "Si querés retomamos con lo que estabas buscando, y si "
+                        "preferís hablar con alguien del equipo, te paso."
                     ),
                     buttons=[
-                        {"id": "catalog", "title": "Ver categorías"},
-                        {"id": "human", "title": "Asesor"},
+                        {"id": "catalog", "title": "Seguir con productos"},
+                        {"id": "human", "title": "Hablar con alguien"},
                     ],
                 )
             ]
@@ -3974,6 +4024,9 @@ class Agent:
         # con lista cerrada de ocasiones. Una frase personal nunca termina en
         # una lista de productos "cercanos".
         decision = await intent_service.classify(raw)
+        # Temas delicados (duelo, salud, tristeza): primero la persona.
+        if decision.get("sensitive"):
+            return self._empathy_reply(decision)
         if decision["intent"] == "personal":
             event = occasions.EVENTS.get(decision["occasion"] or "")
             if decision["ambiguous"]:

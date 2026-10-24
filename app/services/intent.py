@@ -65,6 +65,31 @@ _PRODUCT_TERMS = (
     "maleta", "valija", "mochila", "juguete", "bicicleta", "pesas", "cinta de correr",
 )
 
+# Temas delicados: se responden con empatía, nunca con productos.
+_SENSITIVE_TERMS = {
+    "duelo": (
+        "murio", "murió", "fallecio", "falleció", "perdi a", "perdí a",
+        "se me murio", "se me murió", "muerte", "funeral", "velorio",
+        "mascota", "mi perro", "mi gato",
+    ),
+    "salud": (
+        "enfermo", "enferma", "hospital", "diagnostico", "diagnóstico",
+        "cancer", "cáncer", "ansiedad", "depresion", "depresión",
+        "operacion", "operación", "internado",
+    ),
+    "animo": (
+        "triste", "tristeza", "solo", "sola", "mal", "angustia",
+        "llorar", "llorando", "deprimido", "deprimida", "no estoy bien",
+    ),
+    "familia": (
+        "divorcio", "separacion", "separación", "se murio mi", "se murió mi",
+        "mi mama", "mi mamá", "mi papa", "mi papá",
+    ),
+    "dinero": (
+        "despedido", "despedida", "sin trabajo", "deuda", "no tengo plata",
+    ),
+}
+
 _PERSONAL_TERMS = (
     "te cuento", "viaj", "vacacion", "vacación", "mud", "mudanza",
     "casa nueva", "departamento nuevo", "me case", "me casé", "casamiento",
@@ -118,6 +143,15 @@ def rules(text: str | None) -> dict[str, Any]:
     negated = bool(_NEGATION_RE.match(normalized))
     question = bool(_QUESTION_RE.search(normalized))
 
+    sensitive_topic = next(
+        (
+            topic
+            for topic, terms in _SENSITIVE_TERMS.items()
+            if _has(normalized, terms)
+        ),
+        None,
+    )
+
     if not normalized:
         intent = "otro"
     elif _GREETING_RE.match(folded) and len(folded.split()) <= 6 and not buys:
@@ -151,6 +185,8 @@ def rules(text: str | None) -> dict[str, Any]:
         "buy": bool(buys or mentions_product),
         "ambiguous": ambiguous,
         "negated": negated,
+        "sensitive": sensitive_topic is not None,
+        "sensitive_topic": sensitive_topic,
         "source": "rules",
     }
 
@@ -190,7 +226,9 @@ Respondé SOLO con JSON válido, sin explicaciones:
   "intent": "producto|personal|pregunta|saludo|otro",
   "occasion": "<clave de la lista o ninguna>",
   "compra": true|false,
-  "ambiguo": true|false
+  "ambiguo": true|false,
+  "sensible": true|false,
+  "tema_sensible": "duelo|salud|animo|familia|dinero|ninguno"
 }
 
 Reglas:
@@ -203,6 +241,8 @@ Reglas:
 - "ambiguo" es true si la frase puede significar dos cosas y conviene preguntar
   (por ejemplo "no, ya viajaré": ¿se va o se queda?).
 - Si nombra un plan personal, occasion puede ser su clave aunque compra sea false.
+- "sensible" es true ante duelo, enfermedad, tristeza, problemas familiares o
+  de dinero. En esos casos NO hay que ofrecer productos.
 - Nunca inventes una ocasión: usá una de la lista o "ninguna"."""
 
 
@@ -240,12 +280,17 @@ async def _llm(text: str) -> dict[str, Any] | None:
         occasion = None
     elif occasion not in occasions.EVENTS:
         occasion = None
+    topic = str(data.get("tema_sensible") or "ninguno").lower()
+    if topic in ("ninguno", "none", "", "null"):
+        topic = None
     return {
         "intent": intent,
         "occasion": occasion,
         "buy": bool(data.get("compra")),
         "ambiguous": bool(data.get("ambiguo")),
         "negated": False,
+        "sensitive": bool(data.get("sensible")) or topic is not None,
+        "sensitive_topic": topic,
         "source": "llm",
     }
 
@@ -262,6 +307,7 @@ async def classify(text: str | None, *, use_llm: bool = True) -> dict[str, Any]:
     needs_model = (
         settings.deepseek_api_key
         and use_llm
+        and not result.get("sensitive")
         and result["intent"] in ("otro", "personal", "pregunta")
         and (result["ambiguous"] or not result["buy"])
     )
@@ -275,6 +321,13 @@ async def classify(text: str | None, *, use_llm: bool = True) -> dict[str, Any]:
                 model.get("ambiguous") or result["ambiguous"]
             )
             merged["negated"] = result["negated"]
+            # Ante un tema delicado, la regla manda: siempre empatía.
+            merged["sensitive"] = bool(
+                model.get("sensitive") or result.get("sensitive")
+            )
+            merged["sensitive_topic"] = (
+                result.get("sensitive_topic") or model.get("sensitive_topic")
+            )
             if not merged.get("occasion"):
                 merged["occasion"] = result["occasion"]
             # Las reglas no se dejan pisar cuando encuentran algo concreto:
