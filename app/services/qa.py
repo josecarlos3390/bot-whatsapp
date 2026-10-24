@@ -1,4 +1,4 @@
-"""Control de calidad: busca conversaciones donde algo salió mal.
+﻿"""Control de calidad: busca conversaciones donde algo salió mal.
 
 No mira todo: detecta patrones concretos sobre conversaciones reales.
 
@@ -12,6 +12,7 @@ No mira todo: detecta patrones concretos sobre conversaciones reales.
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
@@ -21,6 +22,29 @@ from ..models import Message
 from . import intent, output_guard
 
 logger = logging.getLogger(__name__)
+
+# Ids de botones (product:SKU, add:SKU:1, cart…): no son mensajes del cliente.
+PAYLOAD_RE = re.compile(
+    r"^(product|add|qty|remove|refine|cat|find|checkout|cart|catalog|more|"
+    r"filter|search|human|price|occ)\b",
+    re.IGNORECASE,
+)
+
+
+def _is_button_payload(text: str | None) -> bool:
+    return bool(PAYLOAD_RE.match((text or "").strip()))
+
+
+# Respuestas cortas a una pregunta previa del bot ("sí", "dale", "ok").
+SHORT_REPLIES = {
+    "si", "sí", "no", "dale", "ok", "okay", "gracias", "listo", "nada",
+    "eso", "ese", "esa", "bueno", "perfecto",
+}
+
+
+def _is_short_reply(text: str | None) -> bool:
+    return (text or "").strip().lower() in SHORT_REPLIES
+
 
 PRODUCT_MARKERS = (
     "precio:",
@@ -89,6 +113,9 @@ async def scan(
         if inbound is None:
             continue
 
+        if _is_button_payload(inbound["text"]):
+            continue
+
         decision = intent.rules(inbound["text"])
         offers_product = _is_product_message(type_, text)
 
@@ -96,9 +123,13 @@ async def scan(
             add("tema_delicitado", inbound["text"], text, created_at)
         elif decision.get("frustrated") and offers_product:
             add("enojo_con_venta", inbound["text"], text, created_at)
-        elif offers_product and not decision.get("buy"):
-            if "catalog" not in (inbound["text"] or "").lower():
-                add("producto_sin_pedido", inbound["text"], text, created_at)
+        elif (
+            offers_product
+            and not decision.get("buy")
+            and not _is_short_reply(inbound["text"])
+            and "catalog" not in (inbound["text"] or "").lower()
+        ):
+            add("producto_sin_pedido", inbound["text"], text, created_at)
 
         if _has_banned(text):
             add("frase_prohibida", inbound["text"], text, created_at)

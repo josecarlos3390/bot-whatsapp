@@ -335,6 +335,11 @@ async def classify(text: str | None, *, use_llm: bool = True) -> dict[str, Any]:
                 model.get("ambiguous") or result["ambiguous"]
             )
             merged["negated"] = result["negated"]
+            # El enojo lo detectan las reglas (palabras explícitas): no se
+            # pierde cuando el modelo opina otra cosa.
+            merged["frustrated"] = bool(
+                model.get("frustrated") or result.get("frustrated")
+            )
             # Ante un tema delicado, la regla manda: siempre empatía.
             merged["sensitive"] = bool(
                 model.get("sensitive") or result.get("sensitive")
