@@ -39,6 +39,7 @@ from .services import (
     handoffs,
     knowledge,
     memory as memory_service,
+    metrics,
     native_commerce,
     orders,
     policy as policy_guard,
@@ -4686,6 +4687,21 @@ class Agent:
                     "El proveedor de IA falló; se responde con las reglas"
                 )
                 return await self._demo(session, contact, text)
+            usage = getattr(completion, "usage", None)
+            if usage is not None:
+                # Los tokens cacheados llegan en un campo extra (no tipado por
+                # el SDK): se leen del volcado.
+                extra = getattr(usage, "model_extra", None) or {}
+                cache_hit = extra.get("prompt_cache_hit_tokens") or 0
+                if not cache_hit:
+                    details = getattr(usage, "prompt_tokens_details", None)
+                    cache_hit = getattr(details, "cached_tokens", 0) or 0
+                metrics.record_tokens(
+                    getattr(usage, "prompt_tokens", 0) or 0,
+                    getattr(usage, "completion_tokens", 0) or 0,
+                    settings.deepseek_model,
+                    cache_hit=cache_hit,
+                )
             choice = completion.choices[0].message
             if not choice.tool_calls:
                 answer = _remove_stock_phrases(

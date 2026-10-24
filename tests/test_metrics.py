@@ -1,4 +1,4 @@
-"""Latencia: percentiles y registro."""
+﻿"""Latencia: percentiles y registro."""
 
 from __future__ import annotations
 
@@ -36,3 +36,20 @@ def test_registrar_no_falla_sin_directorio(tmp_path, monkeypatch):
     metrics.record(1234)
 
     assert metrics.PATH.exists()
+
+
+def test_resumen_de_tokens(tmp_path, monkeypatch):
+    archivo = tmp_path / "tokens.jsonl"
+    archivo.write_text(
+        json.dumps({"prompt": 6000, "completion": 80, "cache_hit": 5800}) + "\n"
+        + json.dumps({"prompt": 6100, "completion": 90, "cache_hit": 5900}) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(metrics, "TOKENS_PATH", archivo)
+
+    resumen = metrics.tokens_summary(10)
+
+    assert resumen["calls"] == 2
+    assert resumen["prompt_tokens"] == 12100
+    assert resumen["avg_prompt"] == 6050
+    assert resumen["cache_hit_rate"] == 97

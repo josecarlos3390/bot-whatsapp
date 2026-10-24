@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "./api";
 import { AreaHeader } from "./areas";
@@ -41,6 +41,16 @@ type Overview = {
     total: number;
     counts: Record<string, number>;
     issues: { kind: string; inbound: string; outbound: string | null; at: string | null }[];
+  };
+  tokens: {
+    calls: number;
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+    avg_prompt: number;
+    avg_completion: number;
+    cache_hit_tokens: number;
+    cache_hit_rate: number;
   };
   latency: {
     count: number;
@@ -260,6 +270,33 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
                   ))}
                 </div>
               )}
+            </Card>
+
+            <Card className="mb-5 border-[#e5d4bf] bg-[#fffdf9] p-5">
+              <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+                <h3 className="font-serif text-lg font-semibold text-[#3d1a17]">Consumo del modelo</h3>
+                <span className={`text-[11px] ${(data.tokens?.cache_hit_rate ?? 0) >= 80 ? "text-emerald-600" : "text-amber-700"}`}>
+                  Caché {data.tokens?.cache_hit_rate ?? 0}% · {(data.tokens?.calls ?? 0)} llamadas
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div>
+                  <div className="text-[11px] uppercase tracking-wide text-[#8b6d59]">Entrada / llamada</div>
+                  <div className="text-xl font-semibold text-[#3d1a17]">{(data.tokens?.avg_prompt ?? 0).toLocaleString("es")}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] uppercase tracking-wide text-[#8b6d59]">Salida / llamada</div>
+                  <div className="text-xl font-semibold text-[#3d1a17]">{(data.tokens?.avg_completion ?? 0).toLocaleString("es")}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] uppercase tracking-wide text-[#8b6d59]">Cacheado</div>
+                  <div className="text-xl font-semibold text-emerald-700">{(data.tokens?.cache_hit_tokens ?? 0).toLocaleString("es")}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] uppercase tracking-wide text-[#8b6d59]">Total tokens</div>
+                  <div className="text-xl font-semibold text-[#3d1a17]">{(data.tokens?.total_tokens ?? 0).toLocaleString("es")}</div>
+                </div>
+              </div>
             </Card>
 
             <Card className="mb-5 border-[#e5d4bf] bg-[#fffdf9] p-5">
