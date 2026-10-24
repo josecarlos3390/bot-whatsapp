@@ -4578,6 +4578,7 @@ class Agent:
         articles = result.get("articles") or []
         if not articles:
             return None
+        self._trace("Política publicada")
 
         terms = [
             _fold_word(word)

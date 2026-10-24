@@ -51,6 +51,7 @@ from .runtime import whatsapp
 from .sap import SapError, get_sap
 from .services import catalog
 from .services import metrics
+from .services import sim_history
 from .services import advisors as advisor_service
 from .services import area_rules
 from .services import area_users
@@ -1361,9 +1362,11 @@ async def admin_simulate(
     try:
         started = time.perf_counter()
         agent = Agent()
+        failure = None
         try:
             reply = await agent.handle(session, contact, text)
-        except Exception:  # noqa: BLE001 - el panel muestra el error
+        except Exception as exc:  # noqa: BLE001 - el panel muestra el error
+            failure = f"{type(exc).__name__}: {exc}"[:300]
             logger.exception("Falló la simulación desde la consola")
             reply = AgentReply(
                 [Outbound(text="La simulación falló. Revisá el log del bot.")]
@@ -1406,12 +1409,27 @@ async def admin_simulate(
             await session.execute(delete(Contact).where(Contact.id == contact.id))
             await session.commit()
 
+    sim_history.record(
+        text=text,
+        ms=elapsed,
+        trace=agent.trace,
+        preview=(replies[0]["text"] or "") if replies else "",
+        error=failure,
+    )
     return {
         "ok": True,
         "ms": elapsed,
         "replies": replies,
         "trace": agent.trace,
+        "error": failure,
     }
+
+
+@router.get("/admin/simulate/history")
+async def admin_simulate_history(
+    _: dict = Depends(require_center_admin),
+) -> dict:
+    return {"ok": True, "items": sim_history.recent(15)}
 
 
 @router.post("/areas/occasions/simulate")

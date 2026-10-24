@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "./api";
 import { AreaHeader } from "./areas";
@@ -108,6 +108,15 @@ type ProbeReply = {
 
 type ProbeTrace = string[];
 
+type ProbeEntry = {
+  at: string;
+  text: string;
+  ms: number;
+  trace: string[];
+  preview: string;
+  error: string | null;
+};
+
 export function OverviewPage({ onLogout }: { onLogout: () => void }) {
   const [data, setData] = useState<Overview | null>(null);
   const [error, setError] = useState("");
@@ -118,19 +127,36 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
   const [probeError, setProbeError] = useState("");
   const [probeTrace, setProbeTrace] = useState<ProbeTrace>([]);
   const [probing, setProbing] = useState(false);
+  const [probeHistory, setProbeHistory] = useState<ProbeEntry[]>([]);
 
-  async function runProbe() {
-    if (!probe.trim()) return;
+  async function loadProbeHistory() {
+    try {
+      const result = await api<{ items: ProbeEntry[] }>("/admin/simulate/history");
+      setProbeHistory(result.items || []);
+    } catch {
+      // el historial es opcional
+    }
+  }
+
+  useEffect(() => {
+    void loadProbeHistory();
+  }, []);
+
+  async function runProbe(texto?: string) {
+    const message = (texto ?? probe).trim();
+    if (!message) return;
     setProbing(true);
     setProbeError("");
     try {
-      const result = await api<{ replies: ProbeReply[]; ms: number; trace?: ProbeTrace }>("/admin/simulate", {
+      const result = await api<{ replies: ProbeReply[]; ms: number; trace?: ProbeTrace; error?: string | null }>("/admin/simulate", {
         method: "POST",
-        body: JSON.stringify({ text: probe.trim() })
+        body: JSON.stringify({ text: message })
       });
       setProbeReplies(result.replies || []);
       setProbeMs(result.ms || 0);
       setProbeTrace(result.trace || []);
+      if (result.error) setProbeError(result.error);
+      void loadProbeHistory();
     } catch (exception) {
       setProbeError(exception instanceof Error ? exception.message : "No se pudo probar");
       setProbeReplies([]);
@@ -413,6 +439,28 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
                       )}
                     </div>
                   ))}
+                </div>
+              )}
+              {probeHistory.length > 0 && (
+                <div className="mt-4 border-t border-[#f1e6d6] pt-3">
+                  <div className="mb-1 text-[11px] font-bold uppercase tracking-wide text-[#8b6d59]">Últimas pruebas</div>
+                  <div className="space-y-1">
+                    {probeHistory.map((item) => (
+                      <div key={item.at + item.text} className="flex flex-wrap items-center gap-2 text-[11px] text-[#5b3323]">
+                        <span className="text-[#8b6d59]">{new Date(item.at).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })}</span>
+                        <span className="flex-1 truncate">{item.text}</span>
+                        <span className="text-[#8b6d59]">{(item.ms / 1000).toFixed(1)} s</span>
+                        {item.error && <span className="text-red-600">error</span>}
+                        <button
+                          type="button"
+                          className="rounded-full border border-[#d9c3aa] px-2 py-0.5 font-semibold text-[#5b3323] hover:bg-[#fbf3e8]"
+                          onClick={() => { setProbe(item.text); void runProbe(item.text); }}
+                        >
+                          Repetir
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </Card>
