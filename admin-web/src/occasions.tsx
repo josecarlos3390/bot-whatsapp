@@ -1,4 +1,5 @@
 ﻿import { useEffect, useMemo, useState } from "react";
+import { t } from "./i18n";
 import { Link } from "react-router-dom";
 import { api } from "./api";
 import { AreaHeader } from "./areas";
@@ -191,7 +192,7 @@ export function OccasionsPage({
   return (
     <div className="min-h-screen bg-[#f5f6f8] text-[#111111]">
       <AreaHeader
-        title="Ocasiones y campañas"
+        title={t("Ocasiones y campañas")}
         subtitle={isAdmin ? "Administración" : `${userArea} · ${areaUser?.display_name || "encargado"}`}
         onLogout={onLogout}
       />
@@ -200,7 +201,7 @@ export function OccasionsPage({
           <div className="flex items-start gap-3">
             <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#e9082a] text-xs font-bold text-[#ffffff]">?</div>
             <div>
-              <div className="text-sm font-semibold text-[#111111]">¿Para qué sirve esta pantalla?</div>
+              <div className="text-sm font-semibold text-[#111111]">{t("¿Para qué sirve esta pantalla?")}</div>
               <p className="mt-1 text-xs leading-relaxed text-[#4b5563]">
                 Una ocasión le dice al bot qué buscar cuando el cliente pregunta por algo amplio:
                 “Halloween”, “baby shower”, “mudanza”. El bot busca los términos directos en VTEX,
@@ -212,30 +213,30 @@ export function OccasionsPage({
         </div>
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <div className="mb-1 text-[10px] font-bold uppercase tracking-[.28em] text-[#e9082a]">Centro de contenido</div>
-            <h1 className="font-serif text-3xl font-semibold tracking-tight text-[#111111]">Campañas que entienden al cliente</h1>
+            <div className="mb-1 text-[10px] font-bold uppercase tracking-[.28em] text-[#e9082a]">{t("Centro de contenido")}</div>
+            <h1 className="font-serif text-3xl font-semibold tracking-tight text-[#111111]">{t("Campañas que entienden al cliente")}</h1>
             <p className="mt-1 max-w-2xl text-sm text-[#4b5563]">
               Definí qué debe buscar el bot, qué debe excluir y qué alternativa ofrecer. Publicá para que empiece a usarlo.
             </p>
           </div>
           <div className="flex gap-2">
-            {isAdmin && <Button variant="secondary" onClick={seed}>Cargar ejemplos</Button>}
-            <Link to="/rules" className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm font-semibold text-[#1f2937] hover:bg-[#fffaf4]">Ver reglas</Link>
+            {isAdmin && <Button variant="secondary" onClick={seed}>{t("Cargar ejemplos")}</Button>}
+            <Link to="/rules" className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm font-semibold text-[#1f2937] hover:bg-[#fffaf4]">{t("Ver reglas")}</Link>
           </div>
         </div>
 
         <div className="mb-5 grid gap-3 sm:grid-cols-3">
           <div className="rounded-2xl border border-[#e5e7eb] bg-white/80 p-4 shadow-sm">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-[#e9082a]">Ocasiones</div>
+            <div className="text-[10px] font-bold uppercase tracking-widest text-[#e9082a]">{t("Ocasiones")}</div>
             <div className="mt-1 text-2xl font-semibold">{occasions.length}</div>
           </div>
           <div className="rounded-2xl border border-[#e5e7eb] bg-white/80 p-4 shadow-sm">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-[#e9082a]">Publicadas</div>
+            <div className="text-[10px] font-bold uppercase tracking-widest text-[#e9082a]">{t("Publicadas")}</div>
             <div className="mt-1 text-2xl font-semibold">{published}</div>
           </div>
           <div className="rounded-2xl border border-[#e5e7eb] bg-[#111111] p-4 text-[#f5f6f8] shadow-sm">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-[#ffb3bd]">Regla de oro</div>
-            <div className="mt-1 text-sm">Primero EL catálogo. Después la inferencia.</div>
+            <div className="text-[10px] font-bold uppercase tracking-widest text-[#ffb3bd]">{t("Regla de oro")}</div>
+            <div className="mt-1 text-sm">{t("Primero EL catálogo. Después la inferencia.")}</div>
           </div>
         </div>
 
@@ -244,8 +245,8 @@ export function OccasionsPage({
 
         <Card className="mb-5 border-[#e5e7eb] bg-white/80 p-4">
           <div className="mb-1 flex flex-wrap items-center gap-2">
-            <h2 className="text-sm font-bold text-[#111111]">Probar un mensaje</h2>
-            <span className="rounded-full bg-[#f3f4f6] px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-[#6b7280]">Simulador</span>
+            <h2 className="text-sm font-bold text-[#111111]">{t("Probar un mensaje")}</h2>
+            <span className="rounded-full bg-[#f3f4f6] px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-[#6b7280]">{t("Simulador")}</span>
           </div>
           <p className="mb-2 text-xs text-[#4b5563]">
             Escribí lo que diría un cliente y fijate qué ocasión detecta el bot y qué buscaría. No modifica nada.
@@ -256,7 +257,7 @@ export function OccasionsPage({
               value={testText}
               onChange={(event) => setTestText(event.target.value)}
               onKeyDown={(event) => { if (event.key === "Enter") void runTest(); }}
-              placeholder="Ej: venden algo para halloween?"
+              placeholder={t("Ej: venden algo para halloween?")}
             />
             <Button onClick={() => void runTest()} disabled={testing || !testText.trim()}>
               {testing ? "Probando…" : "Probar"}
@@ -266,8 +267,7 @@ export function OccasionsPage({
             <div className="mt-3 rounded-xl border border-[#e5e7eb] bg-[#ffffff] px-3 py-2 text-xs text-[#1f2937]">
               {testResult.detected ? (
                 <>
-                  <div>
-                    Detecta <strong>{testResult.detected.label}</strong>
+                  <div>{t("Detecta")}<strong>{testResult.detected.label}</strong>
                     {testResult.detected.matched ? <> (coincidió con «{testResult.detected.matched}»)</> : null}.
                   </div>
                   {testResult.would_search.length > 0 && (
@@ -286,74 +286,63 @@ export function OccasionsPage({
         <Card className="mb-6 border-[#e5e7eb] bg-[#ffffff] p-5">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="font-serif text-xl font-semibold text-[#111111]">{editing ? "Editar ocasión" : "Nueva ocasión"}</h2>
-            {editing && <Button variant="ghost" size="sm" onClick={reset}>Cancelar edición</Button>}
+            {editing && <Button variant="ghost" size="sm" onClick={reset}>{t("Cancelar edición")}</Button>}
           </div>
           <div className="grid gap-4 md:grid-cols-2">
-            <label className="text-xs font-semibold text-[#4b5563]">Nombre
-              <Input className="mt-1 border-[#e5e7eb] bg-white" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Halloween, Navidad, Baby shower..." />
+            <label className="text-xs font-semibold text-[#4b5563]">{t("Nombre")}<Input className="mt-1 border-[#e5e7eb] bg-white" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder={t("Halloween, Navidad, Baby shower...")} />
             </label>
-            <label className="text-xs font-semibold text-[#4b5563]" title="Área que será dueña de la ocasión y podrá mantenerla.">Área responsable
+            <label className="text-xs font-semibold text-[#4b5563]" title={t("Área que será dueña de la ocasión y podrá mantenerla.")}>Área responsable
               {isAdmin ? (
                 <select className="mt-1 w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm" value={form.area} onChange={(event) => setForm({ ...form, area: event.target.value })}>
-                  <option value="marketing">Marketing</option>
-                  <option value="ecommerce">Ecommerce</option>
-                  <option value="general">General</option>
+                  <option value="marketing">{t("Marketing")}</option>
+                  <option value="ecommerce">{t("Ecommerce")}</option>
+                  <option value="general">{t("General")}</option>
                 </select>
               ) : (
                 <div className="mt-1 rounded-lg border border-[#e5e7eb] bg-[#f5f6f8] px-3 py-2 text-sm font-medium text-[#1f2937]">{userArea}</div>
               )}
             </label>
-            <label className="text-xs font-semibold text-[#4b5563]">Alias del cliente
-              <Input className="mt-1 border-[#e5e7eb]" value={form.aliases} onChange={(event) => setForm({ ...form, aliases: event.target.value })} placeholder="halloween, halloweén" />
+            <label className="text-xs font-semibold text-[#4b5563]">{t("Alias del cliente")}<Input className="mt-1 border-[#e5e7eb]" value={form.aliases} onChange={(event) => setForm({ ...form, aliases: event.target.value })} placeholder={t("halloween, halloweén")} />
             </label>
-            <label className="text-xs font-semibold text-[#4b5563]">Prioridad
-              <Input className="mt-1 border-[#e5e7eb]" type="number" value={form.priority} onChange={(event) => setForm({ ...form, priority: Number(event.target.value) })} />
+            <label className="text-xs font-semibold text-[#4b5563]">{t("Prioridad")}<Input className="mt-1 border-[#e5e7eb]" type="number" value={form.priority} onChange={(event) => setForm({ ...form, priority: Number(event.target.value) })} />
             </label>
-            <label className="text-xs font-semibold text-[#4b5563]">Términos directos
-              <Input className="mt-1 border-[#e5e7eb]" value={form.direct} onChange={(event) => setForm({ ...form, direct: event.target.value })} placeholder="disfraz, dulce, calabaza, vela" />
+            <label className="text-xs font-semibold text-[#4b5563]">{t("Términos directos")}<Input className="mt-1 border-[#e5e7eb]" value={form.direct} onChange={(event) => setForm({ ...form, direct: event.target.value })} placeholder={t("disfraz, dulce, calabaza, vela")} />
             </label>
-            <label className="text-xs font-semibold text-[#4b5563]">Excluir términos
-              <Input className="mt-1 border-[#e5e7eb]" value={form.exclude} onChange={(event) => setForm({ ...form, exclude: event.target.value })} placeholder="mueble, silla, navidad" />
+            <label className="text-xs font-semibold text-[#4b5563]">{t("Excluir términos")}<Input className="mt-1 border-[#e5e7eb]" value={form.exclude} onChange={(event) => setForm({ ...form, exclude: event.target.value })} placeholder={t("mueble, silla, navidad")} />
             </label>
-            <label className="text-xs font-semibold text-[#4b5563]">Excluir categorías
-              <Input className="mt-1 border-[#e5e7eb]" value={form.exclude_categories} onChange={(event) => setForm({ ...form, exclude_categories: event.target.value })} placeholder="MUEBLES, PINTURA, HERRAMIENTAS" />
+            <label className="text-xs font-semibold text-[#4b5563]">{t("Excluir categorías")}<Input className="mt-1 border-[#e5e7eb]" value={form.exclude_categories} onChange={(event) => setForm({ ...form, exclude_categories: event.target.value })} placeholder={t("MUEBLES, PINTURA, HERRAMIENTAS")} />
             </label>
             <div className="grid grid-cols-2 gap-3">
-              <label className="text-xs font-semibold text-[#4b5563]">Desde
-                <Input className="mt-1 border-[#e5e7eb]" type="date" value={form.valid_from} onChange={(event) => setForm({ ...form, valid_from: event.target.value })} />
+              <label className="text-xs font-semibold text-[#4b5563]">{t("Desde")}<Input className="mt-1 border-[#e5e7eb]" type="date" value={form.valid_from} onChange={(event) => setForm({ ...form, valid_from: event.target.value })} />
               </label>
-              <label className="text-xs font-semibold text-[#4b5563]">Hasta
-                <Input className="mt-1 border-[#e5e7eb]" type="date" value={form.valid_to} onChange={(event) => setForm({ ...form, valid_to: event.target.value })} />
+              <label className="text-xs font-semibold text-[#4b5563]">{t("Hasta")}<Input className="mt-1 border-[#e5e7eb]" type="date" value={form.valid_to} onChange={(event) => setForm({ ...form, valid_to: event.target.value })} />
               </label>
             </div>
-            <label className="text-xs font-semibold text-[#4b5563]">Alternativa natural
-              <Input className="mt-1 border-[#e5e7eb]" value={form.bridge_label} onChange={(event) => setForm({ ...form, bridge_label: event.target.value })} placeholder="una noche de película" />
+            <label className="text-xs font-semibold text-[#4b5563]">{t("Alternativa natural")}<Input className="mt-1 border-[#e5e7eb]" value={form.bridge_label} onChange={(event) => setForm({ ...form, bridge_label: event.target.value })} placeholder={t("una noche de película")} />
             </label>
-            <label className="text-xs font-semibold text-[#4b5563]">Términos de la alternativa
-              <Input className="mt-1 border-[#e5e7eb]" value={form.bridge_terms} onChange={(event) => setForm({ ...form, bridge_terms: event.target.value })} placeholder="televisor, tv" />
+            <label className="text-xs font-semibold text-[#4b5563]">{t("Términos de la alternativa")}<Input className="mt-1 border-[#e5e7eb]" value={form.bridge_terms} onChange={(event) => setForm({ ...form, bridge_terms: event.target.value })} placeholder={t("televisor, tv")} />
             </label>
-            <label className="text-xs font-semibold text-[#4b5563]">Estado
-              <select className="mt-1 w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm" value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}>
-                <option value="draft">Borrador</option>
-                <option value="published">Publicada</option>
+            <label className="text-xs font-semibold text-[#4b5563]">{t("Estado")}<select className="mt-1 w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm" value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}>
+                <option value="draft">{t("Borrador")}</option>
+                <option value="published">{t("Publicada")}</option>
               </select>
             </label>
           </div>
           <div className="mt-5 flex gap-2">
-            <Button className="bg-[#e9082a] hover:bg-[#a90418]" onClick={save}>Guardar ocasión</Button>
-            <Button variant="ghost" onClick={reset}>Limpiar</Button>
+            <Button className="bg-[#e9082a] hover:bg-[#a90418]" onClick={save}>{t("Guardar ocasión")}</Button>
+            <Button variant="ghost" onClick={reset}>{t("Limpiar")}</Button>
           </div>
         </Card>
 
         <div className="mb-3 flex items-end justify-between">
           <div>
-            <h2 className="font-serif text-xl font-semibold text-[#111111]">Ocasiones cargadas</h2>
-            <p className="text-xs text-[#4b5563]">Borradores no se usan. Publicá para que el bot los lea.</p>
+            <h2 className="font-serif text-xl font-semibold text-[#111111]">{t("Ocasiones cargadas")}</h2>
+            <p className="text-xs text-[#4b5563]">{t("Borradores no se usan. Publicá para que el bot los lea.")}</p>
           </div>
         </div>
 
         <div className="grid gap-3 md:grid-cols-2">
-          {loading ? <div className="text-sm text-[#4b5563]">Cargando…</div> : null}
+          {loading ? <div className="text-sm text-[#4b5563]">{t("Cargando…")}</div> : null}
           {!loading && !occasions.length ? <div className="rounded-2xl border border-dashed border-[#e5e7eb] bg-white/60 p-6 text-sm text-[#4b5563]">{isAdmin ? "Todavía no hay ocasiones. Usá “Cargar ejemplos” o creá una." : "Tu área todavía no tiene ocasiones. Creá la primera para que el bot sepa qué buscar."}</div> : null}
           {occasions.map((item) => (
             <Card key={item.id} className="border-[#e5e7eb] bg-[#ffffff] p-4">
@@ -369,19 +358,19 @@ export function OccasionsPage({
                 <div className="flex flex-wrap justify-end gap-1">
                   {isAdmin || item.area === userArea ? (
                     <>
-                      <Button variant="ghost" size="sm" onClick={() => edit(item)}>Editar</Button>
-                      {item.status !== "published" && <Button variant="secondary" size="sm" onClick={() => publish(item.id)}>Publicar</Button>}
-                      <Button variant="danger" size="sm" onClick={() => remove(item.id)}>Eliminar</Button>
+                      <Button variant="ghost" size="sm" onClick={() => edit(item)}>{t("Editar")}</Button>
+                      {item.status !== "published" && <Button variant="secondary" size="sm" onClick={() => publish(item.id)}>{t("Publicar")}</Button>}
+                      <Button variant="danger" size="sm" onClick={() => remove(item.id)}>{t("Eliminar")}</Button>
                     </>
                   ) : (
-                    <span className="rounded-full border border-[#e5e7eb] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#9ca3af]">Solo lectura</span>
+                    <span className="rounded-full border border-[#e5e7eb] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#9ca3af]">{t("Solo lectura")}</span>
                   )}
                 </div>
               </div>
               <div className="mt-3 grid gap-2 text-xs text-[#374151] sm:grid-cols-2">
-                <div><span className="font-semibold text-[#111111]">Directo:</span> {item.direct.join(", ") || "—"}</div>
-                <div><span className="font-semibold text-[#111111]">Excluye:</span> {[...item.exclude, ...item.exclude_categories].join(", ") || "—"}</div>
-                <div className="sm:col-span-2"><span className="font-semibold text-[#111111]">Alternativa:</span> {item.bridges?.[0] ? `${item.bridges[0].label}: ${item.bridges[0].terms.join(", ")}` : "—"}</div>
+                <div><span className="font-semibold text-[#111111]">{t("Directo:")}</span> {item.direct.join(", ") || "—"}</div>
+                <div><span className="font-semibold text-[#111111]">{t("Excluye:")}</span> {[...item.exclude, ...item.exclude_categories].join(", ") || "—"}</div>
+                <div className="sm:col-span-2"><span className="font-semibold text-[#111111]">{t("Alternativa:")}</span> {item.bridges?.[0] ? `${item.bridges[0].label}: ${item.bridges[0].terms.join(", ")}` : "—"}</div>
               </div>
             </Card>
           ))}

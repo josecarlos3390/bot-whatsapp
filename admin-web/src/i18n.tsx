@@ -1,12 +1,15 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+﻿import { createContext, Fragment, useContext, useEffect, useMemo, useState } from "react";
 
 /**
- * Traducción ligera del panel.
+ * Traducción del panel sin librerías externas.
  *
- * La clave es el texto en español: si una cadena todavía no está traducida, se
- * muestra tal cual. Así se puede ir traduciendo por partes sin romper nada.
+ * La clave es el texto en español: si falta una traducción, se muestra el
+ * original. `t()` funciona a nivel de módulo, así que no hace falta agregar el
+ * hook en cada componente; al cambiar el idioma el árbol se vuelve a montar.
  */
 export type Lang = "es" | "en";
+
+let idiomaActual: Lang = "es";
 
 const EN: Record<string, string> = {
   // Navegación y cabecera
@@ -22,16 +25,22 @@ const EN: Record<string, string> = {
   "Notificaciones": "Notifications",
   "Guardia": "On duty",
   "Sin guardia": "No one on duty",
+  "Salir": "Sign out",
   "Cerrar sesión": "Sign out",
-  "Tema": "Theme",
+  "Volver a bandeja": "Back to inbox",
+  "Ir a atención": "Go to inbox",
+  "Cargando consola…": "Loading console…",
+  "Cargando estado…": "Loading status…",
+  "Cargando…": "Loading…",
   // Login
   "Consola": "Console",
   "Área": "Area",
   "Usuario": "Username",
   "Contraseña": "Password",
   "Ingresar": "Sign in",
+  "Ingresando…": "Signing in…",
   "Usuario o contraseña incorrectos.": "Wrong username or password.",
-  "ROHO HOMECENTER": "ROHO HOMECENTER",
+  "ROHO Homecenter": "ROHO Homecenter",
   // Tablero
   "Centro de operación": "Operations center",
   "¿Cómo está el bot hoy?": "How is the bot doing today?",
@@ -55,6 +64,7 @@ const EN: Record<string, string> = {
   "Repetir": "Run again",
   "Probando…": "Testing…",
   "Probar": "Test",
+  "Probar un mensaje": "Test a message",
   "Mediana": "Median",
   "p95": "p95",
   "Máxima": "Max",
@@ -64,8 +74,192 @@ const EN: Record<string, string> = {
   "Cacheado": "Cached",
   "Total tokens": "Total tokens",
   "Sin anomalías detectadas.": "No anomalies detected.",
-  "Casos": "Cases",
+  "Últimos 30 días.": "Last 30 days.",
+  "Indicadores de las últimas 24 horas.": "Last 24 hours indicators.",
+  "Métricas · últimos 30 días": "Metrics · last 30 days",
+  "Mensajes 24 h": "Messages 24 h",
+  "Handoffs abiertos": "Open handoffs",
+  "Tomados": "Taken",
+  "Reabiertos": "Reopened",
+  "Resueltos": "Resolved",
+  "Fallbacks / aclaraciones": "Fallbacks / clarifications",
+  "Errores de herramientas": "Tool errors",
+  "Llamadas a herramientas": "Tool calls",
+  "Tiempo real + respaldo cada 30 s": "Real time + fallback every 30 s",
+  // Bandeja y detalle
+  "Buscar por nombre, número o motivo…": "Search by name, number or reason…",
+  "Elegí un handoff para ver la conversación": "Pick a handoff to see the conversation",
+  "Limpiar filtros": "Clear filters",
+  "Limpiar": "Clear",
+  "Actualizar": "Refresh",
+  "Estado": "Status",
+  "Nombre": "Name",
+  "Cliente": "Customer",
+  "Detalle": "Detail",
+  "Acciones": "Actions",
+  "Asesor": "Advisor",
+  "Agente": "Agent",
+  "Admin": "Admin",
+  "Supervisor": "Supervisor",
+  "Tomar": "Take",
+  "Reabrir": "Reopen",
+  "Resolver": "Resolve",
+  "Resolver handoff": "Resolve handoff",
+  "Transferir": "Transfer",
+  "Transferir caso": "Transfer case",
+  "Devolver al bot": "Return to bot",
+  "Resolución": "Resolution",
+  "Historial": "History",
+  "Contexto del bot": "Bot context",
+  "Intención y filtros": "Intent and filters",
+  "Pregunta pendiente": "Pending question",
+  "Última recomendación": "Last recommendation",
+  "Alias del cliente": "Customer alias",
+  "Nota visible solo para el equipo…": "Note visible only to the team…",
+  "Adjuntar imagen o documento": "Attach image or document",
+  "Sin actividad todavía.": "No activity yet.",
+  "Vista previa": "Preview",
+  "Usuarios": "Users",
+  "Usuarios de área": "Area users",
+  "Usuarios, guardia y permisos.": "Users, shifts and permissions.",
+  "Crear usuario": "Create user",
+  "Crear usuario de área": "Create area user",
+  "Cambiar rol": "Change role",
+  "Resetear clave": "Reset password",
+  "Crear": "Create",
+  "Guardar": "Save",
+  "Cancelar": "Cancel",
+  "Editar": "Edit",
+  "Eliminar": "Delete",
+  "Quitar": "Remove",
+  "Cerrar": "Close",
+  "Cancelar edición": "Cancel edit",
+  "Volver": "Back",
+  "Sin usuarios.": "No users.",
+  "contraseña": "password",
+  "nombre visible": "display name",
+  "usuario": "username",
+  "Solo lectura": "Read only",
+  "Atención al cliente": "Customer service",
+  "Conversaciones": "Conversations",
+  "Carrito": "Cart",
+  "Pedidos": "Orders",
+  "Métricas de atención": "Service metrics",
+  // Reglas
+  "Reglas del bot": "Bot rules",
+  "Reglas por área": "Rules by area",
+  "Reglas cargadas": "Loaded rules",
+  "Reglas publicadas": "Published rules",
+  "Administrar reglas": "Manage rules",
+  "Centro de administración": "Admin center",
+  "Centro de contenido": "Content center",
+  "Solo vas a ver las reglas de tu área.": "You will only see your area's rules.",
+  "Cada encargado administra solo sus reglas.": "Each manager handles only their own rules.",
+  "Cada cambio guarda una versión restaurable.": "Every change saves a restorable version.",
+  "Borradores no se usan. Publicá para que el bot los lea.":
+    "Drafts are not used. Publish so the bot reads them.",
+  "Mirá qué productos y reglas se aplicarían, sin crear una conversación.":
+    "See which products and rules would apply, without creating a conversation.",
+  "Probar una consulta antes de publicar": "Test a query before publishing",
+  "Lo que el bot lee": "What the bot reads",
+  "Simulador": "Simulator",
+  "Priorizar una marca cuando pregunten por una categoría":
+    "Prioritize a brand when a category is asked about",
+  "Priorizar productos en promoción con stock": "Prioritize discounted products with stock",
+  "Agregar una indicación de respuesta para un tema": "Add a response guideline for a topic",
+  "Definir preguntas obligatorias para una categoría": "Define required questions for a category",
+  "Crear un flujo de preguntas para devoluciones": "Create a question flow for returns",
+  "Cargá instrucciones sin escribir JSON.": "Add instructions without writing JSON.",
+  "¿Qué debe decir o tener en cuenta el bot?": "What should the bot say or keep in mind?",
+  "Descuento mínimo (%)": "Minimum discount (%)",
+  "Categoría o tema (opcional)": "Category or topic (optional)",
+  "Ej: Priorizar LG en heladeras": "E.g. Prioritize LG for fridges",
+  "Ej: heladera": "E.g. fridge",
+  "Ej: heladera, envíos, promociones": "E.g. fridge, shipping, promotions",
+  "Ej: se confirmó stock y se pasó el link de pago":
+    "E.g. stock was confirmed and the payment link was sent",
+  "Ej: televisor 50 pulgadas, heladera no frost...": "E.g. 50-inch TV, no-frost fridge…",
+  "Ej: busco un colchón de 2 plazas": "E.g. I'm looking for a 2-seat mattress",
+  "Debe responder Sí": "Should answer Yes",
+  "Restaurar": "Restore",
+  "Sin versiones.": "No versions.",
+  "Sin reglas cargadas.": "No rules loaded.",
+  "Tipo": "Type",
+  "Prioridad": "Priority",
+  "Categoría": "Category",
+  "Marca": "Brand",
+  "Desde": "From",
+  "Hasta": "To",
+  "Auditoría:": "Audit:",
+  "Resultado tarea:": "Task result:",
+  "Sin actividad": "No activity",
+  "Publicado": "Published",
+  "Borrador": "Draft",
+  "Publicada": "Published",
+  "Publicadas": "Published",
+  // Ocasiones
+  "Ocasiones y campañas": "Occasions and campaigns",
+  "Campañas que entienden al cliente": "Campaigns that understand the customer",
+  "¿Para qué sirve esta pantalla?": "What is this screen for?",
+  "¿Para qué sirve?": "What is it for?",
+  "Ocasiones cargadas": "Loaded occasions",
+  "Guardar ocasión": "Save occasion",
+  "Editar ocasión": "Edit occasion",
+  "Nueva ocasión": "New occasion",
+  "Cargar ejemplos": "Load examples",
+  "Ver reglas": "See rules",
+  "Términos directos": "Direct terms",
+  "Excluir términos": "Exclude terms",
+  "Excluir categorías": "Exclude categories",
+  "Alternativa natural": "Natural alternative",
+  "Términos de la alternativa": "Alternative terms",
+  "Directo:": "Direct:",
+  "Excluye:": "Excludes:",
+  "Alternativa:": "Alternative:",
+  "Detecta": "Detects",
+  "Próxima:": "Next:",
+  "Regla de oro": "Golden rule",
+  "Primero EL catálogo. Después la inferencia.": "Catalog first. Inference second.",
+  "Área que será dueña de la ocasión y podrá mantenerla.":
+    "Area that owns the occasion and can maintain it.",
+  "Halloween, Navidad, Baby shower...": "Halloween, Christmas, Baby shower…",
+  "halloween, halloweén": "halloween, halloween",
+  "disfraz, dulce, calabaza, vela": "costume, candy, pumpkin, candle",
+  "mueble, silla, navidad": "furniture, chair, christmas",
+  "televisor, tv": "television, tv",
+  "una noche de película": "a movie night",
+  "heladera": "fridge",
+  "colchones, pintura, herramientas": "mattresses, paint, tools",
+  "MUEBLES, PINTURA, HERRAMIENTAS": "FURNITURE, PAINT, TOOLS",
+  "Ej: venden algo para halloween?": "E.g. do you sell anything for halloween?",
+  "clave (opcional)": "key (optional)",
+  "Pregunta": "Question",
+  "General": "General",
+  "Ecommerce": "Ecommerce",
+  "Marketing": "Marketing",
+  "Auditoría": "Audit",
+  "ROHO HOMECENTER": "ROHO HOMECENTER",
+  "ROHO": "ROHO",
+  "Simulando…": "Simulating…",
+  "Simular": "Run simulation",
+  "Disponible": "Available",
+  "Sin stock": "Out of stock",
+  "Editar regla": "Edit rule",
+  "Nueva regla": "New rule",
+  "activo": "active",
+  "inactivo": "inactive",
+  "Activar": "Activate",
+  "Desactivar": "Deactivate",
+  "Activar modo claro": "Switch to light mode",
+  "Activar modo oscuro": "Switch to dark mode",
+  "Modo claro": "Light mode",
+  "Modo oscuro": "Dark mode",
 };
+
+function traducir(texto: string): string {
+  if (idiomaActual === "es") return texto;
+  return EN[texto] ?? texto;
+}
 
 type I18nValue = {
   lang: Lang;
@@ -83,25 +277,35 @@ function idiomaInicial(): Lang {
 
 export function I18nProvider({ children }: { children: React.ReactNode }) {
   const [lang, setLang] = useState<Lang>(idiomaInicial);
+  // Se asigna en render para que el `t()` de módulo use el idioma vigente.
+  idiomaActual = lang;
 
   useEffect(() => {
     window.localStorage.setItem("roho-lang", lang);
     document.documentElement.lang = lang;
   }, [lang]);
 
-  const t = useCallback(
-    (text: string) => (lang === "en" ? EN[text] ?? text : text),
+  const value = useMemo(
+    () => ({ lang, setLang, t: traducir }),
     [lang]
   );
 
-  const value = useMemo(() => ({ lang, setLang, t }), [lang, t]);
-  return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
+  return (
+    <I18nContext.Provider value={value}>
+      <Fragment key={lang}>{children}</Fragment>
+    </I18nContext.Provider>
+  );
 }
 
 export function useI18n(): I18nValue {
   const value = useContext(I18nContext);
   if (!value) throw new Error("useI18n debe usarse dentro de I18nProvider");
   return value;
+}
+
+/** Traducción para usar fuera de componentes (textos y props de JSX). */
+export function t(texto: string): string {
+  return traducir(texto);
 }
 
 export function LanguageToggle() {

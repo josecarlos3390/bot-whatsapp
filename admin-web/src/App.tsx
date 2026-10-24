@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+﻿import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   Link,
   Navigate,
@@ -26,7 +26,7 @@ import {
   X
 } from "lucide-react";
 import { api, onUnauthorized } from "./api";
-import { LanguageToggle, useI18n } from "./i18n";
+import { LanguageToggle, t, useI18n } from "./i18n";
 import { Badge, Button, Card, Dialog, Input, Skeleton, Textarea, cn } from "./ui";
 import type { Advisor, AdvisorMetric, AreaUser, AuthMe, Handoff, HandoffDetail } from "./types";
 import { AdminCenter, AdminRulesPage, AreaRulesPage } from "./areas";
@@ -68,8 +68,8 @@ function ThemeToggle({ className = "" }: { className?: string }) {
       type="button"
       onClick={toggle}
       className={`rounded-full border border-slate-700 p-2 text-slate-300 transition hover:bg-slate-800 hover:text-white ${className}`}
-      aria-label={dark ? "Activar modo claro" : "Activar modo oscuro"}
-      title={dark ? "Modo claro" : "Modo oscuro"}
+      aria-label={dark ? t("Activar modo claro") : t("Activar modo oscuro")}
+      title={dark ? t("Modo claro") : t("Modo oscuro")}
     >
       {dark ? <Sun size={16} /> : <Moon size={16} />}
     </button>
@@ -226,7 +226,7 @@ function Login({
         >
           {busy ? t("Ingresando…") : t("Ingresar")}
         </button>
-        {mode === "area" && <p className="mt-3 text-center text-xs text-[#9ca3af]">Solo vas a ver las reglas de tu área.</p>}
+        {mode === "area" && <p className="mt-3 text-center text-xs text-[#9ca3af]">{t("Solo vas a ver las reglas de tu área.")}</p>}
       </form>
     </div>
   );
@@ -329,8 +329,7 @@ function Header({
             href="/advisor/logout"
             className="inline-flex items-center gap-1.5 rounded-lg border border-red-400/50 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-100 transition hover:bg-red-500/20"
           >
-            <LogOut size={14} /> Salir
-          </a>
+            <LogOut size={14} />{t("Salir")}</a>
         </div>
       </div>
     </header>
@@ -486,9 +485,7 @@ function DetailPanel({
             type="button"
             onClick={() => document.getElementById("handoff-list")?.scrollIntoView({ behavior: "smooth", block: "start" })}
             className="mt-0.5 rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-600 lg:hidden"
-          >
-            Volver
-          </button>
+          >{t("Volver")}</button>
           <div>
           <h2 className="text-lg font-bold text-slate-900">{detail.contact.name || detail.contact.wa_id}</h2>
           <p className="text-xs text-slate-500">
@@ -501,26 +498,20 @@ function DetailPanel({
         <div className="flex flex-wrap gap-2">
           {detail.can_take && (
             <Button onClick={onTake}>
-              <Check size={15} /> Tomar
-            </Button>
+              <Check size={15} />{t("Tomar")}</Button>
           )}
           {detail.can_transfer && (
-            <Button variant="secondary" size="sm" onClick={onTransfer}>
-              Transferir
-            </Button>
+            <Button variant="secondary" size="sm" onClick={onTransfer}>{t("Transferir")}</Button>
           )}
           {detail.can_transfer && (
-            <Button variant="secondary" size="sm" onClick={onReturn}>
-              Devolver al bot
-            </Button>
+            <Button variant="secondary" size="sm" onClick={onReturn}>{t("Devolver al bot")}</Button>
           )}
           {detail.can_resolve && (
             <Button variant="secondary" onClick={onResolve}>
-              <Check size={15} /> Resolver
-            </Button>
+              <Check size={15} />{t("Resolver")}</Button>
           )}
           {detail.can_reopen && (
-            <Button onClick={onReopen}>Reabrir</Button>
+            <Button onClick={onReopen}>{t("Reabrir")}</Button>
           )}
         </div>
       </div>
@@ -534,9 +525,9 @@ function DetailPanel({
       )}
 
       <div className="grid gap-2 border-b border-slate-100 p-4 sm:grid-cols-3">
-        <ContextBox title="Cliente">{detail.profile.city || "Sin ciudad"}<br />{detail.profile.preferred_store || "Sin tienda preferida"}</ContextBox>
-        <ContextBox title="Carrito">{detail.cart ? `${detail.cart.count} ítems · Bs ${detail.cart.total}` : "Vacío"}</ContextBox>
-        <ContextBox title="Pedidos">
+        <ContextBox title={t("Cliente")}>{detail.profile.city || "Sin ciudad"}<br />{detail.profile.preferred_store || "Sin tienda preferida"}</ContextBox>
+        <ContextBox title={t("Carrito")}>{detail.cart ? `${detail.cart.count} ítems · Bs ${detail.cart.total}` : "Vacío"}</ContextBox>
+        <ContextBox title={t("Pedidos")}>
           {detail.orders.length
             ? detail.orders.map((order) => `#${order.number} · ${order.status} · Bs ${order.total}`).join(" | ")
             : "Sin pedidos"}
@@ -545,11 +536,10 @@ function DetailPanel({
 
       <details className="border-b border-slate-100 px-4 py-2">
         <summary className="flex cursor-pointer items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-500">
-          <StickyNote size={14} /> Contexto del bot
-        </summary>
+          <StickyNote size={14} />{t("Contexto del bot")}</summary>
         <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2">
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-            <div className="mb-1 font-bold uppercase tracking-wide text-slate-400">Pregunta pendiente</div>
+            <div className="mb-1 font-bold uppercase tracking-wide text-slate-400">{t("Pregunta pendiente")}</div>
             {detail.context?.pending?.question ? (
               <>
                 <div className="text-slate-700">{detail.context.pending.question}</div>
@@ -558,7 +548,7 @@ function DetailPanel({
             ) : "Sin pregunta pendiente"}
           </div>
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-            <div className="mb-1 font-bold uppercase tracking-wide text-slate-400">Intención y filtros</div>
+            <div className="mb-1 font-bold uppercase tracking-wide text-slate-400">{t("Intención y filtros")}</div>
             {detail.context?.state ? (
               <div className="space-y-0.5 text-slate-700">
                 <div>Intención: {detail.context.state.intent || "—"}</div>
@@ -568,7 +558,7 @@ function DetailPanel({
             ) : "Sin estado guardado"}
           </div>
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 sm:col-span-2">
-            <div className="mb-1 font-bold uppercase tracking-wide text-slate-400">Última recomendación</div>
+            <div className="mb-1 font-bold uppercase tracking-wide text-slate-400">{t("Última recomendación")}</div>
             {detail.context?.last_recommendation ? (
               <>
                 <div className="text-slate-700">Consulta: {detail.context.last_recommendation.query || "—"}</div>
@@ -606,12 +596,10 @@ function DetailPanel({
                   void sendNote();
                 }
               }}
-              placeholder="Nota visible solo para el equipo…"
+              placeholder={t("Nota visible solo para el equipo…")}
               className="text-xs"
             />
-            <Button size="sm" variant="secondary" onClick={sendNote} disabled={noteSending || !note.trim()}>
-              Guardar
-            </Button>
+            <Button size="sm" variant="secondary" onClick={sendNote} disabled={noteSending || !note.trim()}>{t("Guardar")}</Button>
           </div>
         </div>
       </details>
@@ -679,7 +667,7 @@ function DetailPanel({
             className="self-end"
             onClick={() => fileInput.current?.click()}
             disabled={attaching || !detail.can_reply}
-            title="Adjuntar imagen o documento"
+            title={t("Adjuntar imagen o documento")}
           >
             <Paperclip size={15} /> {attaching ? "…" : ""}
           </Button>
@@ -707,7 +695,7 @@ function DetailPanel({
           </Button>
         </div>
         <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-400">
-          <span>Auditoría:</span>
+          <span>{t("Auditoría:")}</span>
           {detail.events.length ? detail.events.map((event, index) => (
             <span key={index}>{event.advisor || "sistema"} · {event.action}</span>
           )) : <span>sin eventos</span>}
@@ -983,12 +971,10 @@ function Inbox({ me }: { me: Advisor }) {
         <aside id="handoff-list" className="space-y-2">
           <div className="flex items-center justify-between px-1">
             <div>
-              <h1 className="text-lg font-bold text-slate-900">Handoffs abiertos</h1>
-              <p className="text-xs text-slate-500">Tiempo real + respaldo cada 30 s</p>
+              <h1 className="text-lg font-bold text-slate-900">{t("Handoffs abiertos")}</h1>
+              <p className="text-xs text-slate-500">{t("Tiempo real + respaldo cada 30 s")}</p>
             </div>
-            <button onClick={load} className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold hover:bg-slate-50">
-              Actualizar
-            </button>
+            <button onClick={load} className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold hover:bg-slate-50">{t("Actualizar")}</button>
           </div>
           <div className="rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
             <div className="relative mb-2">
@@ -997,7 +983,7 @@ function Inbox({ me }: { me: Advisor }) {
                 id="handoff-search"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Buscar por nombre, número o motivo…"
+                placeholder={t("Buscar por nombre, número o motivo…")}
                 className="pl-9"
               />
             </div>
@@ -1035,9 +1021,7 @@ function Inbox({ me }: { me: Advisor }) {
                 <button
                   onClick={() => { setQuery(""); setFilter("all"); }}
                   className="mt-3 text-xs font-semibold text-blue-700 hover:underline"
-                >
-                  Limpiar filtros
-                </button>
+                >{t("Limpiar filtros")}</button>
               )}
             </div>
           )}
@@ -1063,15 +1047,13 @@ function Inbox({ me }: { me: Advisor }) {
             onReopen={reopen}
           />
         ) : (
-          <div className="grid min-h-[50vh] place-items-center rounded-2xl border border-dashed border-slate-300 bg-white/60 text-sm text-slate-500">
-            Elegí un handoff para ver la conversación
-          </div>
+          <div className="grid min-h-[50vh] place-items-center rounded-2xl border border-dashed border-slate-300 bg-white/60 text-sm text-slate-500">{t("Elegí un handoff para ver la conversación")}</div>
         )}
       </main>
       <Dialog
         open={resolveOpen}
         onClose={() => setResolveOpen(false)}
-        title="Resolver handoff"
+        title={t("Resolver handoff")}
         description="Indicá qué solución aplicaste. El bot volverá a atender al cliente."
       >
         <div className="mt-3 grid grid-cols-2 gap-2">
@@ -1089,20 +1071,19 @@ function Inbox({ me }: { me: Advisor }) {
           value={resolveNote}
           onChange={(event) => setResolveNote(event.target.value)}
           rows={3}
-          placeholder="Ej: se confirmó stock y se pasó el link de pago"
+          placeholder={t("Ej: se confirmó stock y se pasó el link de pago")}
           className="mt-3"
         />
         <div className="mt-4 flex justify-end gap-2">
-          <Button variant="secondary" onClick={() => setResolveOpen(false)}>Cancelar</Button>
+          <Button variant="secondary" onClick={() => setResolveOpen(false)}>{t("Cancelar")}</Button>
           <Button onClick={confirmResolve} disabled={!resolveNote.trim()}>
-            <Check size={14} /> Resolver
-          </Button>
+            <Check size={14} />{t("Resolver")}</Button>
         </div>
       </Dialog>
       <Dialog
         open={transferOpen}
         onClose={() => setTransferOpen(false)}
-        title="Transferir caso"
+        title={t("Transferir caso")}
         description="El nuevo asesor podrá responder desde su consola."
       >
         <select
@@ -1115,14 +1096,14 @@ function Inbox({ me }: { me: Advisor }) {
           ))}
         </select>
         <div className="mt-4 flex justify-end gap-2">
-          <Button variant="secondary" onClick={() => setTransferOpen(false)}>Cancelar</Button>
-          <Button onClick={confirmTransfer} disabled={!transferTo}>Transferir</Button>
+          <Button variant="secondary" onClick={() => setTransferOpen(false)}>{t("Cancelar")}</Button>
+          <Button onClick={confirmTransfer} disabled={!transferTo}>{t("Transferir")}</Button>
         </div>
       </Dialog>
       <Dialog
         open={returnOpen}
         onClose={() => setReturnOpen(false)}
-        title="Devolver al bot"
+        title={t("Devolver al bot")}
         description="El bot retomará la conversación sin marcar el caso como resuelto."
       >
         <Textarea
@@ -1132,8 +1113,8 @@ function Inbox({ me }: { me: Advisor }) {
           className="mt-3"
         />
         <div className="mt-4 flex justify-end gap-2">
-          <Button variant="secondary" onClick={() => setReturnOpen(false)}>Cancelar</Button>
-          <Button onClick={confirmReturn} disabled={!returnReason.trim()}>Devolver al bot</Button>
+          <Button variant="secondary" onClick={() => setReturnOpen(false)}>{t("Cancelar")}</Button>
+          <Button onClick={confirmReturn} disabled={!returnReason.trim()}>{t("Devolver al bot")}</Button>
         </div>
       </Dialog>
     </>
@@ -1187,44 +1168,42 @@ function Agents({ me }: { me: Advisor }) {
       <main className="mx-auto max-w-[1100px] p-4 lg:p-6">
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-slate-900">Agentes</h1>
-            <p className="text-sm text-slate-500">Usuarios, guardia y permisos.</p>
+            <h1 className="text-xl font-bold text-slate-900">{t("Agentes")}</h1>
+            <p className="text-sm text-slate-500">{t("Usuarios, guardia y permisos.")}</p>
           </div>
-          <button onClick={() => navigate("/inbox")} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold hover:bg-slate-50">
-            Volver a bandeja
-          </button>
+          <button onClick={() => navigate("/inbox")} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold hover:bg-slate-50">{t("Volver a bandeja")}</button>
         </div>
         {error && <div className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
         <form onSubmit={create} className="mb-4 grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-5">
-          <input className="rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="usuario" value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value })} required />
-          <input className="rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="nombre visible" value={form.display_name} onChange={(event) => setForm({ ...form, display_name: event.target.value })} required />
-          <input className="rounded-lg border border-slate-300 px-3 py-2 text-sm" type="password" placeholder="contraseña" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required />
+          <input className="rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder={t("usuario")} value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value })} required />
+          <input className="rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder={t("nombre visible")} value={form.display_name} onChange={(event) => setForm({ ...form, display_name: event.target.value })} required />
+          <input className="rounded-lg border border-slate-300 px-3 py-2 text-sm" type="password" placeholder={t("contraseña")} value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required />
           <label className="flex items-center gap-2 text-xs text-slate-600">
             <select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value })} className="rounded-lg border border-slate-300 px-2 py-1.5">
-              <option value="agent">Agente</option>
-              <option value="supervisor">Supervisor</option>
+              <option value="agent">{t("Agente")}</option>
+              <option value="supervisor">{t("Supervisor")}</option>
               <option value="admin">Admin</option>
             </select>
           </label>
           <div className="flex gap-2">
             <label className="flex items-center gap-2 text-xs text-slate-600"><input type="checkbox" checked={form.on_duty} onChange={(event) => setForm({ ...form, on_duty: event.target.checked })} /> guardia</label>
-            <button className="ml-auto rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700">Crear</button>
+            <button className="ml-auto rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700">{t("Crear")}</button>
           </div>
         </form>
         <Card className="mb-4 overflow-hidden">
           <div className="border-b border-slate-100 px-4 py-3">
-            <h2 className="text-sm font-bold text-slate-900">Métricas · últimos 30 días</h2>
+            <h2 className="text-sm font-bold text-slate-900">{t("Métricas · últimos 30 días")}</h2>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
                 <tr>
-                  <th className="px-4 py-2">Asesor</th>
-                  <th className="px-3 py-2">Tomados</th>
-                  <th className="px-3 py-2">Resueltos</th>
-                  <th className="px-3 py-2">Reabiertos</th>
+                  <th className="px-4 py-2">{t("Asesor")}</th>
+                  <th className="px-3 py-2">{t("Tomados")}</th>
+                  <th className="px-3 py-2">{t("Resueltos")}</th>
+                  <th className="px-3 py-2">{t("Reabiertos")}</th>
                   <th className="px-3 py-2">1ª respuesta</th>
-                  <th className="px-3 py-2">Resolución</th>
+                  <th className="px-3 py-2">{t("Resolución")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1238,7 +1217,7 @@ function Agents({ me }: { me: Advisor }) {
                     <td className="px-3 py-2">{row.avg_resolution_minutes == null ? "—" : `${row.avg_resolution_minutes} min`}</td>
                   </tr>
                 )) : (
-                  <tr><td colSpan={6} className="px-4 py-6 text-center text-slate-500">Sin actividad todavía.</td></tr>
+                  <tr><td colSpan={6} className="px-4 py-6 text-center text-slate-500">{t("Sin actividad todavía.")}</td></tr>
                 )}
               </tbody>
             </table>
@@ -1257,7 +1236,7 @@ function Agents({ me }: { me: Advisor }) {
               <div className="flex gap-2">
                 <button onClick={() => patch(advisor.id!, { on_duty: !advisor.on_duty })} className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-semibold hover:bg-slate-50">{advisor.on_duty ? "Quitar guardia" : "Poner guardia"}</button>
                 <button onClick={() => patch(advisor.id!, { active: !advisor.active })} className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-semibold hover:bg-slate-50">{advisor.active ? "Desactivar" : "Activar"}</button>
-                <button onClick={() => patch(advisor.id!, { role: advisor.role === "admin" ? "supervisor" : advisor.role === "supervisor" ? "agent" : "admin" })} className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-semibold hover:bg-slate-50">Cambiar rol</button>
+                <button onClick={() => patch(advisor.id!, { role: advisor.role === "admin" ? "supervisor" : advisor.role === "supervisor" ? "agent" : "admin" })} className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-semibold hover:bg-slate-50">{t("Cambiar rol")}</button>
               </div>
             </div>
           ))}
@@ -1278,19 +1257,19 @@ function MetricsPage({ me }: { me: Advisor }) {
     <>
       <Header me={me} duty={[]} count={0} onNotify={() => {}} />
       <main className="mx-auto max-w-[1100px] p-4 lg:p-6">
-        <h1 className="mb-1 text-xl font-bold text-slate-900">Métricas de atención</h1>
-        <p className="mb-4 text-sm text-slate-500">Últimos 30 días.</p>
+        <h1 className="mb-1 text-xl font-bold text-slate-900">{t("Métricas de atención")}</h1>
+        <p className="mb-4 text-sm text-slate-500">{t("Últimos 30 días.")}</p>
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
                 <tr>
-                  <th className="px-4 py-3">Asesor</th>
-                  <th className="px-3 py-3">Tomados</th>
-                  <th className="px-3 py-3">Resueltos</th>
-                  <th className="px-3 py-3">Reabiertos</th>
+                  <th className="px-4 py-3">{t("Asesor")}</th>
+                  <th className="px-3 py-3">{t("Tomados")}</th>
+                  <th className="px-3 py-3">{t("Resueltos")}</th>
+                  <th className="px-3 py-3">{t("Reabiertos")}</th>
                   <th className="px-3 py-3">1ª respuesta</th>
-                  <th className="px-3 py-3">Resolución</th>
+                  <th className="px-3 py-3">{t("Resolución")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1304,7 +1283,7 @@ function MetricsPage({ me }: { me: Advisor }) {
                     <td className="px-3 py-3">{row.avg_resolution_minutes == null ? "—" : `${row.avg_resolution_minutes} min`}</td>
                   </tr>
                 )) : (
-                  <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">Sin actividad todavía.</td></tr>
+                  <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">{t("Sin actividad todavía.")}</td></tr>
                 )}
               </tbody>
             </table>
@@ -1348,7 +1327,7 @@ export default function App() {
   }
 
   if (checking) {
-    return <div className="grid min-h-screen place-items-center text-sm text-slate-500">Cargando consola…</div>;
+    return <div className="grid min-h-screen place-items-center text-sm text-slate-500">{t("Cargando consola…")}</div>;
   }
 
   const home = me ? (me.is_admin ? "/overview" : "/inbox") : areaUser ? "/rules" : "/login";

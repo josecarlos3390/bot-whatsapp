@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "./api";
 import { AreaHeader } from "./areas";
 import { Badge, Button, Card, Input } from "./ui";
-import { useI18n } from "./i18n";
+import { t, useI18n } from "./i18n";
 
 type Overview = {
   generated_at: string;
@@ -193,7 +193,7 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
 
   return (
     <div className="min-h-screen bg-[#f5f6f8] text-[#111111]">
-      <AreaHeader title="Operación" subtitle="Estado consolidado del bot" onLogout={onLogout} />
+      <AreaHeader title={t("Operación")} subtitle="Estado consolidado del bot" onLogout={onLogout} />
       <main className="mx-auto max-w-[1180px] px-4 py-6 lg:px-6">
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -204,8 +204,8 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="secondary" onClick={() => void load()}>Actualizar</Button>
-            <Link to="/inbox" className="rounded-lg bg-[#e9082a] px-3 py-2 text-sm font-semibold text-[#ffffff]">Ir a atención</Link>
+            <Button variant="secondary" onClick={() => void load()}>{t("Actualizar")}</Button>
+            <Link to="/inbox" className="rounded-lg bg-[#e9082a] px-3 py-2 text-sm font-semibold text-[#ffffff]">{t("Ir a atención")}</Link>
           </div>
         </div>
 
@@ -237,7 +237,7 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
           ) : null}
         </Card>
 
-        {loading && !data ? <div className="text-sm text-[#4b5563]">Cargando estado…</div> : null}
+        {loading && !data ? <div className="text-sm text-[#4b5563]">{t("Cargando estado…")}</div> : null}
 
         {data && (
           <>
@@ -269,10 +269,10 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
             </div>
 
             <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <Metric label="Conversaciones" value={data.counts.conversations} hint={`${data.counts.contacts} contactos`} />
-              <Metric label="Mensajes 24 h" value={data.counts.messages_24h} hint={`${data.counts.active_flows} flujos activos`} />
-              <Metric label="Handoffs abiertos" value={data.counts.handoffs_open} hint="Pendientes o en atención" />
-              <Metric label="Reglas publicadas" value={data.counts.rules_published} hint={`${data.counts.occasions_published} ocasiones`} />
+              <Metric label={t("Conversaciones")} value={data.counts.conversations} hint={`${data.counts.contacts} contactos`} />
+              <Metric label={t("Mensajes 24 h")} value={data.counts.messages_24h} hint={`${data.counts.active_flows} flujos activos`} />
+              <Metric label={t("Handoffs abiertos")} value={data.counts.handoffs_open} hint="Pendientes o en atención" />
+              <Metric label={t("Reglas publicadas")} value={data.counts.rules_published} hint={`${data.counts.occasions_published} ocasiones`} />
             </div>
 
             <Card className="mb-5 border-[#e5e7eb] bg-[#ffffff] p-5">
@@ -320,7 +320,7 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
                 Consultas que no encontraron nada: sirven para detectar artículos que faltan o sinónimos por agregar.
               </p>
               {(data.search_gaps ?? []).length === 0 ? (
-                <p className="text-sm text-[#6b7280]">Ninguna registrada.</p>
+                <p className="text-sm text-[#6b7280]">{t("Ninguna registrada.")}</p>
               ) : (
                 <div className="space-y-1.5">
                   {(data.search_gaps ?? []).slice(0, 8).map((row) => (
@@ -344,19 +344,19 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
               </div>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <div>
-                  <div className="text-[11px] uppercase tracking-wide text-[#6b7280]">Entrada / llamada</div>
+                  <div className="text-[11px] uppercase tracking-wide text-[#6b7280]">{t("Entrada / llamada")}</div>
                   <div className="text-xl font-semibold text-[#111111]">{(data.tokens?.avg_prompt ?? 0).toLocaleString("es")}</div>
                 </div>
                 <div>
-                  <div className="text-[11px] uppercase tracking-wide text-[#6b7280]">Salida / llamada</div>
+                  <div className="text-[11px] uppercase tracking-wide text-[#6b7280]">{t("Salida / llamada")}</div>
                   <div className="text-xl font-semibold text-[#111111]">{(data.tokens?.avg_completion ?? 0).toLocaleString("es")}</div>
                 </div>
                 <div>
-                  <div className="text-[11px] uppercase tracking-wide text-[#6b7280]">Cacheado</div>
+                  <div className="text-[11px] uppercase tracking-wide text-[#6b7280]">{t("Cacheado")}</div>
                   <div className="text-xl font-semibold text-emerald-700">{(data.tokens?.cache_hit_tokens ?? 0).toLocaleString("es")}</div>
                 </div>
                 <div>
-                  <div className="text-[11px] uppercase tracking-wide text-[#6b7280]">Total tokens</div>
+                  <div className="text-[11px] uppercase tracking-wide text-[#6b7280]">{t("Total tokens")}</div>
                   <div className="text-xl font-semibold text-[#111111]">{(data.tokens?.total_tokens ?? 0).toLocaleString("es")}</div>
                 </div>
               </div>
@@ -371,7 +371,7 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
               </div>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <div>
-                  <div className="text-[11px] uppercase tracking-wide text-[#6b7280]">Mediana</div>
+                  <div className="text-[11px] uppercase tracking-wide text-[#6b7280]">{t("Mediana")}</div>
                   <div className="text-xl font-semibold text-[#111111]">{((data.latency?.p50_ms ?? 0) / 1000).toFixed(1)} s</div>
                 </div>
                 <div>
@@ -381,11 +381,11 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
                   </div>
                 </div>
                 <div>
-                  <div className="text-[11px] uppercase tracking-wide text-[#6b7280]">Máxima</div>
+                  <div className="text-[11px] uppercase tracking-wide text-[#6b7280]">{t("Máxima")}</div>
                   <div className="text-xl font-semibold text-[#111111]">{((data.latency?.max_ms ?? 0) / 1000).toFixed(1)} s</div>
                 </div>
                 <div>
-                  <div className="text-[11px] uppercase tracking-wide text-[#6b7280]">Lentas</div>
+                  <div className="text-[11px] uppercase tracking-wide text-[#6b7280]">{t("Lentas")}</div>
                   <div className={`text-xl font-semibold ${(data.latency?.slow ?? 0) > 0 ? "text-red-600" : "text-emerald-700"}`}>
                     {data.latency?.slow ?? 0}
                   </div>
@@ -397,7 +397,7 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
             <Card className="mb-5 border-[#e5e7eb] bg-[#ffffff] p-5">
               <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
                 <h3 className="font-serif text-lg font-semibold text-[#111111]">{t("Probar el bot")}</h3>
-                <span className="text-[11px] text-[#6b7280]">No envía nada ni ensucia las métricas</span>
+                <span className="text-[11px] text-[#6b7280]">{t("No envía nada ni ensucia las métricas")}</span>
               </div>
               <p className="mb-2 text-xs text-[#6b7280]">
                 Escribí como si fueras un cliente y mirá exactamente qué respondería el bot.
@@ -408,7 +408,7 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
                   value={probe}
                   onChange={(event) => setProbe(event.target.value)}
                   onKeyDown={(event) => { if (event.key === "Enter") void runProbe(); }}
-                  placeholder="Ej: busco un colchón de 2 plazas"
+                  placeholder={t("Ej: busco un colchón de 2 plazas")}
                 />
                 <Button onClick={() => void runProbe()} disabled={probing || !probe.trim()}>
                   {probing ? "Probando…" : "Probar"}
@@ -445,7 +445,7 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
               )}
               {probeHistory.length > 0 && (
                 <div className="mt-4 border-t border-[#f3f4f6] pt-3">
-                  <div className="mb-1 text-[11px] font-bold uppercase tracking-wide text-[#6b7280]">Últimas pruebas</div>
+                  <div className="mb-1 text-[11px] font-bold uppercase tracking-wide text-[#6b7280]">{t("Últimas pruebas")}</div>
                   <div className="space-y-1">
                     {probeHistory.map((item) => (
                       <div key={item.at + item.text} className="flex flex-wrap items-center gap-2 text-[11px] text-[#1f2937]">
@@ -457,9 +457,7 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
                           type="button"
                           className="rounded-full border border-[#e5e7eb] px-2 py-0.5 font-semibold text-[#1f2937] hover:bg-[#f9fafb]"
                           onClick={() => { setProbe(item.text); void runProbe(item.text); }}
-                        >
-                          Repetir
-                        </button>
+                        >{t("Repetir")}</button>
                       </div>
                     ))}
                   </div>
@@ -478,7 +476,7 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
                 Conversaciones donde algo pudo salir mal: tema delicado con producto, venta a un cliente enojado, producto sin pedido o mensaje sin respuesta.
               </p>
               {(data.qa?.total ?? 0) === 0 ? (
-                <p className="text-sm text-emerald-700">Sin anomalías detectadas.</p>
+                <p className="text-sm text-emerald-700">{t("Sin anomalías detectadas.")}</p>
               ) : (
                 <>
                   <div className="mb-3 flex flex-wrap gap-2">
@@ -505,30 +503,30 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
             <div className="grid gap-4 lg:grid-cols-2">
               <Card className="border-[#e5e7eb] bg-[#ffffff] p-5">
                 <h3 className="font-serif text-lg font-semibold text-[#111111]">{t("Calidad de respuesta")}</h3>
-                <p className="mb-3 text-xs text-[#6b7280]">Indicadores de las últimas 24 horas.</p>
+                <p className="mb-3 text-xs text-[#6b7280]">{t("Indicadores de las últimas 24 horas.")}</p>
                 <div className="space-y-2 text-sm">
-                  <div className="flex justify-between border-b border-[#f3f4f6] py-2"><span>Fallbacks / aclaraciones</span><strong>{data.quality.fallbacks_24h}</strong></div>
-                  <div className="flex justify-between border-b border-[#f3f4f6] py-2"><span>Llamadas a herramientas</span><strong>{data.quality.tools.calls}</strong></div>
-                  <div className="flex justify-between py-2"><span>Errores de herramientas</span><strong className={data.quality.tools.failures ? "text-red-600" : ""}>{data.quality.tools.failures}</strong></div>
+                  <div className="flex justify-between border-b border-[#f3f4f6] py-2"><span>{t("Fallbacks / aclaraciones")}</span><strong>{data.quality.fallbacks_24h}</strong></div>
+                  <div className="flex justify-between border-b border-[#f3f4f6] py-2"><span>{t("Llamadas a herramientas")}</span><strong>{data.quality.tools.calls}</strong></div>
+                  <div className="flex justify-between py-2"><span>{t("Errores de herramientas")}</span><strong className={data.quality.tools.failures ? "text-red-600" : ""}>{data.quality.tools.failures}</strong></div>
                 </div>
               </Card>
 
               <Card className="border-[#e5e7eb] bg-[#ffffff] p-5">
                 <h3 className="font-serif text-lg font-semibold text-[#111111]">{t("Última sincronización")}</h3>
                 <div className="mt-3 space-y-2 text-xs text-[#374151]">
-                  <div><span className="font-semibold text-[#111111]">Archivo:</span> {data.sync.file || "Sin log"}</div>
-                  <div><span className="font-semibold text-[#111111]">Resultado tarea:</span> {data.sync.task.last_result ?? "desconocido"}</div>
-                  <div><span className="font-semibold text-[#111111]">Próxima:</span> {data.sync.task.next_run || "—"}</div>
+                  <div><span className="font-semibold text-[#111111]">{t("Archivo:")}</span> {data.sync.file || "Sin log"}</div>
+                  <div><span className="font-semibold text-[#111111]">{t("Resultado tarea:")}</span> {data.sync.task.last_result ?? "desconocido"}</div>
+                  <div><span className="font-semibold text-[#111111]">{t("Próxima:")}</span> {data.sync.task.next_run || "—"}</div>
                   <div className="rounded-lg bg-[#f5f6f8] p-3 text-[11px] leading-relaxed">{data.sync.summary || "Sin resumen disponible."}</div>
                 </div>
               </Card>
             </div>
 
             <div className="mt-5 flex flex-wrap gap-2">
-              <Link to="/inbox" className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm font-semibold text-[#1f2937]">Atención al cliente</Link>
-              <Link to="/rules" className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm font-semibold text-[#1f2937]">Reglas</Link>
-              <Link to="/occasions" className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm font-semibold text-[#1f2937]">Ocasiones</Link>
-              <Link to="/admin/center" className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm font-semibold text-[#1f2937]">Usuarios</Link>
+              <Link to="/inbox" className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm font-semibold text-[#1f2937]">{t("Atención al cliente")}</Link>
+              <Link to="/rules" className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm font-semibold text-[#1f2937]">{t("Reglas")}</Link>
+              <Link to="/occasions" className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm font-semibold text-[#1f2937]">{t("Ocasiones")}</Link>
+              <Link to="/admin/center" className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm font-semibold text-[#1f2937]">{t("Usuarios")}</Link>
             </div>
           </>
         )}

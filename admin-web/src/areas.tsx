@@ -1,4 +1,5 @@
 ﻿import { useEffect, useMemo, useState } from "react";
+import { t } from "./i18n";
 import { Link } from "react-router-dom";
 import { api } from "./api";
 import { Badge, Button, Card, Input, Textarea } from "./ui";
@@ -27,9 +28,7 @@ export function AreaHeader({
         </div>
         <div className="ml-auto flex items-center gap-3 text-sm text-[#e5e7eb]">
           <span className="hidden rounded-full border border-[#ffb3bd]/20 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-wider sm:inline">{subtitle}</span>
-          <button onClick={onLogout} className="rounded-lg border border-[#ffb3bd]/40 bg-white/5 px-3 py-1.5 text-xs font-semibold text-[#fde7ea] transition hover:bg-white/10">
-            Salir
-          </button>
+          <button onClick={onLogout} className="rounded-lg border border-[#ffb3bd]/40 bg-white/5 px-3 py-1.5 text-xs font-semibold text-[#fde7ea] transition hover:bg-white/10">{t("Salir")}</button>
         </div>
       </div>
     </header>
@@ -305,21 +304,17 @@ function RuleBuilder({
 
   return (
     <>
-      <AreaHeader title="Reglas por área" subtitle={canChangeArea ? "Administración" : area} onLogout={onLogout} />
+      <AreaHeader title={t("Reglas por área")} subtitle={canChangeArea ? "Administración" : area} onLogout={onLogout} />
       <main className="mx-auto max-w-[1100px] p-4 lg:p-6">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="text-xl font-bold text-slate-900">Reglas del bot</h1>
-            <p className="text-sm text-slate-500">Cargá instrucciones sin escribir JSON.</p>
+            <h1 className="text-xl font-bold text-slate-900">{t("Reglas del bot")}</h1>
+            <p className="text-sm text-slate-500">{t("Cargá instrucciones sin escribir JSON.")}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Link to="/occasions" className="rounded-lg border border-[#ffb3bd]/50 bg-white px-3 py-2 text-xs font-semibold text-[#e9082a] hover:bg-[#ffffff]">
-              Ocasiones y campañas
-            </Link>
+            <Link to="/occasions" className="rounded-lg border border-[#ffb3bd]/50 bg-white px-3 py-2 text-xs font-semibold text-[#e9082a] hover:bg-[#ffffff]">{t("Ocasiones y campañas")}</Link>
             {canChangeArea && (
-              <label className="text-sm text-slate-600">
-                Área
-                <select className="ml-2 rounded-lg border border-slate-300 px-3 py-2" value={selectedArea} onChange={(event) => setSelectedArea(event.target.value)}>
+              <label className="text-sm text-slate-600">{t("Área")}<select className="ml-2 rounded-lg border border-slate-300 px-3 py-2" value={selectedArea} onChange={(event) => setSelectedArea(event.target.value)}>
                   {areasToShow.map((item) => <option key={item}>{item}</option>)}
                 </select>
               </label>
@@ -327,7 +322,7 @@ function RuleBuilder({
           </div>
         </div>
         <div className="mb-3 rounded-xl border border-[#ffb3bd]/40 bg-[#f9fafb] px-4 py-3 text-xs text-[#4b5563]">
-          <strong className="text-[#111111]">¿Para qué sirve?</strong> Acá definís cómo debe responder el bot en tu área:
+          <strong className="text-[#111111]">{t("¿Para qué sirve?")}</strong> Acá definís cómo debe responder el bot en tu área:
           qué marca priorizar, qué promociones destacar, cómo manejar devoluciones o qué indicaciones debe seguir.
           Las reglas publicadas se aplican antes de la respuesta final.
         </div>
@@ -335,21 +330,21 @@ function RuleBuilder({
         <Card className="mb-4 border-[#ffb3bd]/40 bg-[#ffffff] p-4">
           <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
-              <h2 className="text-sm font-bold text-[#111111]">Probar una consulta antes de publicar</h2>
-              <p className="text-xs text-[#4b5563]">Mirá qué productos y reglas se aplicarían, sin crear una conversación.</p>
+              <h2 className="text-sm font-bold text-[#111111]">{t("Probar una consulta antes de publicar")}</h2>
+              <p className="text-xs text-[#4b5563]">{t("Mirá qué productos y reglas se aplicarían, sin crear una conversación.")}</p>
             </div>
-            <span className="rounded-full bg-[#f3f4f6] px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-[#6b7280]">Simulador</span>
+            <span className="rounded-full bg-[#f3f4f6] px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-[#6b7280]">{t("Simulador")}</span>
           </div>
           <div className="mt-3 flex flex-col gap-2 sm:flex-row">
             <Input
               value={simQuery}
               onChange={(event) => setSimQuery(event.target.value)}
               onKeyDown={(event) => { if (event.key === "Enter") void simulate(); }}
-              placeholder="Ej: televisor 50 pulgadas, heladera no frost..."
+              placeholder={t("Ej: televisor 50 pulgadas, heladera no frost...")}
               className="border-[#e5e7eb]"
             />
             <Button onClick={() => void simulate()} disabled={simBusy || !simQuery.trim()}>
-              {simBusy ? "Simulando…" : "Simular"}
+              {simBusy ? t("Simulando…") : t("Simular")}
             </Button>
           </div>
           {simulation && (
@@ -367,7 +362,7 @@ function RuleBuilder({
                   </div>
                   {simulation.prompt_text && (
                   <div className="mt-2 rounded-xl border border-[#e5e7eb] bg-white px-3 py-2">
-                    <div className="text-[10px] font-bold uppercase tracking-wide text-[#6b7280]">Lo que el bot lee</div>
+                    <div className="text-[10px] font-bold uppercase tracking-wide text-[#6b7280]">{t("Lo que el bot lee")}</div>
                     <pre className="mt-1 whitespace-pre-wrap text-[11px] text-[#1f2937]">{simulation.prompt_text}</pre>
                   </div>
                 )}
@@ -392,7 +387,7 @@ function RuleBuilder({
                           {product.promo_discount_percent > 0 && (
                             <div className="text-[10px] font-semibold text-emerald-700">-{product.promo_discount_percent}%</div>
                           )}
-                          <div className="text-[10px] text-[#6b7280]">{product.available ? "Disponible" : "Sin stock"}</div>
+                          <div className="text-[10px] text-[#6b7280]">{product.available ? t("Disponible") : t("Sin stock")}</div>
                         </div>
                       </div>
                     ))}
@@ -404,65 +399,56 @@ function RuleBuilder({
           )}
         </Card>
         <Card className="mb-4 p-4">
-          <h2 className="mb-3 text-sm font-bold text-slate-900">{editing ? "Editar regla" : "Nueva regla"}</h2>
-          <label className="mb-1 block text-xs font-semibold text-slate-600">¿Qué querés hacer?</label>
+          <h2 className="mb-3 text-sm font-bold text-slate-900">{editing ? t("Editar regla") : t("Nueva regla")}</h2>
+          <label className="mb-1 block text-xs font-semibold text-slate-600">{t("¿Qué querés hacer?")}</label>
           <select className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" value={kind} onChange={(event) => setKind(event.target.value)}>
-            <option value="brand_priority">Priorizar una marca cuando pregunten por una categoría</option>
-            <option value="promotion_priority">Priorizar productos en promoción con stock</option>
-            <option value="return_flow">Crear un flujo de preguntas para devoluciones</option>
-            <option value="response_rule">Agregar una indicación de respuesta para un tema</option>
-            <option value="required_questions">Definir preguntas obligatorias para una categoría</option>
+            <option value="brand_priority">{t("Priorizar una marca cuando pregunten por una categoría")}</option>
+            <option value="promotion_priority">{t("Priorizar productos en promoción con stock")}</option>
+            <option value="return_flow">{t("Crear un flujo de preguntas para devoluciones")}</option>
+            <option value="response_rule">{t("Agregar una indicación de respuesta para un tema")}</option>
+            <option value="required_questions">{t("Definir preguntas obligatorias para una categoría")}</option>
           </select>
-          <label className="mb-1 block text-xs font-semibold text-slate-600">Nombre</label>
-          <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Ej: Priorizar LG en heladeras" />
+          <label className="mb-1 block text-xs font-semibold text-slate-600">{t("Nombre")}</label>
+          <Input value={name} onChange={(event) => setName(event.target.value)} placeholder={t("Ej: Priorizar LG en heladeras")} />
           {kind === "brand_priority" ? (
             <div className="mt-3 grid gap-3 md:grid-cols-2">
-              <label className="text-xs font-semibold text-slate-600">Categoría
-                <Input className="mt-1" value={category} onChange={(event) => setCategory(event.target.value)} placeholder="heladera" />
+              <label className="text-xs font-semibold text-slate-600">{t("Categoría")}<Input className="mt-1" value={category} onChange={(event) => setCategory(event.target.value)} placeholder={t("heladera")} />
               </label>
-              <label className="text-xs font-semibold text-slate-600">Marca
-                <Input className="mt-1" value={brand} onChange={(event) => setBrand(event.target.value)} placeholder="LG" />
+              <label className="text-xs font-semibold text-slate-600">{t("Marca")}<Input className="mt-1" value={brand} onChange={(event) => setBrand(event.target.value)} placeholder="LG" />
               </label>
             </div>
           ) : kind === "promotion_priority" ? (
             <div className="mt-3 grid gap-3 md:grid-cols-2">
-              <label className="text-xs font-semibold text-slate-600">Categoría
-                <Input className="mt-1" value={category} onChange={(event) => setCategory(event.target.value)} placeholder="colchones, pintura, herramientas" />
+              <label className="text-xs font-semibold text-slate-600">{t("Categoría")}<Input className="mt-1" value={category} onChange={(event) => setCategory(event.target.value)} placeholder={t("colchones, pintura, herramientas")} />
               </label>
-              <label className="text-xs font-semibold text-slate-600">Descuento mínimo (%)
-                <Input className="mt-1" type="number" min={0} max={100} value={minDiscount} onChange={(event) => setMinDiscount(Number(event.target.value))} />
+              <label className="text-xs font-semibold text-slate-600">{t("Descuento mínimo (%)")}<Input className="mt-1" type="number" min={0} max={100} value={minDiscount} onChange={(event) => setMinDiscount(Number(event.target.value))} />
               </label>
             </div>
           ) : kind === "response_rule" ? (
             <div className="mt-3 space-y-3">
-              <label className="block text-xs font-semibold text-slate-600">Categoría o tema (opcional)
-                <Input className="mt-1" value={category} onChange={(event) => setCategory(event.target.value)} placeholder="Ej: heladera, envíos, promociones" />
+              <label className="block text-xs font-semibold text-slate-600">{t("Categoría o tema (opcional)")}<Input className="mt-1" value={category} onChange={(event) => setCategory(event.target.value)} placeholder={t("Ej: heladera, envíos, promociones")} />
               </label>
-              <label className="block text-xs font-semibold text-slate-600">¿Qué debe decir o tener en cuenta el bot?
-                <Textarea className="mt-1" rows={4} value={instruction} onChange={(event) => setInstruction(event.target.value)} placeholder="Ej: Para envíos, informar entrega en 24 horas y retiro en tienda; no inventar costos." />
+              <label className="block text-xs font-semibold text-slate-600">{t("¿Qué debe decir o tener en cuenta el bot?")}<Textarea className="mt-1" rows={4} value={instruction} onChange={(event) => setInstruction(event.target.value)} placeholder="Ej: Para envíos, informar entrega en 24 horas y retiro en tienda; no inventar costos." />
               </label>
             </div>
           ) : (
             <div className="mt-3 space-y-2">
               {kind === "required_questions" && (
-                <label className="block text-xs font-semibold text-slate-600">Categoría o tema (opcional)
-                  <Input className="mt-1" value={category} onChange={(event) => setCategory(event.target.value)} placeholder="Ej: heladera" />
+                <label className="block text-xs font-semibold text-slate-600">{t("Categoría o tema (opcional)")}<Input className="mt-1" value={category} onChange={(event) => setCategory(event.target.value)} placeholder={t("Ej: heladera")} />
                 </label>
               )}
               {questions.map((question, index) => (
                 <div key={index} className="rounded-xl border border-slate-200 p-3">
                   <div className="grid gap-2 md:grid-cols-2">
                     <Input value={question.text} placeholder={`Pregunta ${index + 1}`} onChange={(event) => setQuestions(questions.map((item, i) => i === index ? { ...item, text: event.target.value } : item))} />
-                    <Input value={question.key} placeholder="clave (opcional)" onChange={(event) => setQuestions(questions.map((item, i) => i === index ? { ...item, key: event.target.value } : item))} />
+                    <Input value={question.key} placeholder={t("clave (opcional)")} onChange={(event) => setQuestions(questions.map((item, i) => i === index ? { ...item, key: event.target.value } : item))} />
                   </div>
                   <div className="mt-2 flex items-center justify-between gap-2">
                     {kind === "return_flow" ? (
                       <label className="flex items-center gap-2 text-xs text-slate-600">
-                        <input type="checkbox" checked={question.requireYes} onChange={(event) => setQuestions(questions.map((item, i) => i === index ? { ...item, requireYes: event.target.checked } : item))} />
-                        Debe responder Sí
-                      </label>
+                        <input type="checkbox" checked={question.requireYes} onChange={(event) => setQuestions(questions.map((item, i) => i === index ? { ...item, requireYes: event.target.checked } : item))} />{t("Debe responder Sí")}</label>
                     ) : <span />}
-                    <Button variant="ghost" size="sm" onClick={() => setQuestions(questions.filter((_, i) => i !== index))}>Quitar</Button>
+                    <Button variant="ghost" size="sm" onClick={() => setQuestions(questions.filter((_, i) => i !== index))}>{t("Quitar")}</Button>
                   </div>
                 </div>
               ))}
@@ -470,27 +456,25 @@ function RuleBuilder({
             </div>
           )}
           <div className="mt-3 grid gap-3 md:grid-cols-2">
-            <label className="text-xs font-semibold text-slate-600">Prioridad
-              <Input className="mt-1" type="number" value={priority} onChange={(event) => setPriority(Number(event.target.value))} />
+            <label className="text-xs font-semibold text-slate-600">{t("Prioridad")}<Input className="mt-1" type="number" value={priority} onChange={(event) => setPriority(Number(event.target.value))} />
             </label>
-            <label className="text-xs font-semibold text-slate-600">Estado
-              <select className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" value={status} onChange={(event) => setStatus(event.target.value)}>
-                <option value="draft">Borrador</option>
-                <option value="published">Publicado</option>
+            <label className="text-xs font-semibold text-slate-600">{t("Estado")}<select className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" value={status} onChange={(event) => setStatus(event.target.value)}>
+                <option value="draft">{t("Borrador")}</option>
+                <option value="published">{t("Publicado")}</option>
               </select>
             </label>
           </div>
           <div className="mt-3 flex gap-2">
-            <Button onClick={save}>Guardar</Button>
-            <Button variant="ghost" onClick={reset}>Limpiar</Button>
+            <Button onClick={save}>{t("Guardar")}</Button>
+            <Button variant="ghost" onClick={reset}>{t("Limpiar")}</Button>
           </div>
         </Card>
         <Card className="overflow-hidden">
-          <div className="border-b border-slate-100 px-4 py-3 text-sm font-bold text-slate-900">Reglas cargadas</div>
+          <div className="border-b border-slate-100 px-4 py-3 text-sm font-bold text-slate-900">{t("Reglas cargadas")}</div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
-                <tr><th className="px-4 py-2">Nombre</th><th className="px-3 py-2">Tipo</th><th className="px-3 py-2">Detalle</th><th className="px-3 py-2">Estado</th><th className="px-3 py-2" /></tr>
+                <tr><th className="px-4 py-2">{t("Nombre")}</th><th className="px-3 py-2">{t("Tipo")}</th><th className="px-3 py-2">{t("Detalle")}</th><th className="px-3 py-2">{t("Estado")}</th><th className="px-3 py-2" /></tr>
               </thead>
               <tbody>
                 {rules.length ? rules.map((rule) => (
@@ -501,14 +485,14 @@ function RuleBuilder({
                     <td className="px-3 py-2"><Badge tone={rule.status === "published" ? "green" : "amber"}>{rule.status}</Badge></td>
                     <td className="px-3 py-2">
                       <div className="flex flex-wrap gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => edit(rule)}>Editar</Button>
-                        <Button variant="ghost" size="sm" onClick={() => history(rule)}>Historial</Button>
-                        {rule.status !== "published" && <Button variant="secondary" size="sm" onClick={() => publish(rule.id)}>Publicar</Button>}
-                        <Button variant="danger" size="sm" onClick={() => remove(rule.id)}>Eliminar</Button>
+                        <Button variant="ghost" size="sm" onClick={() => edit(rule)}>{t("Editar")}</Button>
+                        <Button variant="ghost" size="sm" onClick={() => history(rule)}>{t("Historial")}</Button>
+                        {rule.status !== "published" && <Button variant="secondary" size="sm" onClick={() => publish(rule.id)}>{t("Publicar")}</Button>}
+                        <Button variant="danger" size="sm" onClick={() => remove(rule.id)}>{t("Eliminar")}</Button>
                       </div>
                     </td>
                   </tr>
-                )) : <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-500">Sin reglas cargadas.</td></tr>}
+                )) : <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-500">{t("Sin reglas cargadas.")}</td></tr>}
               </tbody>
             </table>
           </div>
@@ -518,18 +502,18 @@ function RuleBuilder({
             <div className="mb-3 flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold text-slate-900">Historial · {versionsFor.name}</h3>
-                <p className="text-xs text-slate-500">Cada cambio guarda una versión restaurable.</p>
+                <p className="text-xs text-slate-500">{t("Cada cambio guarda una versión restaurable.")}</p>
               </div>
-              <Button variant="ghost" size="sm" onClick={() => setVersionsFor(null)}>Cerrar</Button>
+              <Button variant="ghost" size="sm" onClick={() => setVersionsFor(null)}>{t("Cerrar")}</Button>
             </div>
             <div className="space-y-2">
               {versions.length ? versions.map((item) => (
                 <div key={item.version} className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 px-3 py-2 text-sm">
                   <span className="font-semibold">Versión {item.version}</span>
                   <span className="text-xs text-slate-500">{item.changed_by} · {item.created_at ? new Date(item.created_at).toLocaleString("es-BO") : ""}</span>
-                  <Button variant="secondary" size="sm" className="ml-auto" onClick={() => rollback(versionsFor, item.version)}>Restaurar</Button>
+                  <Button variant="secondary" size="sm" className="ml-auto" onClick={() => rollback(versionsFor, item.version)}>{t("Restaurar")}</Button>
                 </div>
-              )) : <p className="text-sm text-slate-500">Sin versiones.</p>}
+              )) : <p className="text-sm text-slate-500">{t("Sin versiones.")}</p>}
             </div>
           </Card>
         )}
@@ -588,56 +572,56 @@ export function AdminCenter({ me, onLogout }: { me: Advisor; onLogout: () => voi
 
   return (
     <>
-      <AreaHeader title="Centro de administración" subtitle={me.display_name} onLogout={onLogout} />
+      <AreaHeader title={t("Centro de administración")} subtitle={me.display_name} onLogout={onLogout} />
       <main className="mx-auto max-w-[1100px] p-4 lg:p-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-xl font-bold text-slate-900">Usuarios de área</h1>
-            <p className="text-sm text-slate-500">Cada encargado administra solo sus reglas.</p>
+            <h1 className="text-xl font-bold text-slate-900">{t("Usuarios de área")}</h1>
+            <p className="text-sm text-slate-500">{t("Cada encargado administra solo sus reglas.")}</p>
           </div>
           <div className="flex gap-2">
-            <Link to="/overview" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700">Operación</Link>
-            <Link to="/rules" className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white">Administrar reglas</Link>
-            <Link to="/occasions" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700">Ocasiones</Link>
+            <Link to="/overview" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700">{t("Operación")}</Link>
+            <Link to="/rules" className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white">{t("Administrar reglas")}</Link>
+            <Link to="/occasions" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700">{t("Ocasiones")}</Link>
           </div>
         </div>
         <div className="mb-4 rounded-xl border border-[#ffb3bd]/40 bg-[#f9fafb] px-4 py-3 text-xs text-[#4b5563]">
-          <strong className="text-[#111111]">¿Para qué sirve?</strong> Desde acá creás las cuentas de los encargados.
+          <strong className="text-[#111111]">{t("¿Para qué sirve?")}</strong> Desde acá creás las cuentas de los encargados.
           Cada usuario entra con su contraseña y administra las reglas y ocasiones de su área; no ve las de las demás.
         </div>
         {error && <div className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
         <Card className="mb-4 p-4">
-          <h2 className="mb-3 text-sm font-bold text-slate-900">Crear usuario de área</h2>
+          <h2 className="mb-3 text-sm font-bold text-slate-900">{t("Crear usuario de área")}</h2>
           <div className="grid gap-3 md:grid-cols-2">
-            <Input placeholder="usuario" value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value })} />
-            <Input placeholder="nombre visible" value={form.display_name} onChange={(event) => setForm({ ...form, display_name: event.target.value })} />
-            <Input type="password" placeholder="contraseña" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} />
+            <Input placeholder={t("usuario")} value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value })} />
+            <Input placeholder={t("nombre visible")} value={form.display_name} onChange={(event) => setForm({ ...form, display_name: event.target.value })} />
+            <Input type="password" placeholder={t("contraseña")} value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} />
             <select className="rounded-lg border border-slate-300 px-3 py-2" value={form.area} onChange={(event) => setForm({ ...form, area: event.target.value })}>
               {AREAS.map((area) => <option key={area}>{area}</option>)}
             </select>
           </div>
-          <div className="mt-3"><Button onClick={create}>Crear usuario</Button></div>
+          <div className="mt-3"><Button onClick={create}>{t("Crear usuario")}</Button></div>
         </Card>
         <Card className="overflow-hidden">
-          <div className="border-b border-slate-100 px-4 py-3 text-sm font-bold text-slate-900">Usuarios</div>
+          <div className="border-b border-slate-100 px-4 py-3 text-sm font-bold text-slate-900">{t("Usuarios")}</div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-2">Usuario</th><th className="px-3 py-2">Nombre</th><th className="px-3 py-2">Área</th><th className="px-3 py-2">Estado</th><th className="px-3 py-2">Acciones</th></tr></thead>
+              <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-2">{t("Usuario")}</th><th className="px-3 py-2">{t("Nombre")}</th><th className="px-3 py-2">{t("Área")}</th><th className="px-3 py-2">{t("Estado")}</th><th className="px-3 py-2">{t("Acciones")}</th></tr></thead>
               <tbody>
                 {users.length ? users.map((user) => (
                   <tr key={user.id} className="border-t border-slate-100">
                     <td className="px-4 py-2 font-semibold">{user.username}</td>
                     <td className="px-3 py-2">{user.display_name}</td>
                     <td className="px-3 py-2">{user.area}</td>
-                    <td className="px-3 py-2"><Badge tone={user.active ? "green" : "red"}>{user.active ? "activo" : "inactivo"}</Badge></td>
+                    <td className="px-3 py-2"><Badge tone={user.active ? "green" : "red"}>{user.active ? t("activo") : t("inactivo")}</Badge></td>
                     <td className="px-3 py-2">
                       <div className="flex flex-wrap gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => patch(user.id, { active: !user.active })}>{user.active ? "Desactivar" : "Activar"}</Button>
-                        <Button variant="secondary" size="sm" onClick={() => resetPassword(user.id)}>Resetear clave</Button>
+                        <Button variant="ghost" size="sm" onClick={() => patch(user.id, { active: !user.active })}>{user.active ? t("Desactivar") : t("Activar")}</Button>
+                        <Button variant="secondary" size="sm" onClick={() => resetPassword(user.id)}>{t("Resetear clave")}</Button>
                       </div>
                     </td>
                   </tr>
-                )) : <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-500">Sin usuarios.</td></tr>}
+                )) : <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-500">{t("Sin usuarios.")}</td></tr>}
               </tbody>
             </table>
           </div>
