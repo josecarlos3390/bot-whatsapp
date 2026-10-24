@@ -2149,6 +2149,13 @@ SEMANTIC_QUERY_RE = re.compile(
     re.IGNORECASE,
 )
 # Consultas de políticas/FAQ: se precarga la base de conocimiento.
+IDENTITY_RE = re.compile(
+    r"\b(qui[eé]n (eres|sos|es)|c[oó]mo te llamas|c[oó]mo te llam[aá]s|"
+    r"tu nombre|sos (un|una) (bot|robot|ia)|eres (un|una) (bot|robot|ia)|"
+    r"qu[eé] (pod[eé]s|puedes) hacer|para qu[eé] serv[ií]s|"
+    r"a qu[eé] te dedic[aá]s|sos real|eres real)\b",
+    re.IGNORECASE,
+)
 WHY_RE = re.compile(
     r"\bpor ?qu[eé]\b[^.?!]{0,60}\b(recomend\w*|elegiste|elegí|ese|esa|eso|"
     r"este|esta|esos|esas|especial)\b|\bqu[eé] tiene de especial\b",
@@ -3611,6 +3618,11 @@ class Agent:
         if re.search(r"\b(asesor|humano|menu|menú|hola)\b", raw, re.I):
             await conversation_guard.clear_pending(session, contact)
             return None
+        # Otra pregunta (identidad, políticas, horarios) no es la respuesta a
+        # la ranura pendiente: que siga el camino normal.
+        if IDENTITY_RE.search(raw) or KNOWLEDGE_RE.search(raw):
+            await conversation_guard.clear_pending(session, contact)
+            return None
         base = guard.pending_query or ""
         if slot == "intent":
             await conversation_guard.clear_pending(session, contact)
@@ -3909,6 +3921,12 @@ class Agent:
             why_reply = await self._why_reply(session, contact)
             if why_reply is not None:
                 return why_reply
+
+        # "¿Quién eres?": se responde con la identidad, nunca con productos ni
+        # como si fuera la respuesta a una pregunta pendiente.
+        if IDENTITY_RE.search(raw):
+            self._trace("Identidad: quién soy")
+            return self._identity_reply()
 
         guard = await conversation_guard.get_for_contact(session, contact)
         if guard is not None:
@@ -4456,6 +4474,28 @@ class Agent:
                 f"- {product['name']} — Bs {product['price']}"
             )
         return "\n".join(lines)
+
+    @staticmethod
+    def _identity_reply() -> AgentReply:
+        """Quién es el bot y qué puede hacer, sin vender ni buscar."""
+        return AgentReply(
+            [
+                Outbound(
+                    kind="buttons",
+                    text=(
+                        "Soy *Rohi*, la asesora virtual de ROHO Homecenter. "
+                        "Te ayudo a encontrar productos, precios y promociones, "
+                        "armo tu carrito y coordino la entrega.\n\n"
+                        "Soy un asistente automático; si necesitás a una "
+                        "persona del equipo, la llamo."
+                    ),
+                    buttons=[
+                        {"id": "catalog", "title": "Ver productos"},
+                        {"id": "human", "title": "Hablar con alguien"},
+                    ],
+                )
+            ]
+        )
 
     async def _why_reply(
         self, session: AsyncSession, contact: Contact
