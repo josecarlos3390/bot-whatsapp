@@ -33,6 +33,7 @@ $python = Join-Path $root ".venv\Scripts\python.exe"
 $cloudflared = Join-Path $root ".tools\cloudflared.exe"
 $logDir = Join-Path $root ".tools"
 $tunnelLog = Join-Path $logDir "cloudflared.log"
+$tunnelErrLog = Join-Path $logDir "cloudflared.err.log"
 $urlFile = Join-Path $logDir "tunnel-url.txt"
 $botOut = Join-Path $logDir "bot.out.log"
 $botErr = Join-Path $logDir "bot.err.log"
@@ -82,6 +83,15 @@ function Sync-Due {
     return ((Get-Date) - $last).TotalHours -ge 24
 }
 
+function Log {
+    param([string]$Message)
+    $line = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') $Message"
+    Write-Host "[serve] $Message"
+    try {
+        Add-Content -Path (Join-Path $logDir "supervisor.log") -Value $line -Encoding UTF8
+    } catch { }
+}
+
 function Start-CatalogSync {
     if ((Get-CatalogMode) -eq "vtex") {
         $source = "VTEX"
@@ -114,7 +124,7 @@ function Start-WebhookWatch {
     Start-Process -FilePath $python `
         -ArgumentList @(
             "-m", "scripts.refresh_tunnel",
-            "--log", $tunnelLog,
+            "--log", $tunnelErrLog,
             "--env", $envFile,
             "--watch",
             "--interval", "120"
@@ -153,19 +163,50 @@ function Start-Bot {
 }
 
 function Start-Tunnel {
+    # cloudflared escribe en stderr; con -WindowStyle Hidden y sin redirección
+    # Start-Process se queda colgado y el túnel nunca arranca.
     Start-Process -FilePath $cloudflared `
-        -ArgumentList @("tunnel", "--url", "http://127.0.0.1:$Port", "--no-autoupdate", "--logfile", $tunnelLog, "--loglevel", "info") `
+        -ArgumentList @("tunnel", "--url", "http://127.0.0.1:$Port", "--no-autoupdate") `
         -WorkingDirectory $root `
+        -RedirectStandardOutput $tunnelLog `
+        -RedirectStandardError $tunnelErrLog `
         -WindowStyle Hidden `
         -PassThru
+}
+
+function Read-SharedText {
+    # cloudflared mantiene el archivo abierto: hay que leerlo compartiendo.
+    param([string]$Path)
+    if (-not (Test-Path $Path)) { return "" }
+    try {
+        $stream = [System.IO.File]::Open(
+            $Path,
+            [System.IO.FileMode]::Open,
+            [System.IO.FileAccess]::Read,
+            [System.IO.FileShare]::ReadWrite
+        )
+        $reader = New-Object System.IO.StreamReader($stream)
+        try { return $reader.ReadToEnd() } finally { $reader.Close(); $stream.Close() }
+    } catch {
+        return ""
+    }
+}
+
+function Read-TunnelUrl {
+    $parts = @()
+    foreach ($path in @($tunnelErrLog, $tunnelLog)) {
+        $parts += Read-SharedText -Path $path
+    }
+    $matches = [regex]::Matches(($parts -join "`n"), "https://[a-z0-9-]+\.trycloudflare\.com")
+    if ($matches.Count -eq 0) { return $null }
+    return $matches[$matches.Count - 1].Value
 }
 
 function Sync-TunnelUrl {
     param([string]$CurrentUrl)
 
-    $match = Select-String -Path $tunnelLog -Pattern "https://[a-z0-9-]+\.trycloudflare\.com" -AllMatches -ErrorAction SilentlyContinue
-    if (-not $match) { return $null }
-    $url = $match.Matches[-1].Value
+    $url = Read-TunnelUrl
+    if (-not $url) { return $null }
     Write-TextNoBom -Path $urlFile -Text $url
 
     if ($url -eq $CurrentUrl) { return $null }
@@ -178,13 +219,16 @@ function Sync-TunnelUrl {
     return $url
 }
 
+Log "iniciando (puerto $Port, modo $(Get-CatalogMode))"
 $bot = Start-Bot
+Log "API arrancada (PID $($bot.Id))"
 $tunnel = $null
 if (-not $NoTunnel) {
     if (-not (Test-Path $cloudflared)) {
         throw "Falta $cloudflared. Ver docs/despliegue.md (instalación de cloudflared)."
     }
     $tunnel = Start-Tunnel
+    Log "túnel arrancado (PID $($tunnel.Id))"
 }
 
 $currentUrl = (Select-String -Path $envFile -Pattern "^PUBLIC_BASE_URL=(.*)$" -ErrorAction SilentlyContinue).Matches[0].Groups[1].Value
@@ -194,40 +238,47 @@ Start-Sleep -Seconds 15
 if (Sync-Due) { Start-CatalogSync }
 if (Backup-Due) { Start-Backup }
 $webhook = Start-WebhookWatch
+Log "vigilante de webhook arrancado (PID $($webhook.Id))"
 
 while ($true) {
     Start-Sleep -Seconds 5
 
-    if (Sync-Due) { Start-CatalogSync }
-    if (Backup-Due) { Start-Backup }
+    try {
+        if (Sync-Due) { Start-CatalogSync }
+        if (Backup-Due) { Start-Backup }
 
-    if ($webhook -and $webhook.HasExited) {
-        Write-Host "[serve] el vigilante del webhook se detuvo; reiniciando"
-        Start-Sleep -Seconds 3
-        $webhook = Start-WebhookWatch
-    }
+        if ($webhook -and $webhook.HasExited) {
+            Log "el vigilante del webhook se detuvo; reiniciando"
+            Start-Sleep -Seconds 3
+            $webhook = Start-WebhookWatch
+        }
 
-    if ($bot.HasExited) {
-        Write-Host "[serve] la API se detuvo; reiniciando"
-        Start-Sleep -Seconds 3
-        $bot = Start-Bot
-    }
-
-    if ($tunnel -and $tunnel.HasExited) {
-        Write-Host "[serve] el túnel se detuvo; reiniciando"
-        Start-Sleep -Seconds 3
-        $tunnel = Start-Tunnel
-        Start-Sleep -Seconds 10
-    }
-
-    if ($tunnel) {
-        $url = Sync-TunnelUrl -CurrentUrl $currentUrl
-        if ($url) {
-            $currentUrl = $url
-            Write-Host "[serve] URL nueva: $url; reiniciando la API"
-            if (-not $bot.HasExited) { $bot | Stop-Process -Force }
-            Start-Sleep -Seconds 2
+        if ($bot.HasExited) {
+            Log "la API se detuvo; reiniciando"
+            Start-Sleep -Seconds 3
             $bot = Start-Bot
         }
+
+        if ($tunnel -and $tunnel.HasExited) {
+            Log "el túnel se detuvo; reiniciando"
+            Start-Sleep -Seconds 3
+            $tunnel = Start-Tunnel
+            Start-Sleep -Seconds 10
+        }
+
+        if ($tunnel) {
+            $url = Sync-TunnelUrl -CurrentUrl $currentUrl
+            if ($url) {
+                $currentUrl = $url
+                Log "URL nueva: $url; reiniciando la API"
+                if (-not $bot.HasExited) { $bot | Stop-Process -Force }
+                Start-Sleep -Seconds 2
+                $bot = Start-Bot
+            }
+        }
+    } catch {
+        # Un error en una vuelta no debe dejar el servidor sin supervisor.
+        Log "ERROR en el supervisor: $($_.Exception.Message)"
+        Start-Sleep -Seconds 5
     }
 }
