@@ -4670,16 +4670,22 @@ class Agent:
         messages.append({"role": "user", "content": text})
 
         for _ in range(4):
-            completion = await self._llm().chat.completions.create(
-                model=settings.deepseek_model,
-                messages=messages,
-                tools=TOOLS,
-                tool_choice="auto",
-                temperature=0.2,
-                # Modo no-thinking: menor latencia y no exige devolver
-                # reasoning_content en cada turno con tools.
-                extra_body={"thinking": {"type": "disabled"}},
-            )
+            try:
+                completion = await self._llm().chat.completions.create(
+                    model=settings.deepseek_model,
+                    messages=messages,
+                    tools=TOOLS,
+                    tool_choice="auto",
+                    temperature=0.2,
+                    # Modo no-thinking: menor latencia y no exige devolver
+                    # reasoning_content en cada turno con tools.
+                    extra_body={"thinking": {"type": "disabled"}},
+                )
+            except Exception:  # noqa: BLE001 - el cliente no queda sin respuesta
+                logger.exception(
+                    "El proveedor de IA falló; se responde con las reglas"
+                )
+                return await self._demo(session, contact, text)
             choice = completion.choices[0].message
             if not choice.tool_calls:
                 answer = _remove_stock_phrases(
