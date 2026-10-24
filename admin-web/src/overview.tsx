@@ -2,7 +2,7 @@
 import { Link } from "react-router-dom";
 import { api } from "./api";
 import { AreaHeader } from "./areas";
-import { Badge, Button, Card } from "./ui";
+import { Badge, Button, Card, Input } from "./ui";
 
 type Overview = {
   generated_at: string;
@@ -99,10 +99,41 @@ function Metric({ label, value, hint }: { label: string; value: number | string;
   );
 }
 
+type ProbeReply = {
+  kind: string;
+  text: string | null;
+  buttons: { title: string }[];
+  sections: { rows: { title: string; description?: string }[] }[];
+};
+
 export function OverviewPage({ onLogout }: { onLogout: () => void }) {
   const [data, setData] = useState<Overview | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [probe, setProbe] = useState("");
+  const [probeReplies, setProbeReplies] = useState<ProbeReply[]>([]);
+  const [probeMs, setProbeMs] = useState(0);
+  const [probeError, setProbeError] = useState("");
+  const [probing, setProbing] = useState(false);
+
+  async function runProbe() {
+    if (!probe.trim()) return;
+    setProbing(true);
+    setProbeError("");
+    try {
+      const result = await api<{ replies: ProbeReply[]; ms: number }>("/admin/simulate", {
+        method: "POST",
+        body: JSON.stringify({ text: probe.trim() })
+      });
+      setProbeReplies(result.replies || []);
+      setProbeMs(result.ms || 0);
+    } catch (exception) {
+      setProbeError(exception instanceof Error ? exception.message : "No se pudo probar");
+      setProbeReplies([]);
+    } finally {
+      setProbing(false);
+    }
+  }
 
   const load = async () => {
     try {
@@ -329,6 +360,54 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
                   <div className="text-[10px] text-[#8b6d59]">≥ {((data.latency?.slow_limit_ms ?? 8000) / 1000).toFixed(0)} s</div>
                 </div>
               </div>
+            </Card>
+
+            <Card className="mb-5 border-[#e5d4bf] bg-[#fffdf9] p-5">
+              <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+                <h3 className="font-serif text-lg font-semibold text-[#3d1a17]">Probar el bot</h3>
+                <span className="text-[11px] text-[#8b6d59]">No envía nada ni ensucia las métricas</span>
+              </div>
+              <p className="mb-2 text-xs text-[#8b6d59]">
+                Escribí como si fueras un cliente y mirá exactamente qué respondería el bot.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Input
+                  className="min-w-[240px] flex-1 border-[#d9c3aa] bg-white"
+                  value={probe}
+                  onChange={(event) => setProbe(event.target.value)}
+                  onKeyDown={(event) => { if (event.key === "Enter") void runProbe(); }}
+                  placeholder="Ej: busco un colchón de 2 plazas"
+                />
+                <Button onClick={() => void runProbe()} disabled={probing || !probe.trim()}>
+                  {probing ? "Probando…" : "Probar"}
+                </Button>
+              </div>
+              {probeError && <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{probeError}</div>}
+              {probeReplies.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  <div className="text-[11px] text-[#8b6d59]">Respondió en {(probeMs / 1000).toFixed(1)} s</div>
+                  {probeReplies.map((reply, index) => (
+                    <div key={index} className="rounded-xl border border-[#e5d4bf] bg-white px-3 py-2 text-sm text-[#3d1a17]">
+                      {reply.text && <div className="whitespace-pre-line">{reply.text}</div>}
+                      {reply.kind === "image" && <div className="mt-1 text-[11px] text-[#8b6d59]">[imagen del producto]</div>}
+                      {reply.buttons.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {reply.buttons.map((button) => (
+                            <span key={button.title} className="rounded-full bg-[#f1e6d6] px-2 py-0.5 text-[11px] text-[#5b3323]">{button.title}</span>
+                          ))}
+                        </div>
+                      )}
+                      {reply.sections.flatMap((section) => section.rows).length > 0 && (
+                        <ul className="mt-1 list-disc pl-4 text-[12px] text-[#5b3323]">
+                          {reply.sections.flatMap((section) => section.rows).map((row) => (
+                            <li key={row.title}>{row.title}{row.description ? ` — ${row.description}` : ""}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </Card>
 
             <Card className="mb-5 border-[#e5d4bf] bg-[#fffdf9] p-5">

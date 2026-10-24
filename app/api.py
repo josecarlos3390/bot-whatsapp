@@ -6,6 +6,7 @@ import html
 import io
 import json
 import logging
+import time
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
@@ -23,7 +24,7 @@ from fastapi.responses import (
     StreamingResponse,
 )
 from pydantic import BaseModel
-from sqlalchemy import func, select, text
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -35,6 +36,8 @@ from .models import (
     AreaUser,
     Contact,
     Conversation,
+    CustomerProfile,
+    FunnelEvent,
     Handoff,
     HandoffEvent,
     Message,
@@ -47,6 +50,7 @@ from .payments import verify_standard_webhook
 from .runtime import whatsapp
 from .sap import SapError, get_sap
 from .services import catalog
+from .services import metrics
 from .services import advisors as advisor_service
 from .services import area_rules
 from .services import area_users
@@ -1310,6 +1314,98 @@ async def area_rule_rollback(
     except area_rules.RuleError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ok": True, "rule": area_rules.to_dict(rule)}
+
+
+class SimulateBotPayload(BaseModel):
+    text: str
+    clear: bool = True
+
+
+@router.post("/admin/simulate")
+async def admin_simulate(
+    payload: SimulateBotPayload,
+    _: dict = Depends(require_center_admin),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Le escribe al bot desde la consola y devuelve su respuesta.
+
+    Usa un contacto temporal y borra todo lo generado: no ensucia métricas,
+    ni casos, ni avisa a asesores.
+    """
+    from .agent import Agent, AgentReply, Outbound
+
+    text = (payload.text or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Escribí un mensaje")
+
+    suffix = uuid.uuid4().hex[:10]
+    contact = Contact(
+        wa_id=f"sim{suffix}",
+        phone_e164=f"+0{suffix[:9]}",
+        name="Prueba consola",
+    )
+    session.add(contact)
+    await session.flush()
+    conversation = Conversation(contact_id=contact.id)
+    session.add(conversation)
+    await session.commit()
+
+    previous = (
+        settings.handoff_webhook_url,
+        settings.telegram_bot_token,
+        settings.telegram_chat_id,
+    )
+    settings.handoff_webhook_url = ""
+    settings.telegram_bot_token = ""
+    settings.telegram_chat_id = ""
+    try:
+        started = time.perf_counter()
+        try:
+            reply = await Agent().handle(session, contact, text)
+        except Exception:  # noqa: BLE001 - el panel muestra el error
+            logger.exception("Falló la simulación desde la consola")
+            reply = AgentReply(
+                [Outbound(text="La simulación falló. Revisá el log del bot.")]
+            )
+        elapsed = round((time.perf_counter() - started) * 1000)
+        replies = [
+            {
+                "kind": message.kind,
+                "text": message.text,
+                "buttons": message.buttons or [],
+                "sections": message.sections or [],
+                "url": message.url,
+            }
+            for message in reply.messages
+        ]
+    finally:
+        (
+            settings.handoff_webhook_url,
+            settings.telegram_bot_token,
+            settings.telegram_chat_id,
+        ) = previous
+        if payload.clear:
+            await session.execute(
+                delete(Message).where(Message.conversation_id == conversation.id)
+            )
+            await session.execute(
+                delete(Handoff).where(Handoff.conversation_id == conversation.id)
+            )
+            await session.execute(
+                delete(FunnelEvent).where(FunnelEvent.contact_id == contact.id)
+            )
+            await session.execute(
+                delete(CustomerProfile).where(
+                    CustomerProfile.contact_id == contact.id
+                )
+            )
+            await session.execute(
+                delete(Conversation).where(Conversation.id == conversation.id)
+            )
+            await session.execute(delete(Contact).where(Contact.id == contact.id))
+            await session.commit()
+
+    return {"ok": True, "ms": elapsed, "replies": replies}
 
 
 @router.post("/areas/occasions/simulate")
