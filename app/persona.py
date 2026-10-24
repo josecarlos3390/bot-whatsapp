@@ -1,4 +1,4 @@
-﻿"""Voz y microcopy de Rohi, la asesora virtual de ROHO."""
+"""Voz y microcopy de Rohi, la asesora virtual de ROHO."""
 
 from __future__ import annotations
 
@@ -75,8 +75,13 @@ def checkout_failed(reason: str) -> str:
     )
 
 
-def empathy(topic: str | None = None) -> str:
+def empathy(topic: str | None = None, closing: bool = False) -> str:
     """Respuesta ante un tema delicado: empatía, sin vender."""
+    if closing:
+        return (
+            "Gracias por contármelo. 💙 Quedo por acá si en algún momento "
+            "necesitás algo de la casa."
+        )
     if topic == "duelo":
         return (
             "Lamento mucho lo que me contás. 😔 Perder a alguien que querés "

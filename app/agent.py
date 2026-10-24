@@ -20,6 +20,7 @@ from .models import (
     CatalogItem,
     Contact,
     Conversation,
+    FunnelEvent,
     Handoff,
     Message,
     ProductPromotion,
@@ -1331,7 +1332,9 @@ class Toolbox:
                 contact_id=self.contact_id,
                 query=query,
             )
-        size = _requested_size(query or "")
+        # El modelo puede pasar la medida aparte (size); si no viene, se toma
+        # del texto de la búsqueda.
+        size = (size or "").strip() or _requested_size(query or "")
         if size:
             size_re = re.compile(rf"\b{re.escape(size)}\b")
             products = [
@@ -2146,6 +2149,11 @@ SEMANTIC_QUERY_RE = re.compile(
     re.IGNORECASE,
 )
 # Consultas de políticas/FAQ: se precarga la base de conocimiento.
+WHY_RE = re.compile(
+    r"\bpor ?qu[eé]\b[^.?!]{0,60}\b(recomend\w*|elegiste|elegí|ese|esa|eso|"
+    r"este|esta|esos|esas|especial)\b|\bqu[eé] tiene de especial\b",
+    re.IGNORECASE,
+)
 KNOWLEDGE_RE = re.compile(
     r"\b(pol[ií]tica(?:s)?|garant[ií]a(?:s)?|cambios?|devoluci[oó]n(?:es)?|"
     r"env[ií]os?|env[ií]o|delivery|entregas?|demoras?|tarda|plazos?|"
@@ -2450,7 +2458,7 @@ class Agent:
 
             query = " ".join(
                 str(arguments.get(key) or "")
-                for key in ("query", "brand", "category")
+                for key in ("query", "brand", "category", "size")
             ).strip()
             if arguments.get("only_discount"):
                 query = f"{query} en descuento"
@@ -2492,7 +2500,9 @@ class Agent:
     @staticmethod
     def _empathy_reply(decision: dict) -> AgentReply:
         """Ante algo delicado: empatía, cero venta y una salida amable."""
-        text = persona.empathy(decision.get("sensitive_topic"))
+        text = persona.empathy(
+            decision.get("sensitive_topic"), closing=bool(decision.get("closing"))
+        )
         return AgentReply(
             [
                 Outbound(
@@ -2590,9 +2600,7 @@ class Agent:
                 [
                     Outbound(
                         text=(
-                            f"No tengo una sección específica de "
-                            f"*{event['label']}*, pero esto es lo más "
-                            "cercano que tengo:"
+                            f"Para *{event['label']}* te puedo ofrecer esto:"
                         )
                     ),
                     *self._search_cards(direct[:3]),
@@ -2770,10 +2778,7 @@ class Agent:
             return AgentReply(
                 [
                     Outbound(
-                        text=(
-                            f"No tengo una sección específica para "
-                            f"*{topic}*, pero encontré esto relacionado:"
-                        )
+                        text=f"Para *{topic}* tengo esto que puede servirte:"
                     ),
                     *self._search_cards(direct[:3]),
                     Outbound(
@@ -2954,8 +2959,14 @@ class Agent:
                 ]
             )
         products = result.get("products") or []
+        # Se guarda qué producto se mostró primero: sirve para explicar luego
+        # "¿por qué me recomendaste ese?".
         await funnel.track(
-            session, "search", contact=contact, query=query
+            session,
+            "search",
+            contact=contact,
+            query=query,
+            sku=products[0]["sku"] if products else None,
         )
         if len(products) == 1:
             only = products[0]
@@ -3884,6 +3895,13 @@ class Agent:
             text = await order_tracking.start(session, contact)
             return AgentReply([Outbound(text=text)])
 
+        # "¿Por qué me recomendaste ese?": se responde antes de cualquier
+        # ranura pendiente, con datos reales del último producto visto.
+        if WHY_RE.search(raw):
+            why_reply = await self._why_reply(session, contact)
+            if why_reply is not None:
+                return why_reply
+
         guard = await conversation_guard.get_for_contact(session, contact)
         if guard is not None:
             reference_reply = await self._resolve_reference(
@@ -3903,6 +3921,13 @@ class Agent:
             knowledge_reply = await self._knowledge_reply(session, contact, raw)
             if knowledge_reply is not None:
                 return knowledge_reply
+
+        # "¿Por qué me recomendaste ese?": se explica con datos reales del
+        # último producto visto, sin repetir la ficha.
+        if WHY_RE.search(raw):
+            why_reply = await self._why_reply(session, contact)
+            if why_reply is not None:
+                return why_reply
 
         ambiguous_question = intent_guard.detect(raw)
         if ambiguous_question:
@@ -4058,6 +4083,13 @@ class Agent:
             knowledge_reply = await self._knowledge_reply(session, contact, raw)
             if knowledge_reply is not None:
                 return knowledge_reply
+
+        # "¿Por qué me recomendaste ese?": se explica con datos, sin repetir
+        # la ficha.
+        if WHY_RE.search(raw):
+            why_reply = await self._why_reply(session, contact)
+            if why_reply is not None:
+                return why_reply
 
         if PAYMENT_METHOD_RE.search(raw):
             return AgentReply(
@@ -4402,6 +4434,107 @@ class Agent:
                 f"- {product['name']} — Bs {product['price']}"
             )
         return "\n".join(lines)
+
+    async def _why_reply(
+        self, session: AsyncSession, contact: Contact
+    ) -> AgentReply | None:
+        """Explica por qué se recomendó el último producto visto, con datos.
+
+        Evita el rebote de volver a mostrar la misma ficha cuando el cliente
+        pregunta "¿por qué ese?".
+        """
+        sku = await session.scalar(
+            select(FunnelEvent.sku)
+            .where(
+                FunnelEvent.contact_id == contact.id,
+                FunnelEvent.step == "search",
+                FunnelEvent.sku.is_not(None),
+            )
+            .order_by(FunnelEvent.created_at.desc())
+            .limit(1)
+        )
+        if not sku:
+            sku = await session.scalar(
+                select(FunnelEvent.sku)
+                .where(
+                    FunnelEvent.contact_id == contact.id,
+                    FunnelEvent.step == "product_view",
+                    FunnelEvent.sku.is_not(None),
+                )
+                .order_by(FunnelEvent.created_at.desc())
+                .limit(1)
+            )
+        if not sku:
+            # La herramienta de búsqueda guarda el último SKU en el estado
+            # de la conversación.
+            conversation = await session.scalar(
+                select(Conversation).where(
+                    Conversation.contact_id == contact.id
+                )
+            )
+            if conversation is not None:
+                state = await conversation_state.get_state(
+                    session, conversation.id
+                )
+                sku = state.last_sku
+        if not sku:
+            # Último recurso: repetir la última búsqueda y explicar el primero.
+            last_query = await session.scalar(
+                select(FunnelEvent.query)
+                .where(
+                    FunnelEvent.contact_id == contact.id,
+                    FunnelEvent.step == "search",
+                    FunnelEvent.query.is_not(None),
+                )
+                .order_by(FunnelEvent.created_at.desc())
+                .limit(1)
+            )
+            if not last_query:
+                return None
+            found = await catalog.search_items(
+                session, last_query, limit=1
+            )
+            if not found:
+                return None
+            sku = found[0].sku
+        item = await catalog.get_item(session, sku)
+        if item is None:
+            return None
+
+        points = [f"precio Bs {Decimal(str(item.price)):,.2f}"]
+        promo = await session.scalar(
+            select(ProductPromotion)
+            .where(ProductPromotion.sku == item.sku)
+            .order_by(ProductPromotion.price)
+            .limit(1)
+        )
+        if promo is not None:
+            points.append(
+                f"con descuento a Bs {Decimal(str(promo.price)):,.2f}"
+            )
+        if item.brand:
+            points.append(f"marca {item.brand}")
+        if item.category:
+            points.append(f"categoría {item.category}")
+        if (item.stock or 0) > 0:
+            points.append("disponible ahora")
+
+        return AgentReply(
+            [
+                Outbound(
+                    kind="buttons",
+                    text=(
+                        f"Te mostré *{item.name}* por {', '.join(points)}.\n\n"
+                        "Si querés, lo comparo con otra opción de la misma "
+                        "medida o busco algo más económico."
+                    ),
+                    buttons=[
+                        {"id": "more", "title": "Comparar opciones"},
+                        {"id": "human", "title": "Asesor"},
+                    ],
+                )
+            ]
+        )
 
     async def _knowledge_reply(
         self, session: AsyncSession, contact: Contact, text: str
@@ -4881,11 +5014,9 @@ class Agent:
         for index, product in enumerate(products, start=1):
             lines.append(
                 f"\n{index}. *{product['name']}* — {money(product['price'])}"
-                f"\n   SKU: {product['sku']}"
             )
         lines.append(
-            "\nPara agregar: escribe *agregar* seguido del SKU y la cantidad "
-            "(ej. *agregar SKU 2*)."
+            "\nDecime cuál te interesa y te muestro la ficha con fotos."
         )
         return AgentReply(
             [

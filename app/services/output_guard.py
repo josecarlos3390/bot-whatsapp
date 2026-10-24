@@ -1,4 +1,4 @@
-﻿"""Validación de salida: la última barrera antes de enviar al cliente.
+"""Validación de salida: la última barrera antes de enviar al cliente.
 
 No reemplaza al modelo ni a las reglas: los audita. Si algo se escapa (una
 frase pobre, un producto que nadie pidió en un tema delicado, una referencia a
@@ -19,19 +19,29 @@ from . import intent, policy
 
 logger = logging.getLogger(__name__)
 
-# Frases que no deben salir nunca.
+# Frases que no deben salir nunca (patrón, reemplazo). Se reemplaza la frase
+# completa para no dejar oraciones cortadas.
 BANNED: tuple[tuple[str, str], ...] = (
     (
-        "no tengo una sección específica",
-        "No tengo esa categoría armada, pero decime qué buscás y lo reviso.",
+        r"no tengo (?:una )?secci[oó]n espec[ií]fica[^.\n]*(?:[:.]|$)",
+        "Esto es lo que tengo:",
     ),
     (
-        "no pude completar la consulta",
+        r"no pude completar (?:la|tu) consulta[^.\n]*\.?",
         "Se me complicó la consulta. ¿Me la repetís o te paso con un asesor?",
+    ),
+    (
+        r"¡?qu[eé] bueno que me cuentes!?",
+        "Gracias por contarme.",
     ),
 )
 
-BANNED_PHRASES = tuple(phrase for phrase, _ in BANNED)
+# Prefijos literales para el reporte de calidad.
+BANNED_PHRASES = (
+    "no tengo una sección específica",
+    "no pude completar la consulta",
+    "qué bueno que me cuentes",
+)
 
 _ID_RE = re.compile(r"^(product|add):([^:]+)")
 
@@ -54,9 +64,8 @@ def _clean_text(text: str | None) -> str | None:
     if not text:
         return text
     value = text
-    for phrase, replacement in BANNED:
-        if phrase in value.lower():
-            value = re.sub(re.escape(phrase), replacement, value, flags=re.IGNORECASE)
+    for pattern, replacement in BANNED:
+        value = re.sub(pattern, replacement, value, flags=re.IGNORECASE)
     return value
 
 
@@ -68,16 +77,20 @@ def _parse_amount(raw: str) -> float | None:
     value = (raw or "").strip().rstrip(".,")
     if not value:
         return None
-    if "," in value and "." in value:
-        value = value.replace(".", "").replace(",", ".")
-    elif "," in value:
-        value = value.replace(",", ".")
-    elif value.count(".") == 1:
-        entero, decimales = value.split(".")
-        if len(decimales) != 2:
-            value = entero + decimales
+    # Si el último separador está seguido de dos dígitos, es decimal:
+    # "4,699.00" -> 4699.00 y "2.549,00" -> 2549.00.
+    match = re.match(r"^(.*)([.,])(\d{2})$", value)
+    if match:
+        entero = re.sub(r"[.,]", "", match.group(1))
+        try:
+            return float(f"{entero}.{match.group(3)}")
+        except ValueError:
+            return None
+    # Si no, todos los separadores son de miles: "4,699" o "1.190".
+    if re.fullmatch(r"\d{1,3}(?:[.,]\d{3})+", value) or value.isdigit():
+        return float(re.sub(r"[.,]", "", value))
     try:
-        return float(value)
+        return float(value.replace(",", "."))
     except ValueError:
         return None
 
@@ -171,7 +184,10 @@ async def sanitize(session: AsyncSession, reply, text: str | None):
             [
                 Outbound(
                     kind="buttons",
-                    text=persona.empathy(decision.get("sensitive_topic")),
+                    text=persona.empathy(
+                        decision.get("sensitive_topic"),
+                        closing=bool(decision.get("closing")),
+                    ),
                     buttons=[
                         {"id": "human", "title": "Hablar con alguien"},
                         {"id": "catalog", "title": "Seguir con productos"},

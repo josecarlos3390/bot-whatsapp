@@ -1,4 +1,4 @@
-﻿"""Validación de salida: la respuesta final no puede contradecir la política."""
+"""Validación de salida: la respuesta final no puede contradecir la política."""
 
 from __future__ import annotations
 
@@ -66,7 +66,7 @@ async def test_frase_prohibida_se_reemplaza(session):
 
     texto = " ".join(m.text or "" for m in result.messages)
     assert "sección específica" not in texto.lower()
-    assert "categoría armada" in texto.lower()
+    assert "esto es lo que tengo" in texto.lower()
 
 
 async def test_quita_sku_inexistente_y_conserva_el_real(session):

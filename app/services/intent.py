@@ -1,4 +1,4 @@
-﻿"""Clasificación de intención del mensaje.
+"""Clasificación de intención del mensaje.
 
 Tres capas, de la más barata a la más cara:
 
@@ -89,6 +89,14 @@ _SENSITIVE_TERMS = {
         "despedido", "despedida", "sin trabajo", "deuda", "no tengo plata",
     ),
 }
+
+# El cliente cierra el tema: no hace falta volver a ofrecer ayuda.
+_CLOSING_TERMS = (
+    "no te preocupes", "no te preocupés", "solo quería contarle",
+    "solo queria contarle", "solo quería contarte", "solo queria contarte",
+    "gracias por escuchar", "ya me siento mejor", "solo quería desahogarme",
+    "solo queria desahogarme", "nada más", "nada mas",
+)
 
 # Enojo o urgencia: se atiende primero y se deriva, sin vender.
 _FRUSTRATION_TERMS = (
@@ -200,6 +208,7 @@ def rules(text: str | None) -> dict[str, Any]:
         "negated": negated,
         "sensitive": sensitive_topic is not None,
         "sensitive_topic": sensitive_topic,
+        "closing": sensitive_topic is not None and _has(normalized, _CLOSING_TERMS),
         "frustrated": frustrated,
         "source": "rules",
     }
