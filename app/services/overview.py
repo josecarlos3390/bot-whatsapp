@@ -1,4 +1,4 @@
-"""Estado operativo consolidado para el tablero de administración."""
+﻿"""Estado operativo consolidado para el tablero de administración."""
 
 from __future__ import annotations
 
@@ -356,5 +356,6 @@ async def overview(session: AsyncSession) -> dict:
         "counts": counts,
         "quality": {"fallbacks_24h": fallbacks, "tools": tools},
         "funnel": await funnel.stats(session, 30),
+        "search_gaps": await funnel.search_gaps(session, 30),
         "alerts": alerts,
     }

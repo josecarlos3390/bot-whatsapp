@@ -35,6 +35,7 @@ type Overview = {
       conversion: number | null;
     }[];
   };
+  search_gaps: { query: string; count: number; last_seen: string | null }[];
   alerts: { level: "critical" | "warning"; title: string; detail: string }[];
 };
 
@@ -211,6 +212,32 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
                   );
                 })}
               </div>
+            </Card>
+
+            <Card className="mb-5 border-[#e5d4bf] bg-[#fffdf9] p-5">
+              <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+                <h3 className="font-serif text-lg font-semibold text-[#3d1a17]">Búsquedas sin resultados</h3>
+                <span className="text-[11px] text-[#8b6d59]">
+                  Últimos 30 días · {(data.search_gaps ?? []).reduce((total, row) => total + row.count, 0)} casos
+                </span>
+              </div>
+              <p className="mb-3 text-xs text-[#8b6d59]">
+                Consultas que no encontraron nada: sirven para detectar artículos que faltan o sinónimos por agregar.
+              </p>
+              {(data.search_gaps ?? []).length === 0 ? (
+                <p className="text-sm text-[#8b6d59]">Ninguna registrada.</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {(data.search_gaps ?? []).slice(0, 8).map((row) => (
+                    <div key={row.query} className="flex items-center justify-between border-b border-[#f1e6d6] py-1.5 text-sm">
+                      <span className="text-[#3d1a17]">{row.query}</span>
+                      <span className="text-[11px] text-[#8b6d59]">
+                        {row.count}× · {formatDate(row.last_seen)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </Card>
 
             <div className="grid gap-4 lg:grid-cols-2">

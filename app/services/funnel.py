@@ -35,6 +35,9 @@ LABELS: dict[str, str] = {
     "payment_paid": "Pagos confirmados",
 }
 
+# Búsquedas que no devolvieron nada: sirven para detectar huecos de catálogo.
+MISS_STEP = "search_miss"
+
 
 async def track(
     session: AsyncSession,
@@ -48,7 +51,7 @@ async def track(
     value: Decimal | None = None,
 ) -> None:
     """Anota un paso. No hace commit: lo hace el flujo que ya está guardando."""
-    if step not in STEPS:
+    if step not in STEPS and step != MISS_STEP:
         logger.warning("Paso de embudo desconocido: %s", step)
         return
     session.add(
@@ -115,6 +118,38 @@ async def stats(
         "steps": rows,
         "revenue": str(Decimal(str(revenue or 0))),
     }
+
+
+async def search_gaps(
+    session: AsyncSession, days: int = 30, limit: int = 20
+) -> list[dict]:
+    """Consultas que no encontraron nada, ordenadas por frecuencia."""
+    since = datetime.now(timezone.utc) - timedelta(days=max(int(days), 1))
+    rows = (
+        await session.execute(
+            select(
+                FunnelEvent.query,
+                func.count(FunnelEvent.id),
+                func.max(FunnelEvent.created_at),
+            )
+            .where(
+                FunnelEvent.step == MISS_STEP,
+                FunnelEvent.created_at >= since,
+                FunnelEvent.query.is_not(None),
+            )
+            .group_by(FunnelEvent.query)
+            .order_by(func.count(FunnelEvent.id).desc())
+            .limit(max(int(limit), 1))
+        )
+    ).all()
+    return [
+        {
+            "query": query,
+            "count": int(count),
+            "last_seen": last.isoformat() if last else None,
+        }
+        for query, count, last in rows
+    ]
 
 
 async def track_and_commit(session: AsyncSession, step: str, **kwargs) -> None:

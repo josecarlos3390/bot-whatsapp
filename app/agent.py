@@ -1442,6 +1442,14 @@ class Toolbox:
         # Si SAP dice que no hay stock, no se ofrece (salvo que no quede nada).
         if products and any(p.get("stock", 0) > 0 for p in products):
             products = [p for p in products if p.get("stock", 0) > 0]
+        if not products and query:
+            # Consulta sin resultados: se guarda para detectar huecos reales.
+            await funnel.track_and_commit(
+                self.session,
+                "search_miss",
+                contact_id=self.contact_id,
+                query=query,
+            )
         size = _requested_size(query or "")
         if size:
             size_re = re.compile(rf"\b{re.escape(size)}\b")
@@ -3297,6 +3305,58 @@ class Agent:
             ]
         )
 
+    @staticmethod
+    def _cart_reply(result: dict) -> AgentReply:
+        """Carrito con ajuste rápido del último artículo agregado."""
+        items = result.get("items") or []
+        if not items:
+            return AgentReply(
+                [
+                    Outbound(
+                        kind="buttons",
+                        text=persona.cart_empty(),
+                        buttons=[
+                            {"id": "catalog", "title": "Ver catálogo"},
+                            {"id": "human", "title": "Asesor"},
+                        ],
+                    )
+                ]
+            )
+
+        lines = ["🛒 *Tu carrito*"]
+        for item in items:
+            lines.append(
+                f"- {item['quantity']} × {item['name']} = "
+                f"Bs {Decimal(item['line_total']):,.2f}"
+            )
+        lines.append(f"\n*Total: Bs {Decimal(result['total']):,.2f}*")
+
+        last = items[-1]
+        quantity = int(last["quantity"])
+        lines.append(
+            f"\nAjusto *{last['name']}* (x{quantity}). "
+            "Para otro artículo, tocá *Ver carrito* desde su ficha."
+        )
+        return AgentReply(
+            [
+                Outbound(
+                    kind="buttons",
+                    text="\n".join(lines)[:1024],
+                    buttons=[
+                        {"id": "checkout", "title": "Confirmar pedido"},
+                        {
+                            "id": f"qty:{last['sku']}:{quantity + 1}",
+                            "title": "Sumar 1",
+                        },
+                        {
+                            "id": f"qty:{last['sku']}:{max(quantity - 1, 0)}",
+                            "title": "Restar 1",
+                        },
+                    ],
+                )
+            ]
+        )
+
     async def _checkout_reply(
         self, session: AsyncSession, contact: Contact
     ) -> AgentReply:
@@ -3827,29 +3887,26 @@ class Agent:
             )
 
         if normalized == "cart":
-            result = await toolbox.tool_view_cart()
-            lines = ["Tu carrito:"]
-            for item in result["items"]:
-                lines.append(
-                    f"- *{item['name']}* x{item['quantity']} — "
-                    f"Bs {Decimal(item['line_total']):,.2f}"
-                )
-            if not result["items"]:
-                lines.append("Está vacío.")
-            else:
-                lines.append(f"Total: *Bs {Decimal(result['total']):,.2f}*")
-            return AgentReply(
-                [
-                    Outbound(
-                        kind="buttons",
-                        text="\n".join(lines),
-                        buttons=[
-                            {"id": "catalog", "title": "Seguir comprando"},
-                            {"id": "human", "title": "Asesor"},
-                        ],
-                    )
-                ]
-            )
+            return self._cart_reply(await toolbox.tool_view_cart())
+
+        if normalized.startswith("qty:"):
+            parts = raw.split(":")
+            if len(parts) >= 3 and parts[1]:
+                try:
+                    quantity = int(parts[2])
+                except ValueError:
+                    quantity = 1
+                if quantity <= 0:
+                    await toolbox.tool_remove_from_cart(parts[1])
+                else:
+                    await toolbox.tool_update_cart_quantity(parts[1], quantity)
+                return self._cart_reply(await toolbox.tool_view_cart())
+
+        if normalized.startswith("remove:"):
+            sku = raw.split(":", 1)[1].strip()
+            if sku:
+                await toolbox.tool_remove_from_cart(sku)
+            return self._cart_reply(await toolbox.tool_view_cart())
 
         if normalized == "human" or HANDOFF_RE.search(raw):
             await toolbox.tool_human_handoff("El cliente pidió un asesor")
