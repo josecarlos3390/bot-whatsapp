@@ -32,6 +32,7 @@ from .services import (
     conversation_guard,
     customer_analysis,
     funnel,
+    intent as intent_service,
     intent_guard,
     customers,
     feedback,
@@ -235,6 +236,36 @@ def _remove_query_echo(answer: str, text: str) -> str:
         ):
             answer = answer.replace(left, right)
     return answer
+
+
+def _is_personal_statement(text: str) -> bool:
+    """¿Es una frase personal ("ya viajaré", "me mudé") y no un pedido?
+
+    En esos casos conviene reconocer, preguntar si es ambiguo y recién ahí
+    ofrecer algo: listar productos "cercanos" suena a que no entendimos.
+    """
+    folded = (text or "").lower().strip()
+    if not folded or "?" in folded:
+        return False
+    words = folded.split()
+    if len(words) > 14:
+        return False
+    buy_terms = (
+        "precio", "cuanto", "cuánto", "cuesta", "comprar", "quiero",
+        "necesito", "busco", "buscá", "buscas", "tenes", "tenés", "tienen",
+        "mostrame", "mostrás", "recomenda", "recomendás", "promo", "oferta",
+        "stock", "modelo", "marca", "cuotas", "envio", "envío",
+    )
+    if any(term in folded for term in buy_terms):
+        return False
+    personal = (
+        "te cuento", "viaj", "vacacion", "mudo", "mudanza", "casa nueva",
+        "me case", "me casé", "bebe", "bebé", "nacio", "nació", "familia",
+        "cumple", "regalo", "ascend", "trabajo nuevo", "me quedo",
+    )
+    if any(term in folded for term in personal):
+        return True
+    return folded.startswith(("no,", "no ", "si,", "sí,"))
 
 
 def _requested_size(text: str) -> str | None:
@@ -980,6 +1011,15 @@ Derivación:
   alternativas.
 - Si derivás, el bot sigue atendiendo consultas de producto mientras el caso
   espera: no prometas que un humano va a contestar en segundos.
+
+Cuando el cliente cuenta algo personal (un viaje, una mudanza, un bebé, una
+fiesta) sin pedir un producto:
+- Reconocelo en una frase, con calidez: "¡Ah, se viene viaje!".
+- Si la frase es ambigua, preguntá qué quiso decir antes de asumir
+  ("¿recién te vas a viajar o al final no viajás?").
+- Después ofrecé UNA cosa concreta relacionada y preguntá si le sirve: si se
+  queda en casa, un plan de películas con un TV; si viaja, un parlante o algo
+  de aire libre. Nada de listas largas ni de "no tengo una sección de X".
 
 Onboarding:
 - Primero respondé lo que el cliente preguntó; no empieces pidiendo datos.
@@ -2497,6 +2537,83 @@ class Agent:
         lines.append("¿Querés que te muestre el detalle de alguna?")
         return AgentReply([Outbound(text="\n".join(lines))])
 
+    @staticmethod
+    def _ambiguity_reply(event: dict | None) -> AgentReply:
+        """La frase puede significar dos cosas: se pregunta antes de asumir."""
+        terms = [term for term in ((event or {}).get("direct") or []) if term]
+        # Para "me voy" conviene algo portátil, no el TV que va primero.
+        travel = next(
+            (term for term in terms if term in ("parlante", "altavoz", "cooler")),
+            None,
+        )
+        buttons = []
+        if travel:
+            buttons.append({"id": f"find:{travel}", "title": "Sí, me voy"})
+        buttons.append({"id": "find:televisor", "title": "Me quedo en casa"})
+        buttons.append({"id": "human", "title": "Asesor"})
+        return AgentReply(
+            [
+                Outbound(
+                    kind="buttons",
+                    text=(
+                        "Antes de mostrarte cosas, quiero entenderte: "
+                        "¿te vas de viaje o al final te quedás?\n\n"
+                        "Si te quedás, te armo un plan de películas; "
+                        "si viajás, algo lindo para llevar."
+                    ),
+                    buttons=buttons[:3],
+                )
+            ]
+        )
+
+    @staticmethod
+    def _personal_pivot() -> AgentReply:
+        """El cliente contó algo personal: se reconoce y se ofrece algo."""
+        return AgentReply(
+            [
+                Outbound(
+                    kind="buttons",
+                    text=(
+                        "¡Qué bueno que me cuentes! 🙌\n\n"
+                        "¿Querés que te ayude con algo para la casa o seguimos "
+                        "con lo que estabas mirando?"
+                    ),
+                    buttons=[
+                        {"id": "catalog", "title": "Ver categorías"},
+                        {"id": "human", "title": "Asesor"},
+                    ],
+                )
+            ]
+        )
+
+    @staticmethod
+    def _occasion_pivot(event: dict) -> AgentReply:
+        """Reconoce el plan del cliente y ofrece algo concreto, sin inventar."""
+        label = (event.get("label") or "").lower()
+        terms = [term for term in (event.get("direct") or []) if term][:2]
+        buttons = [
+            {"id": f"find:{term}", "title": term.title()[:20]}
+            for term in terms
+        ]
+        buttons.append({"id": "human", "title": "Asesor"})
+
+        if "vacacion" in label or "viaje" in label:
+            text = (
+                "¡Ah, se viene viaje! 🧳 ¿Ya tenés fecha?\n\n"
+                "Si querés lo armamos: para el viaje tengo parlantes y cosas de "
+                "aire libre, y si te quedás unos días en casa, un buen plan es "
+                "una peli — te muestro los televisores.\n\n"
+                "¿Qué te sirve más?"
+            )
+        else:
+            text = (
+                f"¡Buenísimo! ¿Querés que te muestre algo para *{label}*?\n\n"
+                "Contame qué tenés en mente y te armo dos o tres opciones."
+            )
+        return AgentReply(
+            [Outbound(kind="buttons", text=text, buttons=buttons[:3])]
+        )
+
     async def _occasion_reply(
         self,
         session: AsyncSession,
@@ -2504,6 +2621,8 @@ class Agent:
         text: str,
         event: dict,
     ) -> AgentReply:
+        if _is_personal_statement(text):
+            return self._occasion_pivot(event)
         toolbox = Toolbox(session, contact, self.wa)
         direct: list[dict] = []
         seen: set[str] = set()
@@ -3823,8 +3942,22 @@ class Agent:
                 slot="intent",
             )
 
+        # Clasificación de intención: primero reglas, y si hay duda, el modelo
+        # con lista cerrada de ocasiones. Una frase personal nunca termina en
+        # una lista de productos "cercanos".
+        decision = await intent_service.classify(raw)
+        if decision["intent"] == "personal":
+            event = occasions.EVENTS.get(decision["occasion"] or "")
+            if decision["ambiguous"]:
+                return self._ambiguity_reply(event)
+            if event is not None:
+                return self._occasion_pivot(event)
+            return self._personal_pivot()
+
         event_key, event = await occasion_store.resolve(session, raw)
         if event is not None:
+            if decision["ambiguous"] and not decision["buy"]:
+                return self._ambiguity_reply(event)
             return await self._occasion_reply(
                 session, contact, raw, event
             )
@@ -4060,6 +4193,11 @@ class Agent:
             hit = await catalog.get_by_barcode(session, barcode)
             if hit is not None:
                 return await self._product_detail(session, contact, hit.sku)
+
+        if normalized.startswith("find:"):
+            term = raw.split(":", 1)[1].strip()
+            if term:
+                return await self._search_reply(session, contact, term)
 
         if normalized.startswith("add:"):
             parts = raw.split(":")

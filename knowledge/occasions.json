@@ -146,7 +146,8 @@
     "aliases": [
       "cumpleaños",
       "cumpleanos",
-      "fiesta de cumpleaños"
+      "fiesta de cumpleaños",
+      "cumple"
     ],
     "direct": [
       "vela",
@@ -262,7 +263,10 @@
       "mudanza",
       "mudarme",
       "casa nueva",
-      "departamento nuevo"
+      "departamento nuevo",
+      "mud",
+      "nos mudamos",
+      "me mudo"
     ],
     "direct": [
       "organizador",
@@ -295,7 +299,8 @@
       "bebe",
       "baby shower",
       "recién nacido",
-      "recien nacido"
+      "recien nacido",
+      "embarazada"
     ],
     "direct": [
       "cuna",
@@ -390,7 +395,11 @@
       "verano",
       "descanso",
       "entretenerme",
-      "entretenimiento"
+      "entretenimiento",
+      "viaj",
+      "vacacion",
+      "playa",
+      "paseo"
     ],
     "direct": [
       "televisor",

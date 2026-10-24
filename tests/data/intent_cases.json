@@ -1,0 +1,137 @@
+{
+  "cases": [
+    {
+      "text": "No, te cuento que ya viajaré",
+      "intent": "personal",
+      "occasion": "vacaciones",
+      "buy": false,
+      "ambiguous": true
+    },
+    {
+      "text": "me voy de viaje la semana que viene",
+      "intent": "personal",
+      "occasion": "vacaciones",
+      "buy": false,
+      "ambiguous": false
+    },
+    {
+      "text": "al final no viajamos, nos quedamos en casa",
+      "intent": "personal",
+      "occasion": "vacaciones",
+      "buy": false,
+      "ambiguous": true
+    },
+    {
+      "text": "nos mudamos a una casa nueva",
+      "intent": "personal",
+      "occasion": "mudanza",
+      "buy": false,
+      "ambiguous": false
+    },
+    {
+      "text": "nació mi sobrina",
+      "intent": "personal",
+      "buy": false,
+      "ambiguous": false
+    },
+    {
+      "text": "estoy organizando el cumple de mi hijo",
+      "intent": "personal",
+      "occasion": "cumpleanos",
+      "buy": false,
+      "ambiguous": false
+    },
+    {
+      "text": "cuanto sale un colchon de 2 plazas",
+      "intent": "producto",
+      "buy": true,
+      "ambiguous": false
+    },
+    {
+      "text": "tienen lavadoras en promo?",
+      "intent": "producto",
+      "buy": true,
+      "ambiguous": false
+    },
+    {
+      "text": "quiero una tv de 50 pulgadas",
+      "intent": "producto",
+      "buy": true,
+      "ambiguous": false
+    },
+    {
+      "text": "busco algo para el viaje",
+      "intent": "producto",
+      "occasion": "vacaciones",
+      "buy": true,
+      "ambiguous": false
+    },
+    {
+      "text": "hola que tal",
+      "intent": "saludo",
+      "buy": false,
+      "ambiguous": false
+    },
+    {
+      "text": "buenas tardes",
+      "intent": "saludo",
+      "buy": false,
+      "ambiguous": false
+    },
+    {
+      "text": "hacen envios a Santa Cruz?",
+      "intent": "pregunta",
+      "buy": false,
+      "ambiguous": false
+    },
+    {
+      "text": "cual es el horario de atencion",
+      "intent": "pregunta",
+      "buy": false,
+      "ambiguous": false
+    },
+    {
+      "text": "me pasas con un asesor",
+      "intent": "otro",
+      "buy": false,
+      "ambiguous": false
+    },
+    {
+      "text": "no, gracias",
+      "intent": "otro",
+      "buy": false,
+      "ambiguous": false
+    },
+    {
+      "text": "que haces?",
+      "intent": "otro",
+      "buy": false,
+      "ambiguous": false
+    },
+    {
+      "text": "tienes algo para regalar",
+      "intent": "producto",
+      "buy": true,
+      "ambiguous": false
+    },
+    {
+      "text": "venden colchones de 2 plazas?",
+      "intent": "producto",
+      "buy": true,
+      "ambiguous": false
+    },
+    {
+      "text": "me quedo en casa este finde",
+      "intent": "personal",
+      "buy": false,
+      "ambiguous": false
+    },
+    {
+      "text": "al final no nos mudamos",
+      "intent": "personal",
+      "occasion": "mudanza",
+      "buy": false,
+      "ambiguous": true
+    }
+  ]
+}

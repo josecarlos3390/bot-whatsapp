@@ -236,6 +236,11 @@ _EVENT_RE = re.compile(
 
 
 def detect(text: str | None) -> str | None:
+    """Detecta el **tema** (ocasión) del mensaje, sin decidir la intención.
+
+    Que la mención venga negada ("no, ya viajaré") no cambia el tema: quien
+    decide si corresponde mostrar productos es el clasificador de intención.
+    """
     match = _EVENT_RE.search(text or "")
     if not match:
         return None

@@ -112,6 +112,9 @@ QUERY_STOPWORDS = {
     "en", "mi", "mis", "tu", "tus", "su", "sus", "me", "algo",
     "algun", "alguna", "tienen", "tiene", "tienes", "y", "hay",
     "hola", "buenas", "por favor", "favor",
+    # Palabras de pregunta: "cuanto sale un colchon" debe buscar "colchon".
+    "cuanto", "cuánto", "sale", "cuesta", "precio", "tenes", "tenés",
+    "vale", "cotizacion", "cotización",
 }
 TYPO_FIXES = {
     "plaas": "plazas",
