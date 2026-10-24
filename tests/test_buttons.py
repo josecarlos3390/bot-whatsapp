@@ -70,14 +70,12 @@ async def test_category_list_and_product_detail(session):
     assert any(row["id"] == "product:FILT-001" for row in product_rows)
 
     detail = await agent.handle(session, contact, "product:FILT-001")
-    buttons_message = next(
-        message for message in detail.messages if message.kind == "buttons"
+    actions = next(
+        message for message in detail.messages if message.kind == "list"
     )
-    assert "FILT-001" not in buttons_message.text
-    assert any(
-        button["id"].startswith("add:FILT-001")
-        for button in buttons_message.buttons
-    )
+    rows = actions.sections[0]["rows"]
+    assert "FILT-001" not in actions.text
+    assert any(row["id"].startswith("add:FILT-001") for row in rows)
 
 
 async def test_checkout_intent_does_not_handoff(session):

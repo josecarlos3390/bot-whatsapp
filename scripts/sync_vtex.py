@@ -16,6 +16,7 @@ import argparse
 import asyncio
 import html
 import re
+import unicodedata
 import logging
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -72,6 +73,36 @@ def _plain(value: str | None, limit: int | None = None) -> str | None:
     return text[:limit] if limit else text
 
 
+def _fold_name(text: str) -> str:
+    value = unicodedata.normalize("NFKD", (text or "").lower())
+    return "".join(ch for ch in value if not unicodedata.combining(ch))
+
+
+def _display_name(row: dict) -> str | None:
+    """Nombre sin la duplicación de VTEX ("Producto SKU" repetido).
+
+    nameComplete suele ser "Nombre del producto" + "NOMBRE DEL SKU" en
+    mayúsculas. Si el segundo tramo ya está contenido en el primero, se usa
+    solo el nombre del producto.
+    """
+    product = _clean(row.get("product_name"), 200)
+    complete = _clean(row.get("name_complete"), 200) or _clean(
+        row.get("name"), 200
+    )
+    if not complete:
+        return product
+    if not product:
+        return complete
+
+    low_product = _fold_name(product)
+    low_complete = _fold_name(complete)
+    if low_product in low_complete:
+        rest = low_complete.replace(low_product, " ").strip(" -·|,")
+        if not rest or rest in low_product:
+            return product
+    return complete
+
+
 def _specs(row: dict) -> dict[str, str]:
     """Especificaciones de VTEX (Garantía, Medidas, Material…) limpias."""
     raw = row.get("specifications")
@@ -122,7 +153,7 @@ def _catalog_fields(row: dict) -> dict:
     if specs:
         attributes["specs"] = specs
     return {
-        "name": _clean(row.get("name"), 200) or _clean(row.get("sku"), 64) or "?",
+        "name": _display_name(row) or _clean(row.get("sku"), 64) or "?",
         "foreign_name": None,
         "description": _plain(row.get("description"), 1000),
         "category": category,

@@ -54,7 +54,9 @@ async def test_primary_image_and_product_detail(session):
 
     reply = await Agent().handle(session, contact, "product:IMG-1")
     assert reply.messages[0].kind == "image"
-    assert reply.messages[1].kind == "buttons"
+    # La ficha ofrece las acciones como lista (agregar 1/2/3 + salidas).
+    assert reply.messages[1].kind == "list"
+    assert reply.messages[1].sections[0]["rows"]
 
 
 async def test_placeholder_image(session, monkeypatch):

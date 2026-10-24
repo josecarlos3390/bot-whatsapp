@@ -3043,11 +3043,6 @@ class Agent:
             [
                 Outbound(text=intro),
                 *self._search_cards(products),
-                Outbound(
-                    kind="buttons",
-                    text="¿Seguimos con algo más?",
-                    buttons=self._search_buttons(),
-                ),
             ]
         )
 
@@ -3209,15 +3204,32 @@ class Agent:
                 f"Para completar: {extra.name.title()} — Bs {extra.price} "
                 f"(escribí *agregar {extra.sku}*)"
             )
-        buttons = [
-            {"id": "catalog", "title": "Otra opción"},
-            {"id": "human", "title": "Asesor"},
-        ]
+        # Lista de acciones: "Agregar 1/2/3" queda atado a ESTE producto,
+        # sin los botones numerados que no decían a cuál correspondían.
+        rows: list[dict] = []
         if stock > 0:
-            buttons.insert(
-                0,
-                {"id": f"add:{product['sku']}:1", "title": "Agregar 1"},
-            )
+            for quantity in (1, 2, 3):
+                rows.append(
+                    {
+                        "id": f"add:{product['sku']}:{quantity}",
+                        "title": f"Agregar {quantity}",
+                        "description": "Al carrito",
+                    }
+                )
+        rows.append(
+            {
+                "id": "catalog",
+                "title": "Ver otra opción",
+                "description": "Volver a buscar",
+            }
+        )
+        rows.append(
+            {
+                "id": "human",
+                "title": "Hablar con asesor",
+                "description": "Te atiende una persona",
+            }
+        )
         messages = []
         image_info = await catalog.primary_image_info(
             session, product["sku"]
@@ -3242,7 +3254,12 @@ class Agent:
                 )
             )
         messages.append(
-            Outbound(kind="buttons", text="\n".join(lines), buttons=buttons)
+            Outbound(
+                kind="list",
+                text="\n".join(lines),
+                button_text="¿Qué hacemos?",
+                sections=[{"title": "Acciones", "rows": rows}],
+            )
         )
         return AgentReply(messages)
 
@@ -3358,23 +3375,34 @@ class Agent:
                 )
             else:
                 messages.append(Outbound(text=caption[:4096]))
-        buttons = []
+        # En vez de botones "Agregar 1/2/3" (que no dicen a qué producto
+        # corresponden), una lista con el nombre y el precio de cada opción.
+        rows = []
         for index, product in enumerate(selected, start=1):
-            buttons.append(
+            price = product.get("promo_price") or product.get("price")
+            try:
+                price_text = f"{Decimal(str(price)):,.2f}"
+            except Exception:  # noqa: BLE001
+                price_text = str(price)
+            detail = f"Bs {price_text}"
+            brand = (product.get("brand") or "").strip()
+            if brand:
+                detail += f" · {brand}"
+            rows.append(
                 {
-                    "id": f"add:{product['sku']}:1",
-                    "title": (
-                        "Agregar"
-                        if len(selected) == 1
-                        else f"Agregar {index}"
+                    "id": f"product:{product['sku']}",
+                    "title": Agent._truncate(
+                        f"{index}. {product['name']}", 24
                     ),
+                    "description": detail[:72],
                 }
             )
         messages.append(
             Outbound(
-                kind="buttons",
-                text="Elegí una opción para agregar al carrito:",
-                buttons=buttons,
+                kind="list",
+                text="Decime cuál te interesa y te muestro el detalle:",
+                button_text="Ver opciones",
+                sections=[{"title": "Opciones", "rows": rows}],
             )
         )
         return messages
