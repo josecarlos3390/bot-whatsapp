@@ -17,6 +17,9 @@ internet.
 
 **Datos de este servidor:** IP `10.0.8.16` en la subred `10.0.8.0/24`.
 
+**Atajo:** correr `scripts\publicar_lan.ps1` como administrador hace los pasos 1
+y 2 (firewall + reinicio) y verifica el acceso por la IP de red.
+
 ### 1. Escuchar en la red
 
 En `.env`:
