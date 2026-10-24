@@ -1,4 +1,4 @@
-"""CRUD y resolución de campañas/ocasiones administrables."""
+﻿"""CRUD y resolución de campañas/ocasiones administrables."""
 
 from __future__ import annotations
 
@@ -58,6 +58,7 @@ def to_dict(row: Occasion) -> dict:
         "exclude": row.exclude or [],
         "exclude_categories": row.exclude_categories or [],
         "bridges": row.bridges or [],
+        "validity": validity_label(row),
         "area": row.area,
         "status": row.status,
         "priority": row.priority,
@@ -79,7 +80,46 @@ def _event(row: Occasion) -> dict:
         "exclude": row.exclude or [],
         "exclude_categories": row.exclude_categories or [],
         "bridges": row.bridges or [],
+        "validity": validity_label(row),
     }
+
+
+async def alias_conflicts(
+    session: AsyncSession,
+    aliases: list[str],
+    *,
+    exclude_id: str | None = None,
+) -> list[dict]:
+    """Alias que ya usa otra ocasión activa (aviso, no bloqueo)."""
+    wanted = {str(item).strip().lower() for item in aliases or [] if item}
+    if not wanted:
+        return []
+    rows = await list_occasions(session)
+    conflicts: list[dict] = []
+    for row in rows:
+        if exclude_id and row.id == exclude_id:
+            continue
+        if row.status != "published":
+            continue
+        for alias in row.aliases or []:
+            key = str(alias).strip().lower()
+            if key and key in wanted:
+                conflicts.append({"alias": key, "occasion": row.name})
+    return conflicts
+
+
+def validity_label(row: Occasion, today: date | None = None) -> str:
+    """Texto corto de vigencia para el panel."""
+    current = today or date.today()
+    if row.status != "published":
+        return "Borrador"
+    if row.valid_from and current < row.valid_from:
+        return f"Empieza el {row.valid_from.strftime('%d/%m')}"
+    if row.valid_to and current > row.valid_to:
+        return f"Terminó el {row.valid_to.strftime('%d/%m')}"
+    if row.valid_to:
+        return f"Vigente hasta el {row.valid_to.strftime('%d/%m')}"
+    return "Vigente hoy"
 
 
 async def list_occasions(

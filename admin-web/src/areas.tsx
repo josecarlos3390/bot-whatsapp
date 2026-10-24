@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "./api";
 import { Badge, Button, Card, Input, Textarea } from "./ui";
@@ -40,6 +40,7 @@ type Question = { text: string; key: string; requireYes: boolean };
 
 type Simulation = {
   ok: boolean;
+  prompt_text?: string;
   detail?: string;
   query?: string;
   area?: string;
@@ -364,7 +365,13 @@ function RuleBuilder({
                     <span>·</span>
                     <span>área {simulation.area}</span>
                   </div>
-                  {simulation.rules.length > 0 && (
+                  {simulation.prompt_text && (
+                  <div className="mt-2 rounded-xl border border-[#e5d4bf] bg-white px-3 py-2">
+                    <div className="text-[10px] font-bold uppercase tracking-wide text-[#8b6d59]">Lo que el bot lee</div>
+                    <pre className="mt-1 whitespace-pre-wrap text-[11px] text-[#5b3323]">{simulation.prompt_text}</pre>
+                  </div>
+                )}
+                {simulation.rules.length > 0 && (
                     <div className="mb-3 flex flex-wrap gap-1">
                       {simulation.rules.map((rule) => (
                         <Badge key={rule.id} tone="amber">{rule.name}</Badge>

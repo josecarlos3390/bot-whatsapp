@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "./api";
 import { AreaHeader } from "./areas";
@@ -47,6 +47,7 @@ export function OccasionsPage({
   const [form, setForm] = useState({ ...EMPTY, area: userArea });
   const [editing, setEditing] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(true);
   const [testText, setTestText] = useState("");
   const [testResult, setTestResult] = useState<{
@@ -120,10 +121,19 @@ export function OccasionsPage({
         valid_from: form.valid_from || null,
         valid_to: form.valid_to || null
       };
-      await api(editing ? `${base}/${editing}` : base, {
-        method: editing ? "PUT" : "POST",
-        body: JSON.stringify(payload)
-      });
+      const saved = await api<{ warnings?: { alias: string; occasion: string }[] }>(
+        editing ? `${base}/${editing}` : base,
+        {
+          method: editing ? "PUT" : "POST",
+          body: JSON.stringify(payload)
+        }
+      );
+      const choques = saved.warnings || [];
+      setNotice(
+        choques.length
+          ? `Ojo: ${choques.map((item) => `"${item.alias}" ya lo usa ${item.occasion}`).join("; ")}.`
+          : ""
+      );
       reset();
       await load();
     } catch (exception) {
@@ -230,6 +240,7 @@ export function OccasionsPage({
         </div>
 
         {error && <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+        {notice && <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">{notice}</div>}
 
         <Card className="mb-5 border-[#e5d4bf] bg-white/80 p-4">
           <div className="mb-1 flex flex-wrap items-center gap-2">
@@ -351,6 +362,7 @@ export function OccasionsPage({
                   <div className="flex items-center gap-2">
                     <h3 className="font-serif text-lg font-semibold text-[#3d1a17]">{item.name}</h3>
                     <Badge tone={item.status === "published" ? "green" : "amber"}>{item.status}</Badge>
+              {item.validity && <span className="text-[11px] text-[#8b6d59]">{item.validity}</span>}
                   </div>
                   <div className="mt-1 text-[11px] uppercase tracking-wide text-[#a8792f]">{item.area} · prioridad {item.priority}</div>
                 </div>

@@ -2285,6 +2285,12 @@ class Agent:
     def __init__(self, wa: WhatsAppClient | None = None):
         self.wa = wa
         self._client: AsyncOpenAI | None = None
+        # Camino que tomó la respuesta (para el panel y para depurar).
+        self.trace: list[str] = []
+
+    def _trace(self, note: str) -> None:
+        if note not in self.trace:
+            self.trace.append(note)
 
     def _llm(self) -> AsyncOpenAI:
         if self._client is None:
@@ -2845,6 +2851,7 @@ class Agent:
         quantity: int | None = None,
         policy: rule_policy.RulePolicy | None = None,
     ) -> AgentReply:
+        self._trace("Búsqueda en catálogo")
         # Si el cliente ya dijo la medida, la búsqueda la usa sin volver a
         # preguntarla (memoria de preferencias).
         try:
@@ -3062,6 +3069,7 @@ class Agent:
     async def _product_detail(
         self, session: AsyncSession, contact: Contact, sku: str
     ) -> AgentReply:
+        self._trace("Ficha de producto")
         toolbox = Toolbox(session, contact, self.wa)
         result = await toolbox.tool_get_product(sku)
         if not result.get("ok"):
@@ -3952,13 +3960,16 @@ class Agent:
         decision = await intent_service.classify(raw)
         # Temas delicados (duelo, salud, tristeza): primero la persona.
         if decision.get("sensitive"):
+            self._trace("Empatía: tema delicado")
             return self._empathy_reply(decision)
         # Política: salud, legal, financiero, datos o seguridad se derivan.
         policy_topic = policy_guard.detect(raw)
         if policy_topic:
+            self._trace(f"Derivación por política: {policy_topic}")
             return self._policy_reply(policy_topic)
         # Enojo o espera: disculpa y derivación inmediata, sin vender.
         if decision.get("frustrated"):
+            self._trace("Enojo: disculpa y derivación")
             return await self._frustration_reply(session, contact)
         if decision["intent"] == "personal":
             # La ocasión se busca en el panel (base), no sólo en el archivo
@@ -3969,11 +3980,13 @@ class Agent:
             if decision["ambiguous"]:
                 return self._ambiguity_reply(event)
             if event is not None:
+                self._trace(f"Personal con ocasión: {event.get('label')}")
                 return self._occasion_pivot(event)
             return self._personal_pivot()
 
         event_key, event = await occasion_store.resolve(session, raw)
         if event is not None:
+            self._trace(f"Ocasión: {event.get('label')}")
             if decision["ambiguous"] and not decision["buy"]:
                 return self._ambiguity_reply(event)
             return await self._occasion_reply(
@@ -4136,6 +4149,7 @@ class Agent:
                     ]
                 )
             if settings.deepseek_api_key:
+                self._trace("Modelo de IA")
                 return await self._llm_handle(
                     session, contact, raw, history or [], memory
                 )
@@ -4143,6 +4157,7 @@ class Agent:
 
         if SEARCH_RE.search(raw):
             if settings.deepseek_api_key:
+                self._trace("Modelo de IA")
                 return await self._llm_handle(
                     session, contact, raw, history or [], memory
                 )
@@ -4372,13 +4387,16 @@ class Agent:
                     )
 
         if not settings.deepseek_api_key:
+            self._trace("Reglas del catálogo (sin modelo)")
             return await self._demo(session, contact, text)
         try:
+            self._trace("Modelo de IA")
             return await self._llm_handle(
                 session, contact, text, history or [], memory
             )
         except Exception:  # noqa: BLE001 - fallback para no dejar al cliente sin respuesta
             logger.exception("Fallo el agente LLM; se usa el modo demo")
+            self._trace("Reglas del catálogo (sin modelo)")
             return await self._demo(session, contact, text)
 
     async def _promotion_preflight(
@@ -4698,6 +4716,7 @@ class Agent:
                 logger.exception(
                     "El proveedor de IA falló; se responde con las reglas"
                 )
+                self._trace("Reglas del catálogo (sin modelo)")
                 return await self._demo(session, contact, text)
             usage = getattr(completion, "usage", None)
             if usage is not None:
@@ -4877,6 +4896,7 @@ class Agent:
         logger.warning(
             "El LLM agotó los turnos de herramientas; se usa el modo demo"
         )
+        self._trace("Reglas del catálogo (sin modelo)")
         return await self._demo(session, contact, text)
 
     async def _demo(

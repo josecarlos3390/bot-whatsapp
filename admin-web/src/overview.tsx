@@ -106,6 +106,8 @@ type ProbeReply = {
   sections: { rows: { title: string; description?: string }[] }[];
 };
 
+type ProbeTrace = string[];
+
 export function OverviewPage({ onLogout }: { onLogout: () => void }) {
   const [data, setData] = useState<Overview | null>(null);
   const [error, setError] = useState("");
@@ -114,6 +116,7 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
   const [probeReplies, setProbeReplies] = useState<ProbeReply[]>([]);
   const [probeMs, setProbeMs] = useState(0);
   const [probeError, setProbeError] = useState("");
+  const [probeTrace, setProbeTrace] = useState<ProbeTrace>([]);
   const [probing, setProbing] = useState(false);
 
   async function runProbe() {
@@ -121,12 +124,13 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
     setProbing(true);
     setProbeError("");
     try {
-      const result = await api<{ replies: ProbeReply[]; ms: number }>("/admin/simulate", {
+      const result = await api<{ replies: ProbeReply[]; ms: number; trace?: ProbeTrace }>("/admin/simulate", {
         method: "POST",
         body: JSON.stringify({ text: probe.trim() })
       });
       setProbeReplies(result.replies || []);
       setProbeMs(result.ms || 0);
+      setProbeTrace(result.trace || []);
     } catch (exception) {
       setProbeError(exception instanceof Error ? exception.message : "No se pudo probar");
       setProbeReplies([]);
@@ -385,7 +389,10 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
               {probeError && <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{probeError}</div>}
               {probeReplies.length > 0 && (
                 <div className="mt-3 space-y-2">
-                  <div className="text-[11px] text-[#8b6d59]">Respondió en {(probeMs / 1000).toFixed(1)} s</div>
+                  <div className="text-[11px] text-[#8b6d59]">
+                    Respondió en {(probeMs / 1000).toFixed(1)} s
+                    {probeTrace.length > 0 && <> · camino: {probeTrace.join(" → ")}</>}
+                  </div>
                   {probeReplies.map((reply, index) => (
                     <div key={index} className="rounded-xl border border-[#e5d4bf] bg-white px-3 py-2 text-sm text-[#3d1a17]">
                       {reply.text && <div className="whitespace-pre-line">{reply.text}</div>}

@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import asyncio
 import hmac
@@ -1360,8 +1360,9 @@ async def admin_simulate(
     settings.telegram_chat_id = ""
     try:
         started = time.perf_counter()
+        agent = Agent()
         try:
-            reply = await Agent().handle(session, contact, text)
+            reply = await agent.handle(session, contact, text)
         except Exception:  # noqa: BLE001 - el panel muestra el error
             logger.exception("Falló la simulación desde la consola")
             reply = AgentReply(
@@ -1405,7 +1406,12 @@ async def admin_simulate(
             await session.execute(delete(Contact).where(Contact.id == contact.id))
             await session.commit()
 
-    return {"ok": True, "ms": elapsed, "replies": replies}
+    return {
+        "ok": True,
+        "ms": elapsed,
+        "replies": replies,
+        "trace": agent.trace,
+    }
 
 
 @router.post("/areas/occasions/simulate")
@@ -1478,7 +1484,14 @@ async def area_occasion_create(
         )
     except occasion_store.OccasionError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"ok": True, "occasion": occasion_store.to_dict(row)}
+    warnings = await occasion_store.alias_conflicts(
+        session, payload.aliases, exclude_id=row.id
+    )
+    return {
+        "ok": True,
+        "occasion": occasion_store.to_dict(row),
+        "warnings": warnings,
+    }
 
 
 @router.put("/areas/occasions/{occasion_id}")
@@ -1510,7 +1523,14 @@ async def area_occasion_update(
         )
     except occasion_store.OccasionError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"ok": True, "occasion": occasion_store.to_dict(row)}
+    warnings = await occasion_store.alias_conflicts(
+        session, payload.aliases, exclude_id=row.id
+    )
+    return {
+        "ok": True,
+        "occasion": occasion_store.to_dict(row),
+        "warnings": warnings,
+    }
 
 
 @router.post("/areas/occasions/{occasion_id}/publish")
@@ -1525,7 +1545,14 @@ async def area_occasion_publish(
     row = await occasion_store.publish_occasion(
         session, row, changed_by=user["username"]
     )
-    return {"ok": True, "occasion": occasion_store.to_dict(row)}
+    warnings = await occasion_store.alias_conflicts(
+        session, row.aliases, exclude_id=row.id
+    )
+    return {
+        "ok": True,
+        "occasion": occasion_store.to_dict(row),
+        "warnings": warnings,
+    }
 
 
 @router.delete("/areas/occasions/{occasion_id}")
@@ -1607,7 +1634,14 @@ async def admin_occasion_create(
         )
     except occasion_store.OccasionError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"ok": True, "occasion": occasion_store.to_dict(row)}
+    warnings = await occasion_store.alias_conflicts(
+        session, payload.aliases, exclude_id=row.id
+    )
+    return {
+        "ok": True,
+        "occasion": occasion_store.to_dict(row),
+        "warnings": warnings,
+    }
 
 
 @router.put(
@@ -1642,7 +1676,14 @@ async def admin_occasion_update(
         )
     except occasion_store.OccasionError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"ok": True, "occasion": occasion_store.to_dict(row)}
+    warnings = await occasion_store.alias_conflicts(
+        session, payload.aliases, exclude_id=row.id
+    )
+    return {
+        "ok": True,
+        "occasion": occasion_store.to_dict(row),
+        "warnings": warnings,
+    }
 
 
 @router.post(
@@ -1660,7 +1701,14 @@ async def admin_occasion_publish(
     row = await occasion_store.publish_occasion(
         session, row, changed_by=admin["username"]
     )
-    return {"ok": True, "occasion": occasion_store.to_dict(row)}
+    warnings = await occasion_store.alias_conflicts(
+        session, row.aliases, exclude_id=row.id
+    )
+    return {
+        "ok": True,
+        "occasion": occasion_store.to_dict(row),
+        "warnings": warnings,
+    }
 
 
 @router.delete(

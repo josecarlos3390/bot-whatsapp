@@ -1,4 +1,4 @@
-"""Simulación de reglas sin crear conversaciones ni modificar datos."""
+﻿"""Simulación de reglas sin crear conversaciones ni modificar datos."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models import CatalogItem, ProductPromotion
-from . import catalog, rules_engine
+from . import catalog, rule_policy, rules_engine
 
 ACCESSORY_PREFIXES = (
     "bolsa",
@@ -117,6 +117,11 @@ async def simulate(
         ordered,
         [rule for rule in matched if rule.rule_type == "promotion_priority"],
     )
+    # Texto exacto que el bot le pasa al modelo con estas reglas.
+    policy = await rule_policy.build(
+        session, query, intent="search"
+    )
+    prompt_text = policy.prompt_text()
 
     return {
         "ok": True,
@@ -134,6 +139,7 @@ async def simulate(
             }
             for rule in matched
         ],
+        "prompt_text": prompt_text,
         "note": (
             "La simulación usa catálogo y reglas publicadas. "
             "No muestra cantidades de stock ni crea una conversación."

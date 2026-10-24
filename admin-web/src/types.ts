@@ -47,6 +47,7 @@ export type Occasion = {
   priority: number;
   valid_from?: string | null;
   valid_to?: string | null;
+  validity?: string;
   version: number;
 };
 
