@@ -1,4 +1,4 @@
-# Publicar la consola (red interna o internet)
+﻿# Publicar la consola (red interna o internet)
 
 **Objetivo:** que la consola (`/console/`) se abra desde otra VLAN o desde
 internet con un nombre propio, por ejemplo `roho-chatbot.gruporoda.com`.
@@ -14,6 +14,8 @@ después abrir el subdominio hacia afuera.
 
 Recomendada si la consola es para el equipo y no debe quedar expuesta a
 internet.
+
+**Datos de este servidor:** IP `10.0.8.16` en la subred `10.0.8.0/24`.
 
 ### 1. Escuchar en la red
 
@@ -43,8 +45,11 @@ New-NetFirewallRule -DisplayName "ROHO consola 8010" `
   -RemoteAddress 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
 ```
 
-Ajustar `-RemoteAddress` a la subred real de la VLAN (por ejemplo
-`10.20.0.0/16`). No abrir a `Any`.
+Se usan los rangos privados completos: la red (routers/firewall perimetral) es
+la que decide qué VLANs llegan al `10.0.8.16`. No abrir a `Any`.
+
+Si se prefiere limitar solo a la subred del servidor, usar
+`-RemoteAddress 10.0.8.0/24`.
 
 ### 3. Nombre en el DNS interno
 
