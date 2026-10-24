@@ -167,11 +167,14 @@ function Start-Bot {
     $listen = $BindHost
     if (-not $listen) { $listen = Get-EnvValue "APP_HOST" }
     if (-not $listen) { $listen = "127.0.0.1" }
+    # Cuidado: no usar "*" suelto en ArgumentList; PowerShell lo expande a los
+    # archivos del directorio y uvicorn recibe argumentos inválidos.
+    # El túnel y el proxy local corren en 127.0.0.1, que es el valor por defecto.
     Start-Process -FilePath $python `
         -ArgumentList @(
             "-m", "uvicorn", "app.main:app",
             "--host", $listen, "--port", $Port,
-            "--proxy-headers", "--forwarded-allow-ips", "*"
+            "--proxy-headers"
         ) `
         -WorkingDirectory $root `
         -RedirectStandardOutput $botOut `

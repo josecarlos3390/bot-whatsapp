@@ -17,8 +17,10 @@ internet.
 
 **Datos de este servidor:** IP `10.0.8.16` en la subred `10.0.8.0/24`.
 
-**Atajo:** correr `scripts\publicar_lan.ps1` como administrador hace los pasos 1
-y 2 (firewall + reinicio) y verifica el acceso por la IP de red.
+**Nota:** no se usa un script para esto. Cortex (antivirus) marcó como
+sospechoso un `.ps1` que abría puertos y reiniciaba servicios, así que los
+pasos se hacen a mano en una consola elevada. Si se quiere un script, hay que
+pedir a IT una exclusión para la carpeta del proyecto.
 
 ### 1. Escuchar en la red
 
