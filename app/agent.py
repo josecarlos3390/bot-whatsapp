@@ -2577,32 +2577,7 @@ class Agent:
     @staticmethod
     def _empathy_reply(decision: dict) -> AgentReply:
         """Ante algo delicado: empatía, cero venta y una salida amable."""
-        topic = decision.get("sensitive_topic")
-        if topic == "duelo":
-            text = (
-                "Lamento mucho lo que me contás. 😔 Perder a alguien que "
-                "querés —una mascota también es familia— es muy duro.\n\n"
-                "Te soy sincero: yo estoy acá para ayudarte con cosas del "
-                "hogar, así que no soy la mejor compañía para acompañarte en "
-                "esto. Si querés, te paso con una persona del equipo; y "
-                "cuando quieras retomamos lo que necesites."
-            )
-        elif topic == "salud":
-            text = (
-                "Siento mucho que estés pasando por eso. 😔\n\n"
-                "Yo no soy quien para darte consejos de salud, pero sí puedo "
-                "escucharte un momento. Si preferís hablar con una persona del "
-                "equipo, te paso; y cuando quieras seguimos con lo que "
-                "necesites de la casa."
-            )
-        else:
-            text = (
-                "Qué mal que estés así. 😔 Si querés contarme qué pasó, te "
-                "escucho.\n\n"
-                "También te digo: estoy acá para ayudarte con cosas del "
-                "hogar, así que si preferís hablar con una persona del equipo, "
-                "te paso."
-            )
+        text = persona.empathy(decision.get("sensitive_topic"))
         return AgentReply(
             [
                 Outbound(

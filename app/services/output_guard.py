@@ -1,0 +1,142 @@
+"""Validación de salida: la última barrera antes de enviar al cliente.
+
+No reemplaza al modelo ni a las reglas: los audita. Si algo se escapa (una
+frase pobre, un producto que nadie pidió en un tema delicado, una referencia a
+un SKU que no existe), se corrige acá.
+"""
+
+from __future__ import annotations
+
+import logging
+import re
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from .. import persona
+from ..models import CatalogItem
+from . import intent
+
+logger = logging.getLogger(__name__)
+
+# Frases que no deben salir nunca.
+BANNED: tuple[tuple[str, str], ...] = (
+    (
+        "no tengo una sección específica",
+        "No tengo esa categoría armada, pero decime qué buscás y lo reviso.",
+    ),
+    (
+        "no pude completar la consulta",
+        "Se me complicó la consulta. ¿Me la repetís o te paso con un asesor?",
+    ),
+)
+
+_ID_RE = re.compile(r"^(product|add):([^:]+)")
+
+
+def _sku_from_id(value: str | None) -> str | None:
+    match = _ID_RE.match(str(value or ""))
+    return match.group(2).strip().upper() if match else None
+
+
+async def _known_skus(session: AsyncSession, skus: set[str]) -> set[str]:
+    if not skus:
+        return set()
+    rows = await session.scalars(
+        select(CatalogItem.sku).where(CatalogItem.sku.in_(skus))
+    )
+    return set(rows)
+
+
+def _clean_text(text: str | None) -> str | None:
+    if not text:
+        return text
+    value = text
+    for phrase, replacement in BANNED:
+        if phrase in value.lower():
+            value = re.sub(re.escape(phrase), replacement, value, flags=re.IGNORECASE)
+    return value
+
+
+async def sanitize(session: AsyncSession, reply, text: str | None):
+    """Corrige la respuesta antes de enviarla. Nunca lanza."""
+    from ..agent import AgentReply, Outbound  # local: evita import circular
+
+    decision = intent.rules(text or "")
+
+    # 1. Tema delicado: se responde SOLO con empatía, venga de donde venga.
+    if decision.get("sensitive"):
+        if reply_has_product(reply):
+            logger.warning(
+                "Respuesta con productos ante tema sensible; se reemplaza"
+            )
+        return AgentReply(
+            [
+                Outbound(
+                    kind="buttons",
+                    text=persona.empathy(decision.get("sensitive_topic")),
+                    buttons=[
+                        {"id": "human", "title": "Hablar con alguien"},
+                        {"id": "catalog", "title": "Seguir con productos"},
+                    ],
+                )
+            ]
+        )
+
+    # 2. Referencias a SKU inexistentes.
+    ids: set[str] = set()
+    for message in reply.messages:
+        for section in message.sections or []:
+            for row in section.get("rows") or []:
+                sku = _sku_from_id(row.get("id"))
+                if sku:
+                    ids.add(sku)
+        for button in message.buttons or []:
+            sku = _sku_from_id(button.get("id"))
+            if sku:
+                ids.add(sku)
+    known = await _known_skus(session, ids)
+
+    messages = []
+    for message in reply.messages:
+        message.text = _clean_text(message.text)
+        if message.sections:
+            sections = []
+            for section in message.sections:
+                rows = []
+                for row in section.get("rows") or []:
+                    sku = _sku_from_id(row.get("id"))
+                    if sku and sku not in known:
+                        logger.warning("Se quita opción con SKU inexistente %s", sku)
+                        continue
+                    rows.append(row)
+                if rows:
+                    sections.append({**section, "rows": rows})
+            message.sections = sections
+        if message.kind == "list" and not message.sections:
+            continue
+        messages.append(message)
+
+    if not messages:
+        messages = [
+            Outbound(
+                text="No pude armar la respuesta. ¿Me lo repetís, por favor?"
+            )
+        ]
+
+    reply.messages = messages
+    return reply
+
+
+def reply_has_product(reply) -> bool:
+    for message in reply.messages:
+        if message.kind in ("image", "product", "catalog"):
+            return True
+        for section in message.sections or []:
+            for row in section.get("rows") or []:
+                if _sku_from_id(row.get("id")):
+                    return True
+        for button in message.buttons or []:
+            if _sku_from_id(button.get("id")):
+                return True
+    return False

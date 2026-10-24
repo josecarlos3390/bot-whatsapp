@@ -75,6 +75,32 @@ def checkout_failed(reason: str) -> str:
     )
 
 
+def empathy(topic: str | None = None) -> str:
+    """Respuesta ante un tema delicado: empatía, sin vender."""
+    if topic == "duelo":
+        return (
+            "Lamento mucho lo que me contás. 😔 Perder a alguien que querés "
+            "—una mascota también es familia— es muy duro.\n\n"
+            "Te soy sincero: yo estoy acá para ayudarte con cosas del hogar, "
+            "así que no soy la mejor compañía para acompañarte en esto. Si "
+            "querés, te paso con una persona del equipo; y cuando quieras "
+            "retomamos lo que necesites."
+        )
+    if topic == "salud":
+        return (
+            "Siento mucho que estés pasando por eso. 😔\n\n"
+            "Yo no soy quien para darte consejos de salud, pero sí puedo "
+            "escucharte un momento. Si preferís hablar con una persona del "
+            "equipo, te paso; y cuando quieras seguimos con lo que necesites "
+            "de la casa."
+        )
+    return (
+        "Qué mal que estés así. 😔 Si querés contarme qué pasó, te escucho.\n\n"
+        "También te digo: estoy acá para ayudarte con cosas del hogar, así que "
+        "si preferís hablar con una persona del equipo, te paso."
+    )
+
+
 def handoff() -> str:
     return (
         "Ya avisé a alguien del equipo para que revise este caso. "

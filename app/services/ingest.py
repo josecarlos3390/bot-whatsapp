@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 import logging
@@ -12,7 +12,7 @@ from ..agent import AgentReply, Outbound
 from ..config import settings
 from ..models import Contact, Conversation, Message, utcnow
 from ..runtime import agent, whatsapp
-from . import handoffs as handoff_service
+from . import handoffs as handoff_service, output_guard
 from . import memory as memory_service, native_commerce
 
 logger = logging.getLogger(__name__)
@@ -234,6 +234,12 @@ async def ingest_inbound(
                 )
             ]
         )
+
+    # Última barrera: audita la respuesta antes de que salga al cliente.
+    try:
+        reply = await output_guard.sanitize(session, reply, text)
+    except Exception:  # noqa: BLE001 - nunca bloquear el envío por el guard
+        logger.exception("Falló la validación de salida")
 
     if resumed_notice:
         reply.messages.insert(
