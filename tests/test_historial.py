@@ -206,3 +206,22 @@ async def test_ci_se_guarda_y_no_se_vuelve_a_pedir(catalogo):
 
     segunda = await agente.handle(catalogo, contact, "quiero ver mis compras")
     assert "ci o nit" not in _texto(segunda)
+
+def test_busqueda_no_expande_sinonimos_en_palabras_clave():
+    """'sillón' puede buscar 'sofa' en el nombre, pero no en palabras clave.
+
+    Antes, el sinónimo "living" matcheaba la palabra clave de una centrífuga
+    de ensaladas y el bot ofrecía accesorios por un sillón.
+    """
+    from app.services import catalog
+
+    clausula = str(
+        catalog._match_all(["sillon"])[0].compile(
+            compile_kwargs={"literal_binds": True}
+        )
+    ).lower()
+    assert "name" in clausula and "%living%" in clausula
+    assert "keywords" in clausula
+    antes, despues = clausula.split("keywords")
+    assert "%living%" not in despues
+    assert "%living%" in antes

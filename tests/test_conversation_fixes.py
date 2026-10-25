@@ -95,6 +95,9 @@ async def test_respuesta_pendiente_no_encadena_oraciones(session, monkeypatch):
     from app.services import conversation_guard
 
     monkeypatch.setattr(settings, "deepseek_api_key", "")
+    session.add(
+        _producto("TV-50", "Televisor Led 50 Pulgadas Samsung", 4699, category="TV")
+    )
     contact = Contact(wa_id="59170001210", phone_e164="+59170001210")
     session.add(contact)
     await session.flush()

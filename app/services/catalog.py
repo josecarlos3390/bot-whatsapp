@@ -194,23 +194,32 @@ def _correct_terms(terms: list[str]) -> list[str]:
 
 
 def _match_all(terms: list[str], *, expand: bool = True):
+    """Exige que cada término aparezca, con sinónimos solo en el nombre.
+
+    La descripción larga y los sinónimos en palabras clave arrastraban
+    accesorios sin relación ("sillón" → "living" → centrífuga de ensaladas).
+    """
     clauses = []
     for term in terms:
-        variants = _variants(term) if expand else _base_variants(term)
-        patterns = [_like(variant) for variant in variants]
+        base = _base_variants(term)
+        sinonimos = (
+            [v for v in _variants(term) if v not in base] if expand else []
+        )
+        patrones_base = [_like(v) for v in base]
+        patrones_nombre = patrones_base + [_like(v) for v in sinonimos]
         clauses.append(
             or_(
+                *[CatalogItem.name.ilike(p) for p in patrones_nombre],
                 *[
-                    column.ilike(pattern)
-                    for pattern in patterns
+                    column.ilike(p)
+                    for p in patrones_base
                     for column in (
-                        CatalogItem.name,
-                        CatalogItem.description,
                         CatalogItem.keywords,
                         CatalogItem.sku,
                         CatalogItem.brand,
+                        CatalogItem.category,
                     )
-                ]
+                ],
             )
         )
     return clauses
@@ -440,7 +449,7 @@ async def search_items(
         category = None
     if not rows and terms:
         # Último intento: cualquier término, manteniendo los filtros.
-        stmt = base().where(or_(*_match_all(terms[:4])))
+        stmt = base().where(*_match_all([terms[0]]))
         rows = list(
             (
                 await session.scalars(
