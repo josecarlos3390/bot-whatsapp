@@ -143,3 +143,34 @@ def test_guard_respeta_consulta_corta_y_valida():
         "No tengo nada para *colchón 2 plazas* en este momento."
     )
     assert "colchón 2 plazas" in texto
+
+async def test_medida_con_termino_inexistente_relaja_la_busqueda(session, monkeypatch):
+    """'50 pulgadas OLED' sin OLED de 50 debe mostrar el TV de 50, no 'no hay nada'."""
+    from app.config import settings
+    from app.models import Conversation
+    from app.services import conversation_guard
+
+    monkeypatch.setattr(settings, "deepseek_api_key", "")
+    session.add(
+        _producto("TV-50", "Televisor Led 50 Pulgadas", 4699, category="TV")
+    )
+    contact = Contact(wa_id="59170001211", phone_e164="+59170001211")
+    session.add(contact)
+    await session.flush()
+    session.add(Conversation(contact_id=contact.id))
+    await session.commit()
+
+    await conversation_guard.set_pending(
+        session,
+        contact,
+        slot="topic",
+        question="¿Qué medida?",
+        query="No me gusta, mejor quiero tv",
+    )
+
+    reply = await Agent().handle(session, contact, "De 50 pulgadas, mejor si es oled")
+
+    texto = " ".join(message.text or "" for message in reply.messages)
+    assert "no tengo" not in texto.lower()
+    assert "50" in texto
+    assert "pulgadas" not in texto.lower() or "TV-50" in texto or "50 Pulgadas" in texto

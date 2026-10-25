@@ -2983,21 +2983,26 @@ class Agent:
         )
         products = result.get("products") or []
         if not products:
-            # Red de seguridad: si la frase trae ruido ("mejor", "no me gusta"),
-            # se reintenta solo con el rubro antes de decir que no hay nada.
-            term = catalog.primary_term(query)
-            if term and term.lower() != (query or "").strip().lower():
+            # Relajación: si la frase trae un término que no existe ("oled"),
+            # se van quitando los últimos términos hasta encontrar algo.
+            terminos = catalog.clean_for_search(query).split()
+            for corte in range(len(terminos) - 1, 0, -1):
+                parcial = " ".join(terminos[:corte])
                 retry = await toolbox.tool_search_products(
-                    query=term,
+                    query=parcial,
                     limit=min(int(limit), 5),
                     min_price=min_price,
                     max_price=max_price,
+                    quantity=quantity,
                     ignore_state=True,
                 )
                 if retry.get("products"):
                     products = retry["products"]
                     result = retry
-                    query = term
+                    if parcial.lower() != (query or "").strip().lower():
+                        self._trace(f"Consulta relajada: {parcial}")
+                    query = parcial
+                    break
         if not products:
             if result.get("quantity_shortfall"):
                 qty = result["quantity_shortfall"]
