@@ -1379,7 +1379,9 @@ class Toolbox:
             self.session, category=category or query
         )
         products = rules_engine.order_promotions(products, promo_rules)
-        if query and not brand and not category and SEARCH_RE.search(query):
+        # Se recuerda siempre la última búsqueda con resultados: sirve para
+        # "mostrame las más vendidas" sin que el cliente repita el rubro.
+        if query and products:
             await self._remember_search_context(query)
         state_brand = brand
         if not state_brand and products:
@@ -1695,15 +1697,64 @@ class Toolbox:
         )
 
     async def tool_get_best_sellers(
-        self, category: str | None = None, limit: int = 5
+        self,
+        category: str | None = None,
+        limit: int = 5,
+        query: str | None = None,
     ) -> dict:
+        """Más vendidos acotados al rubro que viene mirando el cliente.
+
+        Si no hay ventas de ese rubro devuelve vacío: "las licuadoras más
+        vendidas" no puede responder con brochas.
+        """
+        referencia = (query or "").strip()
+        if not referencia:
+            try:
+                conversacion = await self.session.scalar(
+                    select(Conversation).where(
+                        Conversation.contact_id == self.contact_id
+                    )
+                )
+                referencia = (conversacion.last_query or "") if conversacion else ""
+            except Exception:  # noqa: BLE001 - sin contexto se sigue igual
+                referencia = ""
+
+        if not category and referencia:
+            category = catalog.primary_term(referencia)
+        if not category:
+            try:
+                state = await self._current_state()
+                category = state.category
+            except Exception:  # noqa: BLE001
+                category = None
+
         products = await sales_stats.best_sellers(
             self.session, category=category, limit=limit
         )
+        if not products and referencia:
+            # El rubro del cliente no siempre coincide con el nombre de la
+            # categoría: se filtra por texto sobre un ranking amplio.
+            term = referencia.lower().strip()
+            amplio = await sales_stats.best_sellers(
+                self.session, category=None, limit=max(limit * 4, 16)
+            )
+            products = [
+                p
+                for p in amplio
+                if term
+                and term in f"{p.get('name', '')} {p.get('category', '')}".lower()
+            ][:limit]
+        if not products and not category and not referencia:
+            products = await sales_stats.best_sellers(
+                self.session, category=None, limit=limit
+            )
         return {
             "ok": True,
             "products": products,
-            "note": None if products else "Todavía no hay estadísticas de ventas.",
+            "category": category,
+            "note": None
+            if products
+            else "No hay estadísticas de ventas de ese rubro; no mezcles categorías.",
         }
 
     async def tool_search_knowledge(self, query: str) -> dict:
