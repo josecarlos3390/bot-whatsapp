@@ -2269,8 +2269,14 @@ COMPLAINT_RE = re.compile(
 
 
 def _is_purchase_query(text: str) -> bool:
-    """Solo historial explícito; 'comprar para...' no es 'mis compras'."""
+    """Solo historial explícito; "la lavadora que compré" no es "mis compras"."""
     folded = _fold_word(text)
+    # Garantía, devolución o reclamo no piden identificación: se responden con
+    # la política publicada o se derivan.
+    if re.search(r"\b(garant[ií]a|devoluci[oó]n|reclamo)\b", folded) and not re.search(
+        r"\b(mis\s+compras|mi\s+historial|mi\s+factura|mis\s+pedidos)\b", folded
+    ):
+        return False
     if PURCHASE_RE.search(text):
         return True
     if "factura" in folded:
@@ -4925,7 +4931,7 @@ class Agent:
                 answer = _remove_stock_phrases(
                     _remove_query_echo((choice.content or "").strip(), text)
                 )
-                if PURCHASE_RE.search(text) and not (
+                if _is_purchase_query(text) and not (
                     contact.tax_id or contact.sap_card_code
                 ):
                     answer = (

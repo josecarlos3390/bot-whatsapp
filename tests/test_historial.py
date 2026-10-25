@@ -1,4 +1,4 @@
-"""Casos tomados de conversaciones reales.
+﻿"""Casos tomados de conversaciones reales.
 
 Cada mensaje viene de un chat real (o de un incidente reportado). No se compara
 el texto exacto: se verifica que la respuesta cumpla lo que debe cumplir.
@@ -172,3 +172,25 @@ async def test_caso_real(catalogo, mensaje, verifica):
 
     _sin_defectos(reply)
     assert verifica(_texto(reply), reply), f"respuesta inesperada a {mensaje!r}"
+
+
+async def test_garantia_no_pide_ci_ni_entra_en_bucle(catalogo):
+    """Caso encontrado por el fuzzing: garantía pedía CI/NIT y repetía la pregunta."""
+    contact = await _contacto(catalogo, "59170019050")
+    agente = Agent()
+
+    primera = await agente.handle(
+        catalogo,
+        contact,
+        "Hola, quería consultar por la garantía de una lavadora que compré.",
+    )
+    texto = _texto(primera).lower()
+    assert "ci o nit" not in texto
+    assert "consultás la garantía de un producto o querés iniciar un reclamo" not in texto
+
+    segunda = await agente.handle(
+        catalogo, contact, "Quiero saber si la garantía cubre el tambor."
+    )
+    texto2 = _texto(segunda).lower()
+    assert "consultás la garantía de un producto o querés iniciar un reclamo" not in texto2
+    assert bool(segunda.messages)

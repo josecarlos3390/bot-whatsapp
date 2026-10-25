@@ -55,12 +55,6 @@ AMBIGUOUS: list[tuple[re.Pattern[str], re.Pattern[str], str, str]] = [
         "factura",
     ),
     (
-        re.compile(r"\bgarant[ií]a\b", re.I),
-        re.compile(r"\b(producto|reclamo|devoluci[oó]n|defecto)\b", re.I),
-        "¿Consultás la garantía de un producto o querés iniciar un reclamo?",
-        "garantia",
-    ),
-    (
         re.compile(r"\bno\s+me\s+lleg[oó]\b", re.I),
         re.compile(r"\b(pedido|env[ií]o|reclamo|demora)\b", re.I),
         "¿Querés seguimiento del pedido o presentar un reclamo?",
