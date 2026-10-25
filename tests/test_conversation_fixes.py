@@ -1,4 +1,4 @@
-"""Regresiones detectadas revisando una conversación real."""
+﻿"""Regresiones detectadas revisando una conversación real."""
 
 from __future__ import annotations
 
@@ -86,3 +86,33 @@ async def test_no_deja_oracion_cortada_al_reemplazar_frase(session):
     assert "sección específica" not in texto.lower()
     assert "lo más cercano" not in texto.lower()
     assert "esto es lo que tengo" in texto.lower()
+
+
+async def test_respuesta_pendiente_no_encadena_oraciones(session, monkeypatch):
+    """'No me gusta, mejor quiero tv' + 'De 50 pulgadas' no debe buscar la frase entera."""
+    from app.config import settings
+    from app.models import Conversation
+    from app.services import conversation_guard
+
+    monkeypatch.setattr(settings, "deepseek_api_key", "")
+    contact = Contact(wa_id="59170001210", phone_e164="+59170001210")
+    session.add(contact)
+    await session.flush()
+    session.add(Conversation(contact_id=contact.id))
+    await session.commit()
+
+    # Simula la pregunta pendiente que dejó el mensaje anterior.
+    await conversation_guard.set_pending(
+        session,
+        contact,
+        slot="topic",
+        question="¿Qué medida buscás?",
+        query="No me gusta, mejor quiero tv",
+    )
+
+    reply = await Agent().handle(session, contact, "De 50 pulgadas, mejor si es oled")
+
+    texto = " ".join(message.text or "" for message in reply.messages).lower()
+    assert "no gusta" not in texto
+    assert "mejor quiero" not in texto
+    assert "no tengo nada" not in texto

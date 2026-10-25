@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import asyncio
 import html
@@ -97,6 +97,16 @@ def money(amount: Decimal | int | float | str) -> str:
 
 
 _STOPWORDS = {
+    # Ruido de conversación: "no me gusta, mejor quiero tv" debe quedar "tv".
+    "no",
+    "nada",
+    "gusta",
+    "gustan",
+    "mejor",
+    "peor",
+    "eso",
+    "esa",
+    "ese",
     "quiero",
     "necesito",
     "busco",
@@ -2725,12 +2735,15 @@ class Agent:
         query: str,
         slot: str = "topic",
     ) -> AgentReply:
+        # Se guarda el rubro limpio, no la frase entera: la respuesta del
+        # cliente se combina con esto y no queremos oraciones encadenadas.
+        base = _clean_query(query) or query
         await conversation_guard.set_pending(
             session,
             contact,
             slot=slot,
             question=question,
-            query=query,
+            query=base,
         )
         return AgentReply(
             [
@@ -2771,6 +2784,9 @@ class Agent:
             flags=re.IGNORECASE,
         )
         topic = re.sub(r"[?¿!]+", "", topic).strip() or "eso"
+        # Para mostrar solo el rubro y la medida, no la frase entera.
+        terminos = catalog._relevance_terms(topic)[:3]
+        topic = " ".join(terminos) or topic
         exclusions = expansion.get("exclusions") or []
         toolbox = Toolbox(session, contact, self.wa)
         direct: list[dict] = []
@@ -2964,6 +2980,22 @@ class Agent:
             ignore_state=ignore_state,
         )
         products = result.get("products") or []
+        if not products:
+            # Red de seguridad: si la frase trae ruido ("mejor", "no me gusta"),
+            # se reintenta solo con el rubro antes de decir que no hay nada.
+            term = catalog.primary_term(query)
+            if term and term.lower() != (query or "").strip().lower():
+                retry = await toolbox.tool_search_products(
+                    query=term,
+                    limit=min(int(limit), 5),
+                    min_price=min_price,
+                    max_price=max_price,
+                    ignore_state=True,
+                )
+                if retry.get("products"):
+                    products = retry["products"]
+                    result = retry
+                    query = term
         if not products:
             if result.get("quantity_shortfall"):
                 qty = result["quantity_shortfall"]
@@ -3653,7 +3685,11 @@ class Agent:
         if IDENTITY_RE.search(raw) or KNOWLEDGE_RE.search(raw):
             await conversation_guard.clear_pending(session, contact)
             return None
-        base = guard.pending_query or ""
+        # La base debe ser el rubro, no la frase completa del cliente: si no,
+        # se encadenan oraciones y la búsqueda recibe texto sin sentido
+        # ("no gusta mejor tv" + "50 pulgadas").
+        base_raw = guard.pending_query or ""
+        base = _clean_query(base_raw) or base_raw
         if slot == "intent":
             await conversation_guard.clear_pending(session, contact)
             route = intent_guard.route_answer(raw)
@@ -3701,17 +3737,20 @@ class Agent:
             return None
         if slot == "topic":
             await conversation_guard.clear_pending(session, contact)
-            combined = f"{base} {raw}".strip()
+            combined = f"{base} {_clean_query(raw)}".strip()
             key, event = await occasion_store.resolve(session, combined)
             if event is not None:
                 return await self._occasion_reply(
                     session, contact, combined, event
                 )
-            semantic_reply = await self._semantic_reply(
-                session, contact, combined
-            )
-            if semantic_reply is not None:
-                return semantic_reply
+            # Con una medida concreta ("50 pulgadas") conviene la búsqueda
+            # normal: filtra por tamaño y no ofrece otro porte.
+            if not _requested_size(combined):
+                semantic_reply = await self._semantic_reply(
+                    session, contact, combined
+                )
+                if semantic_reply is not None:
+                    return semantic_reply
             return await self._search_reply(
                 session, contact, combined
             )

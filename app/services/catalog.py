@@ -114,6 +114,8 @@ QUERY_STOPWORDS = {
     "hola", "buenas", "por favor", "favor",
     # Relleno conversacional: "un colchon que sea barato" busca "colchon barato".
     "que", "sea", "sean", "porfa", "porfavor", "che", "buenas", "tardes",
+    # Ruido de conversación: "no me gusta, mejor" no debe llegar a la búsqueda.
+    "gusta", "gustan", "mejor", "peor", "no", "nada", "todavia", "todavía",
     # Palabras de pregunta: "cuanto sale un colchon" debe buscar "colchon".
     "cuanto", "cuánto", "sale", "cuesta", "precio", "tenes", "tenés",
     "vale", "cotizacion", "cotización",
