@@ -194,3 +194,15 @@ async def test_garantia_no_pide_ci_ni_entra_en_bucle(catalogo):
     texto2 = _texto(segunda).lower()
     assert "consultás la garantía de un producto o querés iniciar un reclamo" not in texto2
     assert bool(segunda.messages)
+
+async def test_ci_se_guarda_y_no_se_vuelve_a_pedir(catalogo):
+    """Si el cliente da su CI, se guarda y no se le pide de nuevo."""
+    contact = await _contacto(catalogo, "59170019060")
+    agente = Agent()
+
+    primera = await agente.handle(catalogo, contact, "mi CI es 4.567.890")
+    assert "guardé tu documento" in _texto(primera)
+    assert contact.tax_id == "4567890"
+
+    segunda = await agente.handle(catalogo, contact, "quiero ver mis compras")
+    assert "ci o nit" not in _texto(segunda)

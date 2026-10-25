@@ -99,14 +99,17 @@ _CLOSING_TERMS = (
 )
 
 # Enojo o urgencia: se atiende primero y se deriva, sin vender.
+# Solo señales claras de enojo. Palabras neutras ("otra vez", "reclamo",
+# "urgente", "esperando") hacían que el bot se disculpara sin motivo.
 _FRUSTRATION_TERMS = (
     "estafa", "robo", "mentira", "mentirosos", "increible", "increíble",
-    "no me responden", "no me responden", "nadie me atiende", "hace una hora",
-    "hace horas", "hace dias", "hace días", "esperando", "harto", "harta",
-    "cansado de", "cansada de", "pesimo", "pésimo", "malisimo", "malísimo",
-    "reclamo", "queja", "urgente", "ya pague", "ya pagué", "otra vez",
-    "insolito", "insólito", "verguenza", "vergüenza", "quiero hablar con alguien",
-    "esto no es serio", "me estafaron", "me cobraron",
+    "no me responden", "nadie me atiende", "nadie responde",
+    "hace una hora", "hace horas", "hace dias", "hace días",
+    "harto", "harta", "cansado de", "cansada de",
+    "pesimo", "pésimo", "malisimo", "malísimo",
+    "ya pague", "ya pagué", "insolito", "insólito",
+    "verguenza", "vergüenza", "esto no es serio",
+    "me estafaron", "me cobraron", "me cobraron dos veces",
 )
 
 _PERSONAL_TERMS = (

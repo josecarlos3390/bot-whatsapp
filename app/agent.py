@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 import html
@@ -2319,6 +2319,27 @@ COMPLAINT_RE = re.compile(
 )
 
 
+DOCUMENTO_RE = re.compile(
+    r"(?:\b(?:ci|nit|carnet|documento|doc)\b\s*(?:es|:)?\s*)"
+    r"(\d{6,9}(?:-?\d{1,2})?)",
+    re.IGNORECASE,
+)
+DOCUMENTO_SUELTO_RE = re.compile(r"^\s*(\d{6,9}(?:-\d{1,2})?)\s*$")
+
+
+def _document_number(text: str) -> str | None:
+    """CI o NIT en el mensaje: "mi CI es 4.567.890" o el número solo."""
+    valor = (text or "").strip()
+    # "4.567.890" y "4 567 890" son el mismo documento: se unen los dígitos.
+    valor = re.sub(r"(?<=\d)[.\s](?=\d)", "", valor)
+    con_texto = DOCUMENTO_RE.search(valor)
+    if con_texto:
+        return con_texto.group(1)
+    suelto = DOCUMENTO_SUELTO_RE.match(valor)
+    if suelto:
+        return suelto.group(1)
+    return None
+
 def _is_purchase_query(text: str) -> bool:
     """Solo historial explícito; "la lavadora que compré" no es "mis compras"."""
     folded = _fold_word(text)
@@ -4043,6 +4064,45 @@ class Agent:
                         "Seguimiento de pedido sin resultado"
                     )
                 return AgentReply([Outbound(text=outcome["text"])])
+
+        # Si el cliente ya dio su CI o NIT, se guarda y se usa en el acto:
+        # no tiene sentido volver a pedirlo en el mensaje siguiente.
+        documento = _document_number(raw)
+        if documento and not (contact.tax_id or contact.sap_card_code):
+            contact.tax_id = documento
+            await session.commit()
+            historial = await purchases.get_history(
+                session, contact.id, limit=5
+            )
+            compras = historial.get("purchases") or []
+            if compras:
+                ultima = compras[0]
+                cantidad = len(compras)
+                texto = (
+                    f"Listo, guardé tu documento. Tenés {cantidad} compra"
+                    f"{'s' if cantidad != 1 else ''} registrada"
+                    f"{'s' if cantidad != 1 else ''}. La última fue del "
+                    f"{str(ultima.get('date', ''))[:10]}. "
+                    "¿Querés el detalle de alguna?"
+                )
+            else:
+                texto = (
+                    "Listo, guardé tu documento. No me aparece ninguna compra "
+                    "con ese dato; puede tardar en sincronizar. ¿Querés que lo "
+                    "revise un asesor?"
+                )
+            return AgentReply(
+                [
+                    Outbound(
+                        kind="buttons",
+                        text=texto,
+                        buttons=[
+                            {"id": "order", "title": "Ver un pedido"},
+                            {"id": "human", "title": "Asesor"},
+                        ],
+                    )
+                ]
+            )
 
         if TRACKING_RE.search(raw):
             text = await order_tracking.start(session, contact)

@@ -164,6 +164,10 @@ async def main() -> None:
                     break
                 historial.append(f"Cliente: {texto}")
                 respuesta = await agente.handle(session, contact, texto)
+                # Igual que en producción: el postproceso evita repeticiones.
+                respuesta = await agente.postprocess(
+                    session, contact, texto, respuesta
+                )
                 salida = " ".join(m.text or "" for m in respuesta.messages)
                 historial.append(f"Bot: {salida[:400]}")
                 print(f"  C: {texto[:110]}")
