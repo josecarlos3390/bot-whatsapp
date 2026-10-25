@@ -1252,6 +1252,8 @@ class Toolbox:
                 }
         if query:
             query = _clean_query(query) or query
+            # Solo términos útiles: evita buscar frases encadenadas.
+            query = catalog.clean_for_search(query) or query
             query = _normalize_tv_query(query)
         if category and TV_INTENT_RE.search(category):
             category = None

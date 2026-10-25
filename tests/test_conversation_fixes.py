@@ -116,3 +116,30 @@ async def test_respuesta_pendiente_no_encadena_oraciones(session, monkeypatch):
     assert "no gusta" not in texto
     assert "mejor quiero" not in texto
     assert "no tengo nada" not in texto
+
+def test_limpiar_consulta_deja_solo_terminos_utiles():
+    from app.services import catalog
+
+    assert catalog.clean_for_search("no gusta mejor tv 50 pulgadas") == "tv 50 pulgadas"
+    assert catalog.clean_for_search("colchon 2 plazas") == "colchon 2 plazas"
+    assert catalog.clean_for_search("hola que tal") == ""
+    assert catalog.clean_for_search("busco un colchón") == "colchon"
+
+
+def test_guard_quita_eco_de_consulta_ruidosa():
+    from app.services import output_guard
+
+    texto = output_guard._clean_text(
+        "No tengo nada para *no gusta mejor tv 50 pulgadas* en este momento."
+    )
+    assert "no gusta" not in texto.lower()
+    assert "no encontré eso" in texto.lower()
+
+
+def test_guard_respeta_consulta_corta_y_valida():
+    from app.services import output_guard
+
+    texto = output_guard._clean_text(
+        "No tengo nada para *colchón 2 plazas* en este momento."
+    )
+    assert "colchón 2 plazas" in texto

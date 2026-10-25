@@ -536,6 +536,36 @@ def _relevance_terms(query: str) -> list[str]:
     ]
 
 
+# Palabras que no aportan a una búsqueda aunque sobrevivan al filtro anterior.
+_SEARCH_NOISE = {
+    "gusta", "gustan", "mejor", "peor", "quiero", "queria", "quería",
+    "si", "es", "un", "una", "algo", "nada", "eso", "esa", "ese",
+    "mostrame", "muestrame", "ver", "opciones", "otra", "otro", "tal", "hola",
+}
+MAX_SEARCH_TERMS = 5
+
+
+def clean_for_search(query: str | None) -> str:
+    """Deja solo términos útiles para el buscador (máx. 5, sin relleno).
+
+    Conserva números y siglas ("tv", "50") porque definen la búsqueda.
+    Evita consultas armadas con pedazos de conversación
+    ("no gusta mejor tv 50 pulgadas"). Devuelve "" si no queda nada.
+    """
+    terminos: list[str] = []
+    for token in re.split(r"\s+", _fold(query or "")):
+        if not token:
+            continue
+        if token in QUERY_STOPWORDS or token in _SEARCH_NOISE:
+            continue
+        if token.isdigit():
+            terminos.append(token)
+            continue
+        if len(token) < 2:
+            continue
+        terminos.append(token)
+    return " ".join(terminos[:MAX_SEARCH_TERMS])
+
 def _is_relevant(item: CatalogItem, terms: list[str]) -> bool:
     haystack = _fold(
         f"{item.name or ''} {item.keywords or ''} {item.brand or ''} "

@@ -1,4 +1,4 @@
-"""Validación de salida: la última barrera antes de enviar al cliente.
+﻿"""Validación de salida: la última barrera antes de enviar al cliente.
 
 No reemplaza al modelo ni a las reglas: los audita. Si algo se escapa (una
 frase pobre, un producto que nadie pidió en un tema delicado, una referencia a
@@ -60,13 +60,53 @@ async def _known_skus(session: AsyncSession, skus: set[str]) -> set[str]:
     return set(rows)
 
 
+# Eco de consultas con ruido: "No tengo nada para *no gusta mejor tv 50
+# pulgadas*" delata que la búsqueda recibió una frase encadenada.
+_RUIDO_ECO = {
+    "gusta", "gustan", "mejor", "peor", "no", "nada", "quiero", "hola",
+    "tal", "eso", "esa", "ese", "si", "es", "algo",
+}
+_ECO_PATRONES = (
+    (
+        re.compile(r"no tengo nada para \*([^*]{1,160})\*", re.IGNORECASE),
+        "No encontré eso en el catálogo",
+    ),
+    (
+        re.compile(r"no tengo \*([^*]{1,160})\* exactamente", re.IGNORECASE),
+        "No tengo eso exacto",
+    ),
+    (
+        re.compile(r"para \*([^*]{1,160})\* tengo esto", re.IGNORECASE),
+        "Para eso tengo esto",
+    ),
+)
+
+
+def _consulta_ruidosa(texto: str) -> bool:
+    palabras = (texto or "").lower().split()
+    if len(palabras) > 4:
+        return True
+    return any(palabra.strip(",.") in _RUIDO_ECO for palabra in palabras)
+
+
+def _limpiar_eco(texto: str) -> str:
+    for patron, reemplazo in _ECO_PATRONES:
+        def _reemplazar(match: re.Match) -> str:
+            if _consulta_ruidosa(match.group(1)):
+                logger.warning("Consulta ruidosa en la respuesta: %r", match.group(1))
+                return reemplazo
+            return match.group(0)
+
+        texto = patron.sub(_reemplazar, texto)
+    return texto
+
 def _clean_text(text: str | None) -> str | None:
     if not text:
         return text
     value = text
     for pattern, replacement in BANNED:
         value = re.sub(pattern, replacement, value, flags=re.IGNORECASE)
-    return value
+    return _limpiar_eco(value)
 
 
 _AMOUNT_RE = re.compile(r"bs\.?\s*(\d[\d.,]*)", re.IGNORECASE)
