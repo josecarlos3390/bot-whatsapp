@@ -3,6 +3,7 @@ import { LanguageToggle, t } from "./i18n";
 import { Link } from "react-router-dom";
 import { api } from "./api";
 import { Badge, Button, Card, Example, Input, Textarea } from "./ui";
+import { ThemeToggle } from "./theme";
 import type { Advisor, AreaRule, AreaUser } from "./types";
 
 const AREAS = ["ecommerce", "calidad", "marketing", "operaciones", "general"];
@@ -29,6 +30,7 @@ export function AreaHeader({
         <div className="ml-auto flex items-center gap-3 text-sm text-[#e5e7eb]">
           <span className="hidden rounded-full border border-[#ffb3bd]/20 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-wider sm:inline">{subtitle}</span>
           <LanguageToggle />
+          <ThemeToggle />
           <button onClick={onLogout} className="rounded-lg border border-[#ffb3bd]/40 bg-white/5 px-3 py-1.5 text-xs font-semibold text-[#fde7ea] transition hover:bg-white/10">{t("Salir")}</button>
         </div>
       </div>
