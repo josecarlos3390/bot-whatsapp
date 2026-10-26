@@ -1,7 +1,7 @@
-"""Prueba de humo del bot real: conversaciones contra una instancia viva.
+﻿"""Prueba de humo del bot real: conversaciones contra una instancia viva.
 
 Uso:
-    python -m scripts.qa_dialogs                       # http://127.0.0.1:8020
+    python -m scripts.qa_dialogs                       # http://127.0.0.1:8010
     python -m scripts.qa_dialogs --url https://mi-tunel
 
 Hace preguntas por /dev/simulate y verifica invariantes (no compara textos
@@ -101,7 +101,7 @@ CASES: list[dict] = [
 
 async def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--url", default="http://127.0.0.1:8020")
+    parser.add_argument("--url", default="http://127.0.0.1:8010")
     args = parser.parse_args()
 
     fallas = 0
