@@ -1,4 +1,4 @@
-# Sincronizacion periodica del bot contra VTEX.
+﻿# Sincronizacion periodica del bot contra VTEX.
 # Ejecutar con:
 #   powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\vtex_sync_all.ps1
 #
@@ -12,6 +12,11 @@ $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
 $python = Join-Path $root ".venv\Scripts\python.exe"
+# Forzar UTF-8 en la salida de Python y en la consola.
+$env:PYTHONIOENCODING = "utf-8"
+$env:PYTHONUTF8 = "1"
+$OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 $logDir = Join-Path $root "logs"
 New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 $log = Join-Path $logDir ("vtex_sync_" + (Get-Date -Format "yyyyMMdd_HHmmss") + ".log")
@@ -23,9 +28,11 @@ function Run-Step {
     )
 
     Write-Host "== $Name ==" -ForegroundColor Cyan
-    & $python @Arguments 2>&1 |
-        Tee-Object -FilePath $log -Append |
-        Out-Null
+    # Salida en UTF-8: Tee-Object escribe UTF-16 y el panel lo leia mal
+    # ("Estadisticas" con un caracter roto).
+    $salida = & $python @Arguments 2>&1
+    $salida | ForEach-Object { Write-Host $_ }
+    $salida | Out-File -FilePath $log -Append -Encoding utf8
     $code = $LASTEXITCODE
     if ($code -ne 0) {
         Write-Host "$Name fallo con codigo $code" -ForegroundColor Yellow

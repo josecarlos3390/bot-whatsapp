@@ -523,10 +523,10 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
             </div>
 
             <div className="mt-5 flex flex-wrap gap-2">
-              <Link to="/inbox" className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm font-semibold text-[#1f2937]">{t("Atención al cliente")}</Link>
-              <Link to="/rules" className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm font-semibold text-[#1f2937]">{t("Reglas")}</Link>
-              <Link to="/occasions" className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm font-semibold text-[#1f2937]">{t("Ocasiones")}</Link>
-              <Link to="/admin/center" className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm font-semibold text-[#1f2937]">{t("Usuarios")}</Link>
+              <Link to="/inbox" className="rounded-lg bg-[#e9082a] px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#a90418]">{t("Atención al cliente")}</Link>
+              <Link to="/rules" className="rounded-lg bg-[#e9082a] px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#a90418]">{t("Reglas")}</Link>
+              <Link to="/occasions" className="rounded-lg bg-[#e9082a] px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#a90418]">{t("Ocasiones")}</Link>
+              <Link to="/admin/center" className="rounded-lg bg-[#e9082a] px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#a90418]">{t("Usuarios")}</Link>
             </div>
           </>
         )}

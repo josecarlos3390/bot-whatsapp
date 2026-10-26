@@ -33,6 +33,45 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 LOGS = ROOT / "logs"
 
 
+def _read_log_text(path: Path) -> str:
+    """Lee el log del sincronizador sin romper acentos.
+
+    PowerShell 5.1 escribe con Tee-Object en UTF-16; al leerlo como UTF-8
+    aparecía "Estad�sticas". Se detecta el BOM y se prueban codificaciones.
+    """
+    try:
+        datos = path.read_bytes()
+    except OSError:
+        return ""
+    if datos[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        return _repair_powershell_text(datos.decode("utf-16", errors="replace"))
+    if datos[:3] == b"\xef\xbb\xbf":
+        return _repair_powershell_text(datos.decode("utf-8-sig", errors="replace"))
+    try:
+        texto = datos.decode("utf-8")
+    except UnicodeDecodeError:
+        texto = datos.decode("cp1252", errors="replace")
+    return _repair_powershell_text(texto)
+
+
+def _repair_powershell_text(texto: str) -> str:
+    """Revierte el ruido de CP437 que deja la consola de PowerShell.
+
+    Un log viejo puede traer "Estadφsticas": Python escribió "í" en CP1252 y
+    la consola lo leyó como CP437. Se repara re-codificando.
+    """
+    if not any(ord(c) > 127 and ord(c) < 0x250 for c in texto):
+        return texto
+    try:
+        reparado = texto.encode("cp437").decode("cp1252")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return texto
+    if sum(1 for c in reparado if c.isalpha() and ord(c) < 0x250) >= sum(
+        1 for c in texto if c.isalpha() and ord(c) < 0x250
+    ):
+        return reparado
+    return texto
+
 def _latest_sync() -> dict:
     files = sorted(
         LOGS.glob("vtex_sync_*.log"),
@@ -42,10 +81,7 @@ def _latest_sync() -> dict:
     if not files:
         return {"at": None, "failed": None, "file": None, "summary": ""}
     path = files[0]
-    try:
-        text = path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        text = ""
+    text = _read_log_text(path)
     text = text.replace("\x00", "")
     lowered = text.lower()
     failed = "traceback" in lowered or "operationalerror" in lowered
