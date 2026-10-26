@@ -3473,7 +3473,16 @@ class Agent:
     @staticmethod
     def _search_cards(products: list[dict]) -> list[Outbound]:
         """Tarjetas visuales sin catálogo nativo: hasta 3 fotos + botones."""
-        selected = products[:3]
+        selected: list[dict] = []
+        vistas: set[str] = set()
+        for producto in products:
+            clave = _fold_word(producto.get("name") or "")
+            if clave in vistas:
+                continue
+            vistas.add(clave)
+            selected.append(producto)
+            if len(selected) == 3:
+                break
         if not selected:
             return []
         messages: list[Outbound] = []

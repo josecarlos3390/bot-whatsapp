@@ -457,8 +457,20 @@ async def search_items(
                 )
             ).all()
         )
+    # Un mismo producto puede venir con varios SKU (duplicados del sync):
+    # se muestra una sola vez y se prefiere la ficha que tiene imagen.
+    rows.sort(key=lambda item: 0 if item.image_url else 1)
     rows.sort(key=lambda item: _rank(item, rank_terms))
-    return rows[: int(limit)]
+    vistos: set[str] = set()
+    unicos: list[CatalogItem] = []
+    for item in rows:
+        clave = _fold(item.name or "")
+        if clave and clave in vistos:
+            continue
+        if clave:
+            vistos.add(clave)
+        unicos.append(item)
+    return unicos[: int(limit)]
 
 
 async def get_item(session: AsyncSession, sku: str) -> CatalogItem | None:
