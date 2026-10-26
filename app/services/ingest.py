@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 import logging
@@ -252,7 +252,17 @@ async def ingest_inbound(
         )
 
     sent: list[dict] = []
+    previous_kind: str | None = None
     for outbound in reply.messages:
+        if deliver and previous_kind is not None:
+            # Las imágenes tardan más en procesarse en el teléfono: tras una
+            # foto se espera un poco más para respetar el orden de lectura.
+            pausa = settings.outbound_pause_ms
+            if previous_kind == "image":
+                pausa = int(pausa * 1.5)
+            if pausa > 0:
+                await asyncio.sleep(pausa / 1000)
+        previous_kind = outbound.kind
         if deliver:
             try:
                 outbound_id = await whatsapp.send(wa_id, outbound)

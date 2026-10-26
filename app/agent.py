@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import asyncio
 import html
@@ -3507,10 +3507,16 @@ class Agent:
                     "description": detail[:72],
                 }
             )
+        total = len(selected)
+        encabezado = (
+            "Te muestro la opción. Decime si te sirve y te paso el detalle:"
+            if total == 1
+            else f"Son {total} opciones. Decime cuál te interesa y te muestro el detalle:"
+        )
         messages.append(
             Outbound(
                 kind="list",
-                text="Decime cuál te interesa y te muestro el detalle:",
+                text=encabezado,
                 button_text="Ver opciones",
                 sections=[{"title": "Opciones", "rows": rows}],
             )

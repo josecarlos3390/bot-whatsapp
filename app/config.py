@@ -64,6 +64,9 @@ class Settings(BaseSettings):
     handoff_reassign_minutes: int = 5
     # Pausa a partir de la cual el mismo chat se considera una charla nueva.
     session_gap_minutes: int = 360
+    # WhatsApp procesa las imágenes de forma asíncrona: una pausa corta
+    # entre mensajes evita que el cierre aparezca antes que las fotos.
+    outbound_pause_ms: int = 350
     # Barrido en segundo plano de casos que nadie atendió.
     handoff_sweep_seconds: int = 300
     handoff_taken_timeout_minutes: int = 120
