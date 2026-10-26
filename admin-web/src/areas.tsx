@@ -116,7 +116,7 @@ function RuleBuilder({
       setRules(data.rules || []);
       setError("");
     } catch (exception) {
-      setError(exception instanceof Error ? exception.message : "No se pudieron cargar las reglas");
+      setError(exception instanceof Error ? exception.message : t("No se pudieron cargar las reglas"));
     }
   };
 
@@ -137,7 +137,7 @@ function RuleBuilder({
       setSimulation(result);
       setError("");
     } catch (exception) {
-      setError(exception instanceof Error ? exception.message : "No se pudo simular");
+      setError(exception instanceof Error ? exception.message : t("No se pudo simular"));
     } finally {
       setSimBusy(false);
     }
@@ -158,7 +158,7 @@ function RuleBuilder({
 
   async function save() {
     try {
-      if (!name.trim()) throw new Error("Poné un nombre a la regla");
+      if (!name.trim()) throw new Error(t("Poné un nombre a la regla"));
       let condition: Record<string, unknown> = {};
       let action: Record<string, unknown> = {};
       if (kind === "brand_priority") {
@@ -217,7 +217,7 @@ function RuleBuilder({
       reset();
       await load();
     } catch (exception) {
-      setError(exception instanceof Error ? exception.message : "No se pudo guardar");
+      setError(exception instanceof Error ? exception.message : t("No se pudo guardar"));
     }
   }
 
@@ -227,7 +227,7 @@ function RuleBuilder({
   }
 
   async function remove(id: string) {
-    if (!confirm("¿Eliminar esta regla?")) return;
+    if (!confirm(t("¿Eliminar esta regla?"))) return;
     await api(`${base}/${id}`, { method: "DELETE" });
     await load();
   }
@@ -238,7 +238,7 @@ function RuleBuilder({
       setVersionsFor(rule);
       setVersions(data.versions || []);
     } catch (exception) {
-      setError(exception instanceof Error ? exception.message : "No se pudo cargar el historial");
+      setError(exception instanceof Error ? exception.message : t("No se pudo cargar el historial"));
     }
   }
 
@@ -249,7 +249,7 @@ function RuleBuilder({
       await load();
       await history(rule);
     } catch (exception) {
-      setError(exception instanceof Error ? exception.message : "No se pudo restaurar");
+      setError(exception instanceof Error ? exception.message : t("No se pudo restaurar"));
     }
   }
 
@@ -393,7 +393,7 @@ function RuleBuilder({
                         <div>
                           <div className="text-sm font-semibold text-[#111111]">{product.name}</div>
                           <div className="text-[11px] text-[#6b7280]">
-                            {product.brand || "Sin marca"} · {product.category || "Sin categoría"} · SKU {product.sku}
+                            {product.brand || t("Sin marca")} · {product.category || t("Sin categoría")} · SKU {product.sku}
                           </div>
                         </div>
                         <div className="shrink-0 text-right">
@@ -601,7 +601,7 @@ export function AdminCenter({ me, onLogout }: { me: Advisor; onLogout: () => voi
       const data = await api<{ users: typeof users }>("/admin/area-users");
       setUsers(data.users || []);
     } catch (exception) {
-      setError(exception instanceof Error ? exception.message : "No se pudieron cargar los usuarios");
+      setError(exception instanceof Error ? exception.message : t("No se pudieron cargar los usuarios"));
     }
   };
 
@@ -613,7 +613,7 @@ export function AdminCenter({ me, onLogout }: { me: Advisor; onLogout: () => voi
       setForm({ username: "", password: "", display_name: "", area: "ecommerce" });
       await load();
     } catch (exception) {
-      setError(exception instanceof Error ? exception.message : "No se pudo crear");
+      setError(exception instanceof Error ? exception.message : t("No se pudo crear"));
     }
   }
 
@@ -622,7 +622,7 @@ export function AdminCenter({ me, onLogout }: { me: Advisor; onLogout: () => voi
       await api(`/admin/area-users/${id}`, { method: "PATCH", body: JSON.stringify(body) });
       await load();
     } catch (exception) {
-      setError(exception instanceof Error ? exception.message : "No se pudo actualizar");
+      setError(exception instanceof Error ? exception.message : t("No se pudo actualizar"));
     }
   }
 

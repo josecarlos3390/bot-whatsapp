@@ -317,12 +317,12 @@ function HandoffCard({
             {handoff.unread && <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" />}
             <span className="truncate font-semibold text-slate-900">{handoff.contact}</span>
           </div>
-          <div className="truncate text-xs text-slate-500">{handoff.reason || "Sin motivo"}</div>
+          <div className="truncate text-xs text-slate-500">{handoff.reason || t("Sin motivo")}</div>
         </div>
         <StatusBadge handoff={handoff} />
       </div>
       <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
-        <span>{handoff.assigned_to ? `Asignado: ${handoff.assigned_to}` : "Sin asignar"}</span>
+        <span>{handoff.assigned_to ? `Asignado: ${handoff.assigned_to}` : t("Sin asignar")}</span>
         <span className={handoff.overdue ? "font-semibold text-red-600" : ""}>
           {handoff.waiting_minutes} min {handoff.overdue ? "· SLA" : ""}
         </span>
@@ -399,7 +399,7 @@ function DetailPanel({
       await onReply(text);
       setReply("");
     } catch (exception) {
-      setError(exception instanceof Error ? exception.message : "No se pudo enviar.");
+      setError(exception instanceof Error ? exception.message : t("No se pudo enviar."));
     } finally {
       setSending(false);
     }
@@ -414,7 +414,7 @@ function DetailPanel({
       await onNote(text);
       setNote("");
     } catch (exception) {
-      setError(exception instanceof Error ? exception.message : "No se pudo guardar la nota.");
+      setError(exception instanceof Error ? exception.message : t("No se pudo guardar la nota."));
     } finally {
       setNoteSending(false);
     }
@@ -427,7 +427,7 @@ function DetailPanel({
     try {
       await onAttach(file, "");
     } catch (exception) {
-      setError(exception instanceof Error ? exception.message : "No se pudo enviar el archivo.");
+      setError(exception instanceof Error ? exception.message : t("No se pudo enviar el archivo."));
     } finally {
       setAttaching(false);
       if (fileInput.current) fileInput.current.value = "";
@@ -446,7 +446,7 @@ function DetailPanel({
           <div>
           <h2 className="text-lg font-bold text-slate-900">{detail.contact.name || detail.contact.wa_id}</h2>
           <p className="text-xs text-slate-500">
-            {detail.contact.phone} · {detail.reason || "Sin motivo"} · {detail.waiting_minutes} min
+            {detail.contact.phone} · {detail.reason || t("Sin motivo")} · {detail.waiting_minutes} min
             {detail.overdue ? " · SLA vencido" : ""}
             {detail.sla_paused ? " · En espera del cliente" : ""}
           </p>
@@ -477,7 +477,7 @@ function DetailPanel({
         <div className="border-b border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
           {detail.status === "pending"
             ? "Tomá el caso para habilitar la respuesta."
-            : `Este caso está siendo atendido por ${detail.assigned_to || "otro asesor"}.`}
+            : `Este caso está siendo atendido por ${detail.assigned_to || t("otro asesor")}.`}
         </div>
       )}
 
@@ -487,7 +487,7 @@ function DetailPanel({
         <ContextBox title={t("Pedidos")}>
           {detail.orders.length
             ? detail.orders.map((order) => `#${order.number} · ${order.status} · Bs ${order.total}`).join(" | ")
-            : "Sin pedidos"}
+            : t("Sin pedidos")}
         </ContextBox>
       </div>
 
@@ -502,7 +502,7 @@ function DetailPanel({
                 <div className="text-slate-700">{detail.context.pending.question}</div>
                 <div className="mt-1 text-[10px] text-slate-400">Dato esperado: {detail.context.pending.slot || "—"}</div>
               </>
-            ) : "Sin pregunta pendiente"}
+            ) : t("Sin pregunta pendiente")}
           </div>
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
             <div className="mb-1 font-bold uppercase tracking-wide text-slate-400">{t("Intención y filtros")}</div>
@@ -512,7 +512,7 @@ function DetailPanel({
                 <div>Categoría: {detail.context.state.category || "—"} · Marca: {detail.context.state.brand || "—"}</div>
                 <div>Medida: {detail.context.state.size || "—"} · SKU: {detail.context.state.last_sku || "—"}</div>
               </div>
-            ) : "Sin estado guardado"}
+            ) : t("Sin estado guardado")}
           </div>
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 sm:col-span-2">
             <div className="mb-1 font-bold uppercase tracking-wide text-slate-400">{t("Última recomendación")}</div>
@@ -527,7 +527,7 @@ function DetailPanel({
                   ))}
                 </div>
               </>
-            ) : "Sin recomendaciones registradas"}
+            ) : t("Sin recomendaciones registradas")}
           </div>
         </div>
       </details>
@@ -678,7 +678,7 @@ function Inbox({ me }: { me: Advisor }) {
   const [team, setTeam] = useState<{ display_name: string; username: string }[]>([]);
   const [transferTo, setTransferTo] = useState("");
   const [returnOpen, setReturnOpen] = useState(false);
-  const [returnReason, setReturnReason] = useState("El asesor devolvió el caso al bot.");
+  const [returnReason, setReturnReason] = useState(t("El asesor devolvió el caso al bot."));
   const [loading, setLoading] = useState(true);
   const known = useRef<Set<string> | null>(null);
   const selectedId = selected?.id;
@@ -949,7 +949,7 @@ function Inbox({ me }: { me: Advisor }) {
                 ["all", "Todos"],
                 ["pending", "Pendientes"],
                 ["mine", "Míos"],
-                ["unassigned", "Sin asignar"],
+                ["unassigned", t("Sin asignar")],
                 ["overdue", "SLA"],
                 ["closed", "Cerrados"]
               ] as const).map(([key, label]) => (
@@ -973,7 +973,7 @@ function Inbox({ me }: { me: Advisor }) {
           {!loading && !filtered.length && (
             <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
               <InboxIcon className="mx-auto mb-2 text-slate-300" size={28} />
-              <p>{handoffs.length ? "No hay casos con ese filtro." : "No hay handoffs abiertos."}</p>
+              <p>{handoffs.length ? t("No hay casos con ese filtro.") : t("No hay handoffs abiertos.")}</p>
               {handoffs.length > 0 && (query || filter !== "all") && (
                 <button
                   onClick={() => { setQuery(""); setFilter("all"); }}
@@ -1041,7 +1041,7 @@ function Inbox({ me }: { me: Advisor }) {
         open={transferOpen}
         onClose={() => setTransferOpen(false)}
         title={t("Transferir caso")}
-        description="El nuevo asesor podrá responder desde su consola."
+        description={t("El nuevo asesor podrá responder desde su consola.")}
       >
         <select
           value={transferTo}
@@ -1061,7 +1061,7 @@ function Inbox({ me }: { me: Advisor }) {
         open={returnOpen}
         onClose={() => setReturnOpen(false)}
         title={t("Devolver al bot")}
-        description="El bot retomará la conversación sin marcar el caso como resuelto."
+        description={t("El bot retomará la conversación sin marcar el caso como resuelto.")}
       >
         <Textarea
           value={returnReason}
@@ -1094,7 +1094,7 @@ function Agents({ me }: { me: Advisor }) {
       setAdvisors(data.advisors);
       setMetrics(metricData.advisors);
     } catch {
-      setError("No se pudieron cargar los agentes.");
+      setError(t("No se pudieron cargar los agentes."));
     }
   }, []);
 
@@ -1110,7 +1110,7 @@ function Agents({ me }: { me: Advisor }) {
       setForm({ username: "", display_name: "", password: "", role: "agent", on_duty: true });
       await load();
     } catch (exception) {
-      setError(exception instanceof Error ? exception.message : "No se pudo crear.");
+      setError(exception instanceof Error ? exception.message : t("No se pudo crear."));
     }
   }
 

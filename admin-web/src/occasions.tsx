@@ -75,7 +75,7 @@ export function OccasionsPage({
       setTestResult(result);
       setError("");
     } catch (exception) {
-      setError(exception instanceof Error ? exception.message : "No se pudo probar");
+      setError(exception instanceof Error ? exception.message : t("No se pudo probar"));
     } finally {
       setTesting(false);
     }
@@ -87,7 +87,7 @@ export function OccasionsPage({
       setOccasions(data.occasions || []);
       setError("");
     } catch (exception) {
-      setError(exception instanceof Error ? exception.message : "No se pudieron cargar las ocasiones");
+      setError(exception instanceof Error ? exception.message : t("No se pudieron cargar las ocasiones"));
     } finally {
       setLoading(false);
     }
@@ -107,7 +107,7 @@ export function OccasionsPage({
 
   async function save() {
     try {
-      if (!form.name.trim()) throw new Error("Poné un nombre a la ocasión");
+      if (!form.name.trim()) throw new Error(t("Poné un nombre a la ocasión"));
       if (!form.direct.trim() && !form.bridge_terms.trim()) {
         throw new Error("Agregá términos directos o una alternativa");
       }
@@ -142,7 +142,7 @@ export function OccasionsPage({
       reset();
       await load();
     } catch (exception) {
-      setError(exception instanceof Error ? exception.message : "No se pudo guardar");
+      setError(exception instanceof Error ? exception.message : t("No se pudo guardar"));
     }
   }
 
@@ -170,17 +170,17 @@ export function OccasionsPage({
       await api(`${base}/${id}/publish`, { method: "POST" });
       await load();
     } catch (exception) {
-      setError(exception instanceof Error ? exception.message : "No se pudo publicar");
+      setError(exception instanceof Error ? exception.message : t("No se pudo publicar"));
     }
   }
 
   async function remove(id: string) {
-    if (!confirm("¿Eliminar esta ocasión?")) return;
+    if (!confirm(t("¿Eliminar esta ocasión?"))) return;
     try {
       await api(`${base}/${id}`, { method: "DELETE" });
       await load();
     } catch (exception) {
-      setError(exception instanceof Error ? exception.message : "No se pudo eliminar");
+      setError(exception instanceof Error ? exception.message : t("No se pudo eliminar"));
     }
   }
 
@@ -189,7 +189,7 @@ export function OccasionsPage({
       await api("/admin/occasions/seed", { method: "POST" });
       await load();
     } catch (exception) {
-      setError(exception instanceof Error ? exception.message : "No se pudieron cargar los ejemplos");
+      setError(exception instanceof Error ? exception.message : t("No se pudieron cargar los ejemplos"));
     }
   }
 
@@ -281,7 +281,7 @@ export function OccasionsPage({
                   )}
                 </>
               ) : (
-                <div>No detecta ninguna ocasión con ese mensaje. Probá sumar un alias o un término directo.</div>
+                <div>{t("No detecta ninguna ocasión con ese mensaje. Probá sumar un alias o un término directo.")}</div>
               )}
             </div>
           )}

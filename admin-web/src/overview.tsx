@@ -65,11 +65,11 @@ type Overview = {
 };
 
 const QA_LABELS: Record<string, string> = {
-  tema_delicitado: "Tema delicado con producto",
-  enojo_con_venta: "Venta a cliente enojado",
-  producto_sin_pedido: "Producto sin pedido",
-  frase_prohibida: "Frase prohibida",
-  sin_respuesta: "Mensaje sin respuesta"
+  tema_delicitado: t("Tema delicado con producto"),
+  enojo_con_venta: t("Venta a cliente enojado"),
+  producto_sin_pedido: t("Producto sin pedido"),
+  frase_prohibida: t("Frase prohibida"),
+  sin_respuesta: t("Mensaje sin respuesta")
 };
 
 function formatDate(value: string | null | undefined) {
@@ -160,7 +160,7 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
       if (result.error) setProbeError(result.error);
       void loadProbeHistory();
     } catch (exception) {
-      setProbeError(exception instanceof Error ? exception.message : "No se pudo probar");
+      setProbeError(exception instanceof Error ? exception.message : t("No se pudo probar"));
       setProbeReplies([]);
     } finally {
       setProbing(false);
@@ -173,7 +173,7 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
       setData(result);
       setError("");
     } catch (exception) {
-      setError(exception instanceof Error ? exception.message : "No se pudo cargar el estado");
+      setError(exception instanceof Error ? exception.message : t("No se pudo cargar el estado"));
     } finally {
       setLoading(false);
     }
@@ -222,7 +222,7 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
               <p className="text-xs text-[#6b7280]">Actualizado {formatDate(data?.generated_at)} · refresco automático cada 30 s</p>
             </div>
             <div className="ml-auto text-xs text-[#6b7280]">
-              {data?.alerts?.length ? `${data.alerts.length} alerta(s)` : "Sin alertas activas"}
+              {data?.alerts?.length ? `${data.alerts.length} alerta(s)` : t("Sin alertas activas")}
             </div>
           </div>
           {data?.alerts?.length ? (
