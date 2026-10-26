@@ -67,6 +67,8 @@ class Settings(BaseSettings):
     # WhatsApp procesa las imágenes de forma asíncrona: una pausa corta
     # entre mensajes evita que el cierre aparezca antes que las fotos.
     outbound_pause_ms: int = 350
+    # Espera antes del mensaje de cierre cuando viene después de una foto.
+    outbound_close_pause_ms: int = 1500
     # Barrido en segundo plano de casos que nadie atendió.
     handoff_sweep_seconds: int = 300
     handoff_taken_timeout_minutes: int = 120

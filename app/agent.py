@@ -3524,6 +3524,20 @@ class Agent:
         return messages
 
     @staticmethod
+    def _con_seguimiento(messages: list[Outbound]) -> list[Outbound]:
+        """Agrega el cierre de seguimiento solo si no hay uno ya."""
+        if messages and messages[-1].kind in {"list", "buttons"}:
+            return messages
+        return [
+            *messages,
+            Outbound(
+                kind="buttons",
+                text="¿Seguimos?",
+                buttons=Agent._search_buttons(),
+            ),
+        ]
+
+    @staticmethod
     def _search_list(products: list[dict]) -> Outbound:
         rows = []
         for product in products[:9]:
@@ -4616,19 +4630,16 @@ class Agent:
                 )
                 if probe.get("products"):
                     return AgentReply(
-                        [
-                            Outbound(
-                                text=(
-                                    f"Con *{display}* tengo estas opciones:"
-                                )
-                            ),
-                            *self._search_cards(probe["products"]),
-                            Outbound(
-                                kind="buttons",
-                                text="¿Seguimos?",
-                                buttons=self._search_buttons(),
-                            ),
-                        ]
+                        self._con_seguimiento(
+                            [
+                                Outbound(
+                                    text=(
+                                        f"Con *{display}* tengo estas opciones:"
+                                    )
+                                ),
+                                *self._search_cards(probe["products"]),
+                            ]
+                        )
                     )
 
         if not settings.deepseek_api_key:
@@ -5113,7 +5124,7 @@ class Agent:
                             ],
                         )
                     )
-                return AgentReply(outbound)
+                return AgentReply(self._con_seguimiento(outbound))
 
             # Si el modelo pidió una lectura que ya sabemos responder, se
             # contesta con el motor de reglas: evita una segunda llamada con

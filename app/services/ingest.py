@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -259,7 +259,12 @@ async def ingest_inbound(
             # foto se espera un poco más para respetar el orden de lectura.
             pausa = settings.outbound_pause_ms
             if previous_kind == "image":
-                pausa = int(pausa * 1.5)
+                if outbound.kind in {"list", "buttons"}:
+                    # El cierre espera a que WhatsApp procese la última foto:
+                    # si no, aparece antes que la imagen en el teléfono.
+                    pausa = settings.outbound_close_pause_ms
+                else:
+                    pausa = int(pausa * 1.5)
             if pausa > 0:
                 await asyncio.sleep(pausa / 1000)
         previous_kind = outbound.kind
