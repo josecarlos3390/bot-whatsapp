@@ -15,6 +15,23 @@ import httpx
 
 from app.config import settings
 
+# El servidor resuelve IPv4 pero su DNS IPv6 falla: getaddrinfo devuelve
+# "11001" y ninguna llamada al túnel salía. Se fuerza IPv4 en este proceso.
+import socket as _socket
+
+_getaddrinfo_original = _socket.getaddrinfo
+
+
+def _getaddrinfo_ipv4(host, port, family=0, type=0, proto=0, flags=0):
+    return _getaddrinfo_original(
+        host, port, _socket.AF_INET, type, proto, flags
+    )
+
+
+_socket.getaddrinfo = _getaddrinfo_ipv4
+
+
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()

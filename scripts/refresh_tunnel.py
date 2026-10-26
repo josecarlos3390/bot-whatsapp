@@ -21,7 +21,37 @@ import tempfile
 import time
 from pathlib import Path
 
+
+# El servidor resuelve IPv4 pero su DNS IPv6 falla: getaddrinfo devuelve
+# "11001" y ninguna llamada al túnel salía. Se fuerza IPv4 en este proceso.
+import socket as _socket
+
+_getaddrinfo_original = _socket.getaddrinfo
+
+
+def _getaddrinfo_ipv4(host, port, family=0, type=0, proto=0, flags=0):
+    return _getaddrinfo_original(
+        host, port, _socket.AF_INET, type, proto, flags
+    )
+
+
+_socket.getaddrinfo = _getaddrinfo_ipv4
+
 import httpx
+
+
+def _http() -> httpx.Client:
+    """Cliente con salida IPv4.
+
+    En este servidor IPv6 resuelve pero no tiene ruta: las llamadas al túnel
+    fallaban con getaddrinfo y Meta nunca recibía la URL nueva.
+    """
+    return httpx.Client(
+        transport=httpx.HTTPTransport(local_address="0.0.0.0"),
+        timeout=30,
+        follow_redirects=True,
+    )
+
 
 from app.config import settings
 
@@ -79,15 +109,15 @@ def app_id() -> str:
 
 
 def verify_public_webhook(base_url: str) -> None:
-    response = httpx.get(
-        f"{base_url}/webhooks/whatsapp",
-        params={
-            "hub.mode": "subscribe",
-            "hub.verify_token": settings.wa_verify_token,
-            "hub.challenge": "tunnel-check",
-        },
-        timeout=20,
-    )
+    with _http() as client:
+        response = client.get(
+            f"{base_url}/webhooks/whatsapp",
+            params={
+                "hub.mode": "subscribe",
+                "hub.verify_token": settings.wa_verify_token,
+                "hub.challenge": "tunnel-check",
+            },
+        )
     if response.status_code != 200 or response.text != "tunnel-check":
         raise RuntimeError(
             f"El webhook público no responde al challenge: "
@@ -98,17 +128,17 @@ def verify_public_webhook(base_url: str) -> None:
 def update_meta(base_url: str) -> None:
     app = app_id()
     token = f"{app}|{settings.wa_app_secret}"
-    response = httpx.post(
-        f"https://graph.facebook.com/v21.0/{app}/subscriptions",
-        data={
-            "object": "whatsapp_business_account",
-            "callback_url": f"{base_url}/webhooks/whatsapp",
-            "verify_token": settings.wa_verify_token,
-            "fields": "messages",
-            "access_token": token,
-        },
-        timeout=30,
-    )
+    with _http() as client:
+        response = client.post(
+            f"https://graph.facebook.com/v21.0/{app}/subscriptions",
+            data={
+                "object": "whatsapp_business_account",
+                "callback_url": f"{base_url}/webhooks/whatsapp",
+                "verify_token": settings.wa_verify_token,
+                "fields": "messages",
+                "access_token": token,
+            },
+        )
     response.raise_for_status()
     logger.info("Meta actualizado: %s", response.text[:300])
 
@@ -120,7 +150,8 @@ def refresh(
     if not url:
         logger.warning("No encontré URL en %s", log_path)
         return None
-    health = httpx.get(f"{url}/health", timeout=20)
+    with _http() as client:
+        health = client.get(f"{url}/health")
     if health.status_code != 200:
         logger.warning("La URL %s no responde: %s", url, health.status_code)
         return None
