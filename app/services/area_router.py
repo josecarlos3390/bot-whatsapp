@@ -12,13 +12,13 @@ from . import rules_engine
 
 AREA_TERMS: dict[str, re.Pattern[str]] = {
     "calidad": re.compile(
-        r"\b(devoluci[oó]n|devolver|garant[ií]a|cambio|reclamo|roto|rota|"
-        r"defectuoso|reembolso|factura|comprobante)\b",
+        r"\b(devoluci[oó]n(?:es)?|devolver|garant[ií]as?|cambios?|reclamos?|"
+        r"rotos?|rotas?|defectuosos?|reembolsos?|facturas?|comprobantes?)\b",
         re.IGNORECASE,
     ),
     "operaciones": re.compile(
-        r"\b(env[ií]o|entrega|sucursal|horario|retiro|direcci[oó]n|"
-        r"ubicaci[oó]n|domicilio|despacho)\b",
+        r"\b(env[ií]os?|entregas?|sucursales?|horarios?|retiros?|"
+        r"direcci[oó]n(?:es)?|ubicaci[oó]n(?:es)?|domicilios?|despachos?)\b",
         re.IGNORECASE,
     ),
     "marketing": re.compile(

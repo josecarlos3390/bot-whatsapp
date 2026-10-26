@@ -1,4 +1,4 @@
-"""Motor de reglas de área: prioridad de marca y flujos."""
+﻿"""Motor de reglas de área: prioridad de marca y flujos."""
 
 from __future__ import annotations
 
@@ -19,7 +19,9 @@ def _fold(value: str | None) -> str:
         for char in unicodedata.normalize("NFKD", value)
         if not unicodedata.combining(char)
     )
-    return re.sub(r"\s+", " ", value)
+    # Sin signos: "entrega?" y "entrega" deben ser la misma palabra.
+    value = re.sub(r"[^a-z0-9ñü ]", " ", value)
+    return re.sub(r"\s+", " ", value).strip()
 
 
 _SAME_GROUPS = (
@@ -28,6 +30,20 @@ _SAME_GROUPS = (
     {"colchon", "colchones", "cama", "camas"},
     {"lavadora", "lavadoras", "lavarropas"},
     {"aire", "aires", "acondicionador", "acondicionadores"},
+    # Logística: una regla de "envíos" también cubre "entrega" y "despacho".
+    {
+        "envios",
+        "envio",
+        "entrega",
+        "entregas",
+        "despacho",
+        "despachos",
+        "domicilio",
+        "retiro",
+        "retiros",
+        "sucursal",
+        "sucursales",
+    },
     # Familia de herramientas: la regla puede decir "Herramientas" y aplicar
     # a las subcategorías reales del catálogo (taladros, sierras, etc.).
     {
