@@ -447,6 +447,17 @@ function RuleBuilder({
               <label className="text-xs font-semibold text-slate-600">{t("Descuento mínimo (%)")}<Input className="mt-1" type="number" min={0} max={100} value={minDiscount} onChange={(event) => setMinDiscount(Number(event.target.value))} />
                 <Hint>{t("Umbral para destacar. Si el descuento real de VTEX es menor, el producto no se prioriza. No modifica precios ni crea descuentos.")}</Hint>
               </label>
+              <div className="rounded-xl border border-[#e5e7eb] bg-[#f9fafb] px-3 py-2 text-[11px] leading-relaxed text-[#4b5563] md:col-span-2">
+                <div className="font-semibold text-[#111111]">{t("Ejemplo con esta regla (Herramientas, mínimo 5%)")}</div>
+                <div className="mt-1">{t("Cliente: \"busco un taladro\". El bot busca en la categoría y ordena así:")}</div>
+                <ul className="mt-1 list-disc pl-4">
+                  <li>{t("Taladro con 46% de descuento y stock → primero (cumple el mínimo).")}</li>
+                  <li>{t("Taladro con 19% → también primero, detrás del de mayor descuento.")}</li>
+                  <li>{t("Taladro con 3% → después de los que cumplen, aunque su nombre coincida mejor.")}</li>
+                  <li>{t("Taladro sin promoción → al final.")}</li>
+                </ul>
+                <div className="mt-1">{t("El precio y el porcentaje son los de VTEX: la regla solo cambia el orden y lo que el bot destaca.")}</div>
+              </div>
             </div>
           ) : kind === "response_rule" ? (
             <div className="mt-3 space-y-3">

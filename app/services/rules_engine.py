@@ -28,6 +28,29 @@ _SAME_GROUPS = (
     {"colchon", "colchones", "cama", "camas"},
     {"lavadora", "lavadoras", "lavarropas"},
     {"aire", "aires", "acondicionador", "acondicionadores"},
+    # Familia de herramientas: la regla puede decir "Herramientas" y aplicar
+    # a las subcategorías reales del catálogo (taladros, sierras, etc.).
+    {
+        "herramientas",
+        "herramienta",
+        "herramientas manuales",
+        "herramientas electricas",
+        "herramientas de corte y desgaste",
+        "taladros",
+        "taladro",
+        "rotomartillos",
+        "rotomartillo",
+        "sierras electricas",
+        "sierras de mesa",
+        "amoladoras y esmeriles",
+        "amoladora",
+        "atornilladores",
+        "atornillador",
+        "lijadoras",
+        "lijadora",
+        "cajas de herramientas",
+        "set de herramientas",
+    },
 )
 
 

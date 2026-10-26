@@ -288,6 +288,14 @@ const EN: Record<string, string> = {
   "Opcional: cuándo empieza a aplicarse.": "Optional: when it starts applying.",
   "Opcional: cuándo deja de aplicarse.": "Optional: when it stops applying.",
   "Borrador no se usa. Publicada se aplica en la próxima conversación.": "Draft is not used. Published applies from the next conversation.",
+  // Ejemplo de la regla de promociones
+  "Ejemplo con esta regla (Herramientas, mínimo 5%)": "Example with this rule (Tools, minimum 5%)",
+  "Cliente: \"busco un taladro\". El bot busca en la categoría y ordena así:": "Customer: \"looking for a drill\". The bot searches the category and orders like this:",
+  "Taladro con 46% de descuento y stock → primero (cumple el mínimo).": "Drill with 46% off and stock → first (meets the minimum).",
+  "Taladro con 19% → también primero, detrás del de mayor descuento.": "Drill with 19% off → also first, behind the highest discount.",
+  "Taladro con 3% → después de los que cumplen, aunque su nombre coincida mejor.": "Drill with 3% off → after the qualifying ones, even if its name matches better.",
+  "Taladro sin promoción → al final.": "Drill without promotion → last.",
+  "El precio y el porcentaje son los de VTEX: la regla solo cambia el orden y lo que el bot destaca.": "Price and percentage come from VTEX: the rule only changes the order and what the bot highlights.",
 };
 
 function traducir(texto: string): string {
