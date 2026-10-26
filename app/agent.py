@@ -1376,7 +1376,7 @@ class Toolbox:
         )
         products = rules_engine.order_products(products, rules)
         promo_rules = await rules_engine.promotion_rules(
-            self.session, category=category or query
+            self.session, any_category=True
         )
         products = rules_engine.order_promotions(products, promo_rules)
         # Se recuerda siempre la última búsqueda con resultados: sirve para
@@ -1506,7 +1506,7 @@ class Toolbox:
         )
         products = rules_engine.order_products(products, rules)
         promo_rules = await rules_engine.promotion_rules(
-            self.session, category=category or query
+            self.session, any_category=True
         )
         products = rules_engine.order_promotions(products, promo_rules)
         await self._update_state(

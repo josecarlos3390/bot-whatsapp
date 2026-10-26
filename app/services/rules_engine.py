@@ -142,30 +142,50 @@ async def promotion_rules(
     session: AsyncSession,
     *,
     category: str | None = None,
+    any_category: bool = False,
 ) -> list[AreaRule]:
-    rows = await rules_for(
-        session, area="ecommerce", category=category, intent=None
-    )
+    """Reglas de promoción activas.
+
+    Con ``any_category`` se traen todas y cada producto se evalúa contra la
+    categoría de la regla: así "Herramientas" funciona al buscar "taladro".
+    """
+    if any_category:
+        rows = await area_rules.active_rules(session, area="ecommerce")
+    else:
+        rows = await rules_for(
+            session, area="ecommerce", category=category, intent=None
+        )
     return [rule for rule in rows if rule.rule_type == "promotion_priority"]
+
+
+def _promotion_threshold(rule: AreaRule) -> Decimal:
+    raw = (rule.action or {}).get("min_discount", 0)
+    try:
+        value = Decimal(str(raw))
+    except (InvalidOperation, TypeError, ValueError):
+        value = Decimal("0")
+    return max(value, Decimal("0"))
+
+
+def _applies_to_category(rule: AreaRule, category: str | None) -> bool:
+    condition = rule.condition or {}
+    wanted = condition.get("category")
+    if not wanted:
+        return True
+    return _same(wanted, category)
 
 
 def order_promotions(
     products: list[dict], rules: list[AreaRule]
 ) -> list[dict]:
-    """Put active promotions first, without removing regular products."""
-    thresholds: list[Decimal] = []
-    for rule in rules:
-        if rule.rule_type != "promotion_priority":
-            continue
-        raw = (rule.action or {}).get("min_discount", 0)
-        try:
-            value = Decimal(str(raw))
-        except (InvalidOperation, TypeError, ValueError):
-            value = Decimal("0")
-        thresholds.append(max(value, Decimal("0")))
-    if not thresholds:
+    """Prioriza promociones que superan el mínimo de su categoría.
+
+    Se evalúa contra la categoría de cada producto, no contra el texto de la
+    búsqueda. No elimina productos: solo los ordena.
+    """
+    promos = [rule for rule in rules if rule.rule_type == "promotion_priority"]
+    if not promos:
         return products
-    minimum = min(thresholds)
 
     def discount(product: dict) -> Decimal:
         try:
@@ -175,12 +195,20 @@ def order_promotions(
         except (InvalidOperation, TypeError, ValueError):
             return Decimal("0")
 
+    def minimum_for(product: dict) -> Decimal | None:
+        values = [
+            _promotion_threshold(rule)
+            for rule in promos
+            if _applies_to_category(rule, product.get("category"))
+        ]
+        return min(values) if values else None
+
     def key(product: dict):
         value = discount(product)
-        eligible = (
-            value >= minimum
-            and int(product.get("stock") or 0) > 0
-        )
+        minimum = minimum_for(product)
+        if minimum is None:
+            return (1, -value)
+        eligible = value >= minimum and int(product.get("stock") or 0) > 0
         return (0 if eligible else 1, -value)
 
     return sorted(products, key=key)

@@ -32,6 +32,10 @@ function joined(value: string[] | undefined): string {
   return (value || []).join(", ");
 }
 
+function Hint({ children }: { children: React.ReactNode }) {
+  return <p className="mt-1 text-[11px] leading-snug text-[#6b7280]">{children}</p>;
+}
+
 export function OccasionsPage({
   onLogout,
   me,
@@ -290,6 +294,7 @@ export function OccasionsPage({
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <label className="text-xs font-semibold text-[#4b5563]">{t("Nombre")}<Input className="mt-1 border-[#e5e7eb] bg-white" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder={t("Halloween, Navidad, Baby shower...")} />
+              <Hint>{t("Nombre interno de la campaña. El cliente no lo ve.")}</Hint>
             </label>
             <label className="text-xs font-semibold text-[#4b5563]" title={t("Área que será dueña de la ocasión y podrá mantenerla.")}>Área responsable
               {isAdmin ? (
@@ -301,31 +306,42 @@ export function OccasionsPage({
               ) : (
                 <div className="mt-1 rounded-lg border border-[#e5e7eb] bg-[#f5f6f8] px-3 py-2 text-sm font-medium text-[#1f2937]">{userArea}</div>
               )}
+              <Hint>{t("Área dueña de la campaña: solo ella puede editarla.")}</Hint>
             </label>
             <label className="text-xs font-semibold text-[#4b5563]">{t("Alias del cliente")}<Input className="mt-1 border-[#e5e7eb]" value={form.aliases} onChange={(event) => setForm({ ...form, aliases: event.target.value })} placeholder={t("halloween, halloweén")} />
+              <Hint>{t("Palabras que el cliente escribe para activar la campaña. Separadas por coma.")}</Hint>
             </label>
             <label className="text-xs font-semibold text-[#4b5563]">{t("Prioridad")}<Input className="mt-1 border-[#e5e7eb]" type="number" value={form.priority} onChange={(event) => setForm({ ...form, priority: Number(event.target.value) })} />
+              <Hint>{t("Si dos campañas coinciden, gana la de número mayor.")}</Hint>
             </label>
             <label className="text-xs font-semibold text-[#4b5563]">{t("Términos directos")}<Input className="mt-1 border-[#e5e7eb]" value={form.direct} onChange={(event) => setForm({ ...form, direct: event.target.value })} placeholder={t("disfraz, dulce, calabaza, vela")} />
+              <Hint>{t("Productos que se buscan tal cual. Separados por coma.")}</Hint>
             </label>
             <label className="text-xs font-semibold text-[#4b5563]">{t("Excluir términos")}<Input className="mt-1 border-[#e5e7eb]" value={form.exclude} onChange={(event) => setForm({ ...form, exclude: event.target.value })} placeholder={t("mueble, silla, navidad")} />
+              <Hint>{t("Si el mensaje contiene alguno, la campaña no se activa.")}</Hint>
             </label>
             <label className="text-xs font-semibold text-[#4b5563]">{t("Excluir categorías")}<Input className="mt-1 border-[#e5e7eb]" value={form.exclude_categories} onChange={(event) => setForm({ ...form, exclude_categories: event.target.value })} placeholder={t("MUEBLES, PINTURA, HERRAMIENTAS")} />
+              <Hint>{t("Categorías que no deben aparecer en esta campaña.")}</Hint>
             </label>
             <div className="grid grid-cols-2 gap-3">
               <label className="text-xs font-semibold text-[#4b5563]">{t("Desde")}<Input className="mt-1 border-[#e5e7eb]" type="date" value={form.valid_from} onChange={(event) => setForm({ ...form, valid_from: event.target.value })} />
+                <Hint>{t("Opcional: cuándo empieza a aplicarse.")}</Hint>
               </label>
               <label className="text-xs font-semibold text-[#4b5563]">{t("Hasta")}<Input className="mt-1 border-[#e5e7eb]" type="date" value={form.valid_to} onChange={(event) => setForm({ ...form, valid_to: event.target.value })} />
+                <Hint>{t("Opcional: cuándo deja de aplicarse.")}</Hint>
               </label>
             </div>
             <label className="text-xs font-semibold text-[#4b5563]">{t("Alternativa natural")}<Input className="mt-1 border-[#e5e7eb]" value={form.bridge_label} onChange={(event) => setForm({ ...form, bridge_label: event.target.value })} placeholder={t("una noche de película")} />
+              <Hint>{t("Qué ofrece el bot si no hay productos de la campaña. Es una salida amable, no una categoría.")}</Hint>
             </label>
             <label className="text-xs font-semibold text-[#4b5563]">{t("Términos de la alternativa")}<Input className="mt-1 border-[#e5e7eb]" value={form.bridge_terms} onChange={(event) => setForm({ ...form, bridge_terms: event.target.value })} placeholder={t("televisor, tv")} />
+              <Hint>{t("Productos que se muestran como alternativa. Separados por coma.")}</Hint>
             </label>
             <label className="text-xs font-semibold text-[#4b5563]">{t("Estado")}<select className="mt-1 w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm" value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}>
                 <option value="draft">{t("Borrador")}</option>
                 <option value="published">{t("Publicada")}</option>
               </select>
+              <Hint>{t("Borrador no se usa. Publicada se aplica en la próxima conversación.")}</Hint>
             </label>
           </div>
           <div className="mt-5 flex gap-2">

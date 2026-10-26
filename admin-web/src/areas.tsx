@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { LanguageToggle, t } from "./i18n";
 import { Link } from "react-router-dom";
 import { api } from "./api";
@@ -64,6 +64,17 @@ type Simulation = {
   }[];
 };
 
+function Hint({ children }: { children: React.ReactNode }) {
+  return <p className="mt-1 text-[11px] leading-snug text-slate-500">{children}</p>;
+}
+
+const TIPO_REGLA: Record<string, string> = {
+  brand_priority: "Marca prioritaria",
+  promotion_priority: "Promoción prioritaria",
+  return_flow: "Flujo de devolución",
+  response_rule: "Indicación de respuesta",
+  required_questions: "Preguntas obligatorias",
+};
 function RuleBuilder({
   base,
   area,
@@ -402,40 +413,55 @@ function RuleBuilder({
         <Card className="mb-4 p-4">
           <h2 className="mb-3 text-sm font-bold text-slate-900">{editing ? t("Editar regla") : t("Nueva regla")}</h2>
           <label className="mb-1 block text-xs font-semibold text-slate-600">{t("¿Qué querés hacer?")}</label>
-          <select className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" value={kind} onChange={(event) => setKind(event.target.value)}>
+          <select className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" value={kind} onChange={(event) => setKind(event.target.value)}>
             <option value="brand_priority">{t("Priorizar una marca cuando pregunten por una categoría")}</option>
             <option value="promotion_priority">{t("Priorizar productos en promoción con stock")}</option>
             <option value="return_flow">{t("Crear un flujo de preguntas para devoluciones")}</option>
             <option value="response_rule">{t("Agregar una indicación de respuesta para un tema")}</option>
             <option value="required_questions">{t("Definir preguntas obligatorias para una categoría")}</option>
           </select>
+          <Hint>
+            {kind === "brand_priority" && t("Ordena las marcas de una categoría: la elegida aparece primero. No cambia precios ni stock.")}
+            {kind === "promotion_priority" && t("Destaca los productos de una categoría cuyo descuento de VTEX alcanza el mínimo. No crea descuentos.")}
+            {kind === "return_flow" && t("Define las preguntas que el bot hace, en orden, para gestionar una devolución.")}
+            {kind === "response_rule" && t("Agrega una indicación que el bot debe respetar al hablar de ese tema.")}
+            {kind === "required_questions" && t("El bot pregunta esto antes de cerrar la venta de esa categoría.")}
+          </Hint>
           <label className="mb-1 block text-xs font-semibold text-slate-600">{t("Nombre")}</label>
           <Input value={name} onChange={(event) => setName(event.target.value)} placeholder={t("Ej: Priorizar LG en heladeras")} />
+          <Hint>{t("Solo para identificarla en la lista; el cliente no la ve.")}</Hint>
           {kind === "brand_priority" ? (
             <div className="mt-3 grid gap-3 md:grid-cols-2">
               <label className="text-xs font-semibold text-slate-600">{t("Categoría")}<Input className="mt-1" value={category} onChange={(event) => setCategory(event.target.value)} placeholder={t("heladera")} />
+                <Hint>{t("Escribila como figura en el catálogo (ej: Heladeras). Se aplica a las búsquedas de esa categoría.")}</Hint>
               </label>
               <label className="text-xs font-semibold text-slate-600">{t("Marca")}<Input className="mt-1" value={brand} onChange={(event) => setBrand(event.target.value)} placeholder="LG" />
+                <Hint>{t("Esta marca se muestra antes que las demás dentro de la categoría.")}</Hint>
               </label>
             </div>
           ) : kind === "promotion_priority" ? (
             <div className="mt-3 grid gap-3 md:grid-cols-2">
               <label className="text-xs font-semibold text-slate-600">{t("Categoría")}<Input className="mt-1" value={category} onChange={(event) => setCategory(event.target.value)} placeholder={t("colchones, pintura, herramientas")} />
+                <Hint>{t("Se evalúa por la categoría del producto: funciona aunque el cliente busque \"taladro\" y no \"herramientas\".")}</Hint>
               </label>
               <label className="text-xs font-semibold text-slate-600">{t("Descuento mínimo (%)")}<Input className="mt-1" type="number" min={0} max={100} value={minDiscount} onChange={(event) => setMinDiscount(Number(event.target.value))} />
+                <Hint>{t("Umbral para destacar. Si el descuento real de VTEX es menor, el producto no se prioriza. No modifica precios ni crea descuentos.")}</Hint>
               </label>
             </div>
           ) : kind === "response_rule" ? (
             <div className="mt-3 space-y-3">
               <label className="block text-xs font-semibold text-slate-600">{t("Categoría o tema (opcional)")}<Input className="mt-1" value={category} onChange={(event) => setCategory(event.target.value)} placeholder={t("Ej: heladera, envíos, promociones")} />
+                <Hint>{t("Si la dejás vacía, la indicación se aplica a cualquier consulta.")}</Hint>
               </label>
               <label className="block text-xs font-semibold text-slate-600">{t("¿Qué debe decir o tener en cuenta el bot?")}<Textarea className="mt-1" rows={4} value={instruction} onChange={(event) => setInstruction(event.target.value)} placeholder="Ej: Para envíos, informar entrega en 24 horas y retiro en tienda; no inventar costos." />
+                <Hint>{t("Se agrega como indicación al bot. No reemplaza los datos del catálogo: precios y stock los sigue tomando de VTEX.")}</Hint>
               </label>
             </div>
           ) : (
             <div className="mt-3 space-y-2">
               {kind === "required_questions" && (
                 <label className="block text-xs font-semibold text-slate-600">{t("Categoría o tema (opcional)")}<Input className="mt-1" value={category} onChange={(event) => setCategory(event.target.value)} placeholder={t("Ej: heladera")} />
+                  <Hint>{t("Si la dejás vacía, la regla aplica a todas las categorías.")}</Hint>
                 </label>
               )}
               {questions.map((question, index) => (
@@ -458,11 +484,13 @@ function RuleBuilder({
           )}
           <div className="mt-3 grid gap-3 md:grid-cols-2">
             <label className="text-xs font-semibold text-slate-600">{t("Prioridad")}<Input className="mt-1" type="number" value={priority} onChange={(event) => setPriority(Number(event.target.value))} />
+              <Hint>{t("Si dos reglas del mismo tipo aplican, gana la de número mayor.")}</Hint>
             </label>
             <label className="text-xs font-semibold text-slate-600">{t("Estado")}<select className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" value={status} onChange={(event) => setStatus(event.target.value)}>
                 <option value="draft">{t("Borrador")}</option>
                 <option value="published">{t("Publicado")}</option>
               </select>
+              <Hint>{t("Borrador no se aplica. Publicado empieza a usarse en la próxima respuesta.")}</Hint>
             </label>
           </div>
           <div className="mt-3 flex gap-2">
@@ -481,7 +509,7 @@ function RuleBuilder({
                 {rules.length ? rules.map((rule) => (
                   <tr key={rule.id} className="border-t border-slate-100">
                     <td className="px-4 py-2 font-semibold text-slate-800">{rule.name}</td>
-                    <td className="px-3 py-2 text-xs">{rule.rule_type}</td>
+                    <td className="px-3 py-2 text-xs">{t(TIPO_REGLA[rule.rule_type] || rule.rule_type)}</td>
                     <td className="px-3 py-2 text-xs text-slate-600">{detail(rule)}</td>
                     <td className="px-3 py-2"><Badge tone={rule.status === "published" ? "green" : "amber"}>{rule.status}</Badge></td>
                     <td className="px-3 py-2">
