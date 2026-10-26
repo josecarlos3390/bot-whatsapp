@@ -2846,6 +2846,30 @@ class Agent:
     ) -> AgentReply | None:
         if not settings.deepseek_api_key:
             return None
+        # Si el cliente nombró un producto con un atributo ("espejos
+        # redondos"), la búsqueda literal manda: la expansión semántica
+        # devolvía cuadrados porque ignora el atributo.
+        literal = await Toolbox(
+            session, contact, self.wa
+        ).tool_search_products(query=text, limit=3)
+        productos_literal = literal.get("products") or []
+        terminos = catalog._relevance_terms(text)
+        if productos_literal and terminos:
+            variantes = catalog._variants(terminos[0])
+            if any(
+                variante in (producto.get("name") or "").lower()
+                for producto in productos_literal
+                for variante in variantes
+            ):
+                titulo = _clean_query(text) or text
+                return AgentReply(
+                    [
+                        Outbound(
+                            text=f"Para *{titulo}* tengo esto que puede servirte:"
+                        ),
+                        *self._search_cards(productos_literal),
+                    ]
+                )
         try:
             expansion = await semantic.expand(
                 session, text, self._llm()
