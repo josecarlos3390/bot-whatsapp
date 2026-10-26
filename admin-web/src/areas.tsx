@@ -2,7 +2,7 @@
 import { LanguageToggle, t } from "./i18n";
 import { Link } from "react-router-dom";
 import { api } from "./api";
-import { Badge, Button, Card, Input, Textarea } from "./ui";
+import { Badge, Button, Card, Example, Input, Textarea } from "./ui";
 import type { Advisor, AreaRule, AreaUser } from "./types";
 
 const AREAS = ["ecommerce", "calidad", "marketing", "operaciones", "general"];
@@ -438,6 +438,12 @@ function RuleBuilder({
               <label className="text-xs font-semibold text-slate-600">{t("Marca")}<Input className="mt-1" value={brand} onChange={(event) => setBrand(event.target.value)} placeholder="LG" />
                 <Hint>{t("Esta marca se muestra antes que las demás dentro de la categoría.")}</Hint>
               </label>
+              <div className="md:col-span-2">
+                <Example title={t("Ejemplo: Heladeras con LG primero")}>
+                  <div>{t("Cliente: \"busco una heladera\". El bot muestra primero las LG con stock y después el resto de las marcas, sin ocultar ninguna.")}</div>
+                  <div>{t("Los precios son los del catálogo: la regla no aplica descuentos.")}</div>
+                </Example>
+              </div>
             </div>
           ) : kind === "promotion_priority" ? (
             <div className="mt-3 grid gap-3 md:grid-cols-2">
@@ -447,16 +453,17 @@ function RuleBuilder({
               <label className="text-xs font-semibold text-slate-600">{t("Descuento mínimo (%)")}<Input className="mt-1" type="number" min={0} max={100} value={minDiscount} onChange={(event) => setMinDiscount(Number(event.target.value))} />
                 <Hint>{t("Umbral para destacar. Si el descuento real de VTEX es menor, el producto no se prioriza. No modifica precios ni crea descuentos.")}</Hint>
               </label>
-              <div className="rounded-xl border border-[#e5e7eb] bg-[#f9fafb] px-3 py-2 text-[11px] leading-relaxed text-[#4b5563] md:col-span-2">
-                <div className="font-semibold text-[#111111]">{t("Ejemplo con esta regla (Herramientas, mínimo 5%)")}</div>
-                <div className="mt-1">{t("Cliente: \"busco un taladro\". El bot busca en la categoría y ordena así:")}</div>
-                <ul className="mt-1 list-disc pl-4">
-                  <li>{t("Taladro con 46% de descuento y stock → primero (cumple el mínimo).")}</li>
-                  <li>{t("Taladro con 19% → también primero, detrás del de mayor descuento.")}</li>
-                  <li>{t("Taladro con 3% → después de los que cumplen, aunque su nombre coincida mejor.")}</li>
-                  <li>{t("Taladro sin promoción → al final.")}</li>
-                </ul>
-                <div className="mt-1">{t("El precio y el porcentaje son los de VTEX: la regla solo cambia el orden y lo que el bot destaca.")}</div>
+              <div className="md:col-span-2">
+                <Example title={t("Ejemplo con esta regla (Herramientas, mínimo 5%)")}>
+                  <div>{t("Cliente: \"busco un taladro\". El bot busca en la categoría y ordena así:")}</div>
+                  <ul className="list-disc pl-4">
+                    <li>{t("Taladro con 46% de descuento y stock → primero (cumple el mínimo).")}</li>
+                    <li>{t("Taladro con 19% → también primero, detrás del de mayor descuento.")}</li>
+                    <li>{t("Taladro con 3% → después de los que cumplen, aunque su nombre coincida mejor.")}</li>
+                    <li>{t("Taladro sin promoción → al final.")}</li>
+                  </ul>
+                  <div>{t("El precio y el porcentaje son los de VTEX: la regla solo cambia el orden y lo que el bot destaca.")}</div>
+                </Example>
               </div>
             </div>
           ) : kind === "response_rule" ? (
@@ -467,6 +474,10 @@ function RuleBuilder({
               <label className="block text-xs font-semibold text-slate-600">{t("¿Qué debe decir o tener en cuenta el bot?")}<Textarea className="mt-1" rows={4} value={instruction} onChange={(event) => setInstruction(event.target.value)} placeholder="Ej: Para envíos, informar entrega en 24 horas y retiro en tienda; no inventar costos." />
                 <Hint>{t("Se agrega como indicación al bot. No reemplaza los datos del catálogo: precios y stock los sigue tomando de VTEX.")}</Hint>
               </label>
+              <Example title={t("Ejemplo: indicación para envíos")}>
+                <div>{t("Cliente: \"¿hacen envíos a Santa Cruz?\". El bot responde con la indicación: entrega en 24 h y retiro en tienda, sin inventar costos de envío.")}</div>
+                <div>{t("Si el dato no está publicado, ofrece derivar con un asesor en lugar de inventarlo.")}</div>
+              </Example>
             </div>
           ) : (
             <div className="mt-3 space-y-2">
@@ -491,6 +502,14 @@ function RuleBuilder({
                 </div>
               ))}
               <Button variant="secondary" size="sm" onClick={() => setQuestions([...questions, { text: "", key: "", requireYes: kind === "return_flow" }])}>+ Agregar pregunta</Button>
+              <Example title={kind === "return_flow" ? t("Ejemplo: devolución de una licuadora") : t("Ejemplo: preguntas antes de vender una heladera")}>
+                {kind === "return_flow" ? (
+                  <div>{t("Preguntas en orden: \"¿Cuándo la compraste?\" → \"¿Está sin uso?\" → \"¿Tenés la factura?\". El bot las hace una por una antes de derivar el caso.")}</div>
+                ) : (
+                  <div>{t("El bot pregunta \"¿Cuántos litros necesitás?\" y \"¿Tenés 1,80 m de espacio?\" antes de cerrar la venta de una heladera.")}</div>
+                )}
+                <div>{t("Si el cliente ya respondió algo, no lo vuelve a preguntar.")}</div>
+              </Example>
             </div>
           )}
           <div className="mt-3 grid gap-3 md:grid-cols-2">
@@ -639,6 +658,11 @@ export function AdminCenter({ me, onLogout }: { me: Advisor; onLogout: () => voi
             <select className="rounded-lg border border-slate-300 px-3 py-2" value={form.area} onChange={(event) => setForm({ ...form, area: event.target.value })}>
               {AREAS.map((area) => <option key={area}>{area}</option>)}
             </select>
+          </div>
+          <div className="mt-3">
+            <Example title={t("Ejemplo: usuario de ecommerce")}>
+              <div>{t("Usuario \"jperez\", área \"ecommerce\": solo ve y edita las reglas y ocasiones de ecommerce. No ve las de otras áreas.")}</div>
+            </Example>
           </div>
           <div className="mt-3"><Button onClick={create}>{t("Crear usuario")}</Button></div>
         </Card>

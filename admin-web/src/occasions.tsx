@@ -3,7 +3,7 @@ import { t } from "./i18n";
 import { Link } from "react-router-dom";
 import { api } from "./api";
 import { AreaHeader } from "./areas";
-import { Badge, Button, Card, Input } from "./ui";
+import { Badge, Button, Card, Example, Input } from "./ui";
 import type { Advisor, AreaUser, Occasion } from "./types";
 
 const EMPTY = {
@@ -343,6 +343,13 @@ export function OccasionsPage({
               </select>
               <Hint>{t("Borrador no se usa. Publicada se aplica en la próxima conversación.")}</Hint>
             </label>
+          </div>
+          <div className="mt-4">
+            <Example title={t("Ejemplo: campaña de Halloween")}>
+              <div>{t("Alias: \"halloween, halloweén\". Términos directos: \"disfraz, calabaza, vela\". Excluir: \"mueble, navidad\".")}</div>
+              <div>{t("Si el cliente escribe \"quiero un mueble para Halloween\", la exclusión \"mueble\" evita que la campaña se active y el bot busca el mueble normalmente.")}</div>
+              <div>{t("Alternativa natural: \"una noche de película\" → si no hay productos de la campaña, ofrece televisores.")}</div>
+            </Example>
           </div>
           <div className="mt-5 flex gap-2">
             <Button className="bg-[#e9082a] hover:bg-[#a90418]" onClick={save}>{t("Guardar ocasión")}</Button>

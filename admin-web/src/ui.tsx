@@ -82,6 +82,15 @@ export function Textarea({ className, ...props }: React.TextareaHTMLAttributes<H
   );
 }
 
+export function Example({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-xl border border-[#e5e7eb] bg-[#f9fafb] px-3 py-2 text-[11px] leading-relaxed text-[#4b5563]">
+      <div className="font-semibold text-[#111111]">{title}</div>
+      <div className="mt-1 space-y-1">{children}</div>
+    </div>
+  );
+}
+
 export function Skeleton({ className }: { className?: string }) {
   return <div className={cn("animate-pulse rounded-lg bg-slate-200/70", className)} />;
 }

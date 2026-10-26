@@ -296,6 +296,26 @@ const EN: Record<string, string> = {
   "Taladro con 3% → después de los que cumplen, aunque su nombre coincida mejor.": "Drill with 3% off → after the qualifying ones, even if its name matches better.",
   "Taladro sin promoción → al final.": "Drill without promotion → last.",
   "El precio y el porcentaje son los de VTEX: la regla solo cambia el orden y lo que el bot destaca.": "Price and percentage come from VTEX: the rule only changes the order and what the bot highlights.",
+  // Ejemplos de otras reglas
+  "Ejemplo: Heladeras con LG primero": "Example: Refrigerators with LG first",
+  "Cliente: \"busco una heladera\". El bot muestra primero las LG con stock y después el resto de las marcas, sin ocultar ninguna.": "Customer: \"looking for a fridge\". The bot shows LG in stock first, then the rest of the brands, hiding none.",
+  "Los precios son los del catálogo: la regla no aplica descuentos.": "Prices come from the catalog: the rule does not apply discounts.",
+  "Ejemplo: indicación para envíos": "Example: shipping instruction",
+  "Cliente: \"¿hacen envíos a Santa Cruz?\". El bot responde con la indicación: entrega en 24 h y retiro en tienda, sin inventar costos de envío.": "Customer: \"do you ship to Santa Cruz?\". The bot answers with the instruction: 24 h delivery and store pickup, without inventing shipping costs.",
+  "Si el dato no está publicado, ofrece derivar con un asesor en lugar de inventarlo.": "If the data is not published, it offers to hand off to an advisor instead of making it up.",
+  "Ejemplo: devolución de una licuadora": "Example: returning a blender",
+  "Ejemplo: preguntas antes de vender una heladera": "Example: questions before selling a fridge",
+  "Preguntas en orden: \"¿Cuándo la compraste?\" → \"¿Está sin uso?\" → \"¿Tenés la factura?\". El bot las hace una por una antes de derivar el caso.": "Questions in order: \"When did you buy it?\" → \"Is it unused?\" → \"Do you have the receipt?\". The bot asks them one by one before handing off.",
+  "El bot pregunta \"¿Cuántos litros necesitás?\" y \"¿Tenés 1,80 m de espacio?\" antes de cerrar la venta de una heladera.": "The bot asks \"How many liters do you need?\" and \"Do you have 1.80 m of space?\" before closing a fridge sale.",
+  "Si el cliente ya respondió algo, no lo vuelve a preguntar.": "If the customer already answered, it does not ask again.",
+  "Ejemplo: usuario de ecommerce": "Example: ecommerce user",
+  "Usuario \"jperez\", área \"ecommerce\": solo ve y edita las reglas y ocasiones de ecommerce. No ve las de otras áreas.": "User \"jperez\", area \"ecommerce\": only sees and edits ecommerce rules and occasions. Does not see other areas.",
+  "Ejemplo: campaña de Halloween": "Example: Halloween campaign",
+  "Alias: \"halloween, halloweén\". Términos directos: \"disfraz, calabaza, vela\". Excluir: \"mueble, navidad\".": "Aliases: \"halloween, hallowe'en\". Direct terms: \"costume, pumpkin, candle\". Exclude: \"furniture, christmas\".",
+  "Si el cliente escribe \"quiero un mueble para Halloween\", la exclusión \"mueble\" evita que la campaña se active y el bot busca el mueble normalmente.": "If the customer writes \"I want furniture for Halloween\", the \"furniture\" exclusion stops the campaign and the bot searches furniture normally.",
+  "Alternativa natural: \"una noche de película\" → si no hay productos de la campaña, ofrece televisores.": "Natural alternative: \"a movie night\" → if the campaign has no products, it offers TVs.",
+  "Ejemplo: alta de un asesor": "Example: adding an advisor",
+  "Agente \"mflores\" con guardia activa: recibe los casos derivados y aparece en la bandeja. Supervisor: además ve las métricas del equipo. Admin: administra agentes y configuración.": "Agent \"mflores\" on duty: receives handed-off cases and appears in the inbox. Supervisor: also sees team metrics. Admin: manages agents and settings.",
 };
 
 function traducir(texto: string): string {

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+﻿import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   Link,
   Navigate,
@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import { api, onUnauthorized } from "./api";
 import { LanguageToggle, t, useI18n } from "./i18n";
-import { Badge, Button, Card, Dialog, Input, Skeleton, Textarea, cn } from "./ui";
+import { Badge, Button, Card, Dialog, Example, Input, Skeleton, Textarea, cn } from "./ui";
 import type { Advisor, AdvisorMetric, AreaUser, AuthMe, Handoff, HandoffDetail } from "./types";
 import { AdminCenter, AdminRulesPage, AreaRulesPage } from "./areas";
 import { OccasionsPage } from "./occasions";
@@ -1191,6 +1191,9 @@ function Agents({ me }: { me: Advisor }) {
             <button className="ml-auto rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700">{t("Crear")}</button>
           </div>
         </form>
+        <Example title={t("Ejemplo: alta de un asesor")}>
+          <div>{t("Agente \"mflores\" con guardia activa: recibe los casos derivados y aparece en la bandeja. Supervisor: además ve las métricas del equipo. Admin: administra agentes y configuración.")}</div>
+        </Example>
         <Card className="mb-4 overflow-hidden">
           <div className="border-b border-slate-100 px-4 py-3">
             <h2 className="text-sm font-bold text-slate-900">{t("Métricas · últimos 30 días")}</h2>
