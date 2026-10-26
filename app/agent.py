@@ -3558,9 +3558,17 @@ class Agent:
 
     @staticmethod
     def _con_seguimiento(messages: list[Outbound]) -> list[Outbound]:
-        """Agrega el cierre de seguimiento solo si no hay uno ya."""
-        if messages and messages[-1].kind in {"list", "buttons"}:
-            return messages
+        """Agrega el cierre solo si hace falta.
+
+        No se agrega si el bot ya cerró con lista o botones, ni si la última
+        frase es una pregunta: el cliente todavía no respondió.
+        """
+        if messages:
+            ultimo = messages[-1]
+            if ultimo.kind in {"list", "buttons"}:
+                return messages
+            if (ultimo.text or "").strip().endswith("?"):
+                return messages
         return [
             *messages,
             Outbound(
