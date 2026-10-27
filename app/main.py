@@ -39,15 +39,18 @@ async def _warm_sap() -> None:
 
 async def _assign_queue() -> None:
     """Reparte cada minuto los casos en cola si hay asesores disponibles."""
-    from .services import presence
+    from .services import escalation, presence
 
     while True:
         try:
             await asyncio.sleep(60)
             async with SessionLocal() as session:
                 asignados = await presence.assign_queued(session)
+                escalado = await escalation.escalate_stale(session)
             if asignados:
                 logger.info("Casos asignados desde la cola: %s", asignados)
+            if escalado.get("escalated"):
+                logger.warning("Casos escalados: %s", escalado["escalated"])
         except asyncio.CancelledError:
             raise
         except Exception:  # noqa: BLE001 - el reparto no debe matar la app

@@ -64,7 +64,9 @@ export type AdvisorMetric = {
 
 export type Handoff = {
   id: string;
-  status: "pending" | "taken" | "resolved" | "returned";
+  status: "queued" | "pending" | "taken" | "resolved" | "returned";
+  escalated?: boolean;
+  escalated_at?: string | null;
   reason: string | null;
   assigned_to: string | null;
   waiting_minutes: number;

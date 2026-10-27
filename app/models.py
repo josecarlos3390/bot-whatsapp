@@ -774,6 +774,8 @@ class Handoff(Base):
     sla_paused_seconds: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Se marca cuando el caso espera demasiado (cola o sin tomar).
+    escalated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class FunnelEvent(Base):

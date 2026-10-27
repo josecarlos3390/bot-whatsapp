@@ -503,7 +503,10 @@ async def list_handoffs(
         .limit(100)
     )
     if status == "open":
-        stmt = stmt.where(Handoff.status.in_(("pending", "taken")))
+        # Los casos en cola también se ven en la bandeja.
+        stmt = stmt.where(
+            Handoff.status.in_(("pending", "taken", "queued"))
+        )
     elif status and status != "all":
         stmt = stmt.where(Handoff.status == status)
     if not view_all and advisor_name:
@@ -536,6 +539,10 @@ async def list_handoffs(
             if handoff.created_at
             else None,
             "waiting_minutes": _waiting_minutes(handoff, now),
+            "escalated": handoff.escalated_at is not None,
+            "escalated_at": handoff.escalated_at.isoformat()
+            if handoff.escalated_at
+            else None,
             "sla_minutes": settings.handoff_sla_minutes,
             "sla_paused": handoff.sla_paused_at is not None,
             "overdue": _waiting_minutes(handoff, now)

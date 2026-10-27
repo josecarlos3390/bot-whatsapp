@@ -46,6 +46,7 @@ function formatDate(value: string | null) {
 
 function StatusBadge({ handoff }: { handoff: Handoff }) {
   const labels: Record<string, string> = {
+    queued: t("En cola"),
     pending: "Pendiente",
     taken: "En atención",
     resolved: "Resuelto",
@@ -670,7 +671,7 @@ function Inbox({ me }: { me: Advisor }) {
   const [duty, setDuty] = useState<string[]>([]);
   const [toasts, setToasts] = useState<{ id: number; text: string }[]>([]);
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<"all" | "pending" | "taken" | "mine" | "unassigned" | "overdue" | "closed">("all");
+  const [filter, setFilter] = useState<"all" | "queued" | "pending" | "taken" | "mine" | "unassigned" | "overdue" | "closed">("all");
   const [resolveOpen, setResolveOpen] = useState(false);
   const [resolveNote, setResolveNote] = useState("");
   const [resolveCategory, setResolveCategory] = useState("stock");
@@ -686,7 +687,10 @@ function Inbox({ me }: { me: Advisor }) {
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return handoffs.filter((handoff) => {
-      const isOpen = handoff.status === "pending" || handoff.status === "taken";
+      const isOpen =
+      handoff.status === "pending" ||
+      handoff.status === "taken" ||
+      handoff.status === "queued";
       if (filter === "closed") {
         if (isOpen) return false;
       } else if (!isOpen) {
@@ -703,7 +707,8 @@ function Inbox({ me }: { me: Advisor }) {
 
   const counts = useMemo(
     () => ({
-      all: handoffs.filter((handoff) => handoff.status === "pending" || handoff.status === "taken").length,
+      all: handoffs.filter((handoff) => handoff.status === "pending" || handoff.status === "taken" || handoff.status === "queued").length,
+    queued: handoffs.filter((handoff) => handoff.status === "queued").length,
       pending: handoffs.filter((handoff) => handoff.status === "pending").length,
       taken: handoffs.filter((handoff) => handoff.status === "taken").length,
       mine: handoffs.filter((handoff) => handoff.assigned_to === me.display_name && (handoff.status === "pending" || handoff.status === "taken")).length,
@@ -985,6 +990,7 @@ function Inbox({ me }: { me: Advisor }) {
             <div className="flex gap-1 overflow-x-auto">
               {([
                 ["all", "Todos"],
+                ["queued", t("En cola")],
                 ["pending", "Pendientes"],
                 ["mine", "Míos"],
                 ["unassigned", t("Sin asignar")],
@@ -1122,6 +1128,20 @@ function Agents({ me }: { me: Advisor }) {
   const [metrics, setMetrics] = useState<AdvisorMetric[]>([]);
   const [presence, setPresence] = useState<Record<string, { status: string; open_cases: number; max_cases: number }>>({});
   const [queued, setQueued] = useState(0);
+  const [kpiDays, setKpiDays] = useState(30);
+  const [kpis, setKpis] = useState<{
+    team: {
+      taken: number; resolved: number; escalated: number; queued: number;
+      pending: number; taken_now: number; escalated_now: number;
+      sla_rate: number | null; satisfaction: number | null; advisors: number;
+    };
+    advisors: {
+      username: string; advisor: string; taken: number; resolved: number;
+      reopened: number; returned: number; escalated: number; replies: number;
+      avg_response_minutes: number | null; avg_resolution_minutes: number | null;
+      sla_rate: number | null; satisfaction: number | null; surveys: number;
+    }[];
+  } | null>(null);
   const [error, setError] = useState("");
   const [form, setForm] = useState({ username: "", display_name: "", password: "", role: "agent", on_duty: true });
 
@@ -1132,6 +1152,15 @@ function Agents({ me }: { me: Advisor }) {
         api<{ advisors: AdvisorMetric[] }>("/admin/metrics?days=30"),
         api<{ advisors: { username: string; status: string; open_cases: number; max_cases: number }[]; queued: number }>("/advisor/presence").catch(() => ({ advisors: [], queued: 0 }))
       ]);
+      try {
+        const kpiData = await api<{
+          team: { taken: number; resolved: number; escalated: number; queued: number; pending: number; taken_now: number; escalated_now: number; sla_rate: number | null; satisfaction: number | null; advisors: number };
+          advisors: { username: string; advisor: string; taken: number; resolved: number; reopened: number; returned: number; escalated: number; replies: number; avg_response_minutes: number | null; avg_resolution_minutes: number | null; sla_rate: number | null; satisfaction: number | null; surveys: number }[];
+        }>(`/admin/kpis?days=${kpiDays}`);
+        setKpis(kpiData);
+      } catch {
+        // Los KPIs no deben romper la pantalla.
+      }
       setAdvisors(data.advisors);
       setMetrics(metricData.advisors);
       const mapa: Record<string, { status: string; open_cases: number; max_cases: number }> = {};
@@ -1143,7 +1172,7 @@ function Agents({ me }: { me: Advisor }) {
     } catch {
       setError(t("No se pudieron cargar los agentes."));
     }
-  }, []);
+  }, [kpiDays]);
 
   useEffect(() => {
     load();
@@ -1197,38 +1226,79 @@ function Agents({ me }: { me: Advisor }) {
         <Example title={t("Ejemplo: alta de un asesor")}>
           <div>{t("Agente \"mflores\" con guardia activa: recibe los casos derivados y aparece en la bandeja. Supervisor: además ve las métricas del equipo. Admin: administra agentes y configuración.")}</div>
         </Example>
-        <Card className="mb-4 overflow-hidden">
-          <div className="border-b border-slate-100 px-4 py-3">
-            <h2 className="text-sm font-bold text-slate-900">{t("Métricas · últimos 30 días")}</h2>
+        <Card className="mb-4 p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900">{t("Indicadores del equipo")}</h2>
+              <p className="text-xs text-slate-500">{t("Cómo está rindiendo la atención en el período.")}</p>
+            </div>
+            <div className="flex gap-1">
+              {[7, 30, 90].map((dias) => (
+                <button
+                  key={dias}
+                  onClick={() => setKpiDays(dias)}
+                  className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold ${kpiDays === dias ? "bg-red-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}
+                >
+                  {dias} d
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th className="px-4 py-2">{t("Asesor")}</th>
-                  <th className="px-3 py-2">{t("Tomados")}</th>
-                  <th className="px-3 py-2">{t("Resueltos")}</th>
-                  <th className="px-3 py-2">{t("Reabiertos")}</th>
-                  <th className="px-3 py-2">1ª respuesta</th>
-                  <th className="px-3 py-2">{t("Resolución")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {metrics.length ? metrics.map((row) => (
-                  <tr key={row.username} className="border-t border-slate-100">
-                    <td className="px-4 py-2 font-semibold">{row.advisor}</td>
-                    <td className="px-3 py-2">{row.taken}</td>
-                    <td className="px-3 py-2">{row.resolved}</td>
-                    <td className="px-3 py-2">{row.reopened}</td>
-                    <td className="px-3 py-2">{row.avg_response_minutes == null ? "—" : `${row.avg_response_minutes} min`}</td>
-                    <td className="px-3 py-2">{row.avg_resolution_minutes == null ? "—" : `${row.avg_resolution_minutes} min`}</td>
-                  </tr>
-                )) : (
-                  <tr><td colSpan={6} className="px-4 py-6 text-center text-slate-500">{t("Sin actividad todavía.")}</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          {kpis ? (
+            <>
+              <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {[
+                  { label: t("Tomados"), valor: kpis.team.taken },
+                  { label: t("Resueltos"), valor: kpis.team.resolved },
+                  { label: t("SLA cumplido"), valor: kpis.team.sla_rate == null ? "—" : `${kpis.team.sla_rate}%` },
+                  { label: t("Satisfacción"), valor: kpis.team.satisfaction == null ? "—" : `${kpis.team.satisfaction}/5` },
+                  { label: t("En cola"), valor: kpis.team.queued },
+                  { label: t("Escalados"), valor: kpis.team.escalated_now },
+                  { label: t("Asesores activos"), valor: kpis.team.advisors },
+                  { label: t("Sin tomar"), valor: kpis.team.pending },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-xl border border-[#e5e7eb] bg-[#f9fafb] px-3 py-2">
+                    <div className="text-[10px] font-bold uppercase tracking-wide text-[#6b7280]">{item.label}</div>
+                    <div className="text-lg font-semibold text-[#111111]">{item.valor}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
+                    <tr>
+                      <th className="px-3 py-2">{t("Asesor")}</th>
+                      <th className="px-3 py-2">{t("Tomados")}</th>
+                      <th className="px-3 py-2">{t("Resueltos")}</th>
+                      <th className="px-3 py-2">{t("1ª respuesta")}</th>
+                      <th className="px-3 py-2">{t("Resolución")}</th>
+                      <th className="px-3 py-2">{t("SLA")}</th>
+                      <th className="px-3 py-2">{t("Satisfacción")}</th>
+                      <th className="px-3 py-2">{t("Escalados")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {kpis.advisors.length ? kpis.advisors.map((fila) => (
+                      <tr key={fila.username} className="border-t border-slate-100">
+                        <td className="px-3 py-2 font-semibold text-slate-800">{fila.advisor}</td>
+                        <td className="px-3 py-2">{fila.taken}</td>
+                        <td className="px-3 py-2">{fila.resolved}</td>
+                        <td className="px-3 py-2">{fila.avg_response_minutes == null ? "—" : `${fila.avg_response_minutes} min`}</td>
+                        <td className="px-3 py-2">{fila.avg_resolution_minutes == null ? "—" : `${fila.avg_resolution_minutes} min`}</td>
+                        <td className="px-3 py-2">{fila.sla_rate == null ? "—" : `${fila.sla_rate}%`}</td>
+                        <td className="px-3 py-2">{fila.satisfaction == null ? "—" : `${fila.satisfaction} (${fila.surveys})`}</td>
+                        <td className="px-3 py-2">{fila.escalated}</td>
+                      </tr>
+                    )) : (
+                      <tr><td colSpan={8} className="px-3 py-6 text-center text-slate-500">{t("Sin actividad en el período.")}</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-slate-500">{t("Cargando indicadores…")}</p>
+          )}
         </Card>
         <div className="space-y-2">
           {advisors.map((advisor) => (

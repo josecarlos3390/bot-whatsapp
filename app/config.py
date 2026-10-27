@@ -68,6 +68,9 @@ class Settings(BaseSettings):
     presence_timeout_seconds: int = 90
     # Casos simultáneos por asesor (por defecto 5).
     advisor_max_cases: int = 5
+    # Escalado: minutos de espera antes de avisar al supervisor.
+    handoff_escalate_minutes: int = 5
+    handoff_critical_minutes: int = 15
     handoff_auto_resume_minutes: int = 5
     handoff_sla_minutes: int = 5
     handoff_reassign_minutes: int = 5

@@ -59,7 +59,7 @@ from .services import occasion_store
 from .services import overview as overview_service
 from .services import rule_simulator
 from .services import feedback as feedback_service
-from .services import handoffs, presence
+from .services import handoffs, kpis, presence
 from .services import knowledge
 from .services import native_commerce
 from .services import refresh as refresh_service
@@ -586,6 +586,18 @@ async def admin_metrics(
         "days": days,
         "advisors": await handoffs.advisor_metrics(session, days),
     }
+
+
+@router.get(
+    "/admin/kpis",
+    dependencies=[Depends(require_supervisor)],
+)
+async def admin_kpis(
+    days: int = 30,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """KPIs por asesor y del equipo para el período pedido."""
+    return {"ok": True, **(await kpis.advisor_kpis(session, days))}
 
 
 @router.get(
