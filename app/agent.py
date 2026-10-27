@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 import html
@@ -2382,6 +2382,12 @@ def _document_number(text: str) -> str | None:
 
 # Preguntas sobre dueños o personal: el bot no tiene ese dato y no debe
 # confundirlas con "quién sos".
+# Pedido explícito de productos ("algo para X", "mostrame", "qué tenés").
+PRODUCT_REQUEST_RE = re.compile(
+    r"\b(algo para|que ten[eé]s|qu[eé] tienen|mostrame|mostr[aá]me|"
+    r"buscame|buscar|quiero ver|opciones|ver productos)\b",
+    re.IGNORECASE,
+)
 EMPRESA_PERSONA_RE = re.compile(
     r"\b(due[nñ]o|due[nñ]a|gerente|presidente|fundador|fundadora|"
     r"propietario|jefe|jefa|empleado|empleados|personal de la empresa)\b",
@@ -2447,6 +2453,10 @@ _NO_ES_PRODUCTO = re.compile(
     re.IGNORECASE,
 )
 
+
+def _pide_producto(text: str) -> bool:
+    """¿El mensaje pide productos de forma explícita?"""
+    return bool(PRODUCT_REQUEST_RE.search(text or ""))
 
 def _availability_term(text: str) -> str | None:
     """Producto que el cliente pregunta si existe ("juguetes")."""
@@ -2642,25 +2652,18 @@ class Agent:
     def _ambiguity_reply(event: dict | None) -> AgentReply:
         """La frase puede significar dos cosas: se pregunta antes de asumir."""
         terms = [term for term in ((event or {}).get("direct") or []) if term]
-        # Para "me voy" conviene algo portátil, no el TV que va primero.
-        travel = next(
-            (term for term in terms if term in ("parlante", "altavoz", "cooler")),
-            None,
-        )
-        buttons = []
-        if travel:
-            buttons.append({"id": f"find:{travel}", "title": "Sí, me voy"})
-        buttons.append({"id": "find:televisor", "title": "Me quedo en casa"})
+        buttons = [
+            {"id": f"find:{term}", "title": term.title()[:20]}
+            for term in terms[:2]
+        ]
         buttons.append({"id": "human", "title": "Asesor"})
         return AgentReply(
             [
                 Outbound(
                     kind="buttons",
                     text=(
-                        "Antes de mostrarte cosas, quiero entenderte: "
-                        "¿te vas de viaje o al final te quedás?\n\n"
-                        "Si te quedás, te armo un plan de películas; "
-                        "si viajás, algo lindo para llevar."
+                        "Quiero mostrarte algo que te sirva. "
+                        "¿Para qué lo necesitás exactamente?"
                     ),
                     buttons=buttons[:3],
                 )
@@ -2795,19 +2798,10 @@ class Agent:
         ]
         buttons.append({"id": "human", "title": "Asesor"})
 
-        if "vacacion" in label or "viaje" in label:
-            text = (
-                "¡Ah, se viene viaje! 🧳 ¿Ya tenés fecha?\n\n"
-                "Si querés lo armamos: para el viaje tengo parlantes y cosas de "
-                "aire libre, y si te quedás unos días en casa, un buen plan es "
-                "una peli — te muestro los televisores.\n\n"
-                "¿Qué te sirve más?"
-            )
-        else:
-            text = (
-                f"¡Buenísimo! ¿Querés que te muestre algo para *{label}*?\n\n"
-                "Contame qué tenés en mente y te armo dos o tres opciones."
-            )
+        text = (
+            f"Para *{label}* puedo mostrarte opciones concretas del catálogo.\n\n"
+            "Decime qué estás buscando y te armo dos o tres alternativas."
+        )
         return AgentReply(
             [Outbound(kind="buttons", text=text, buttons=buttons[:3])]
         )
@@ -4655,19 +4649,39 @@ class Agent:
             # La ocasión se busca en el panel (base), no sólo en el archivo
             # inicial: lo que el equipo publica tiene que llegar al bot.
             _key, event = await occasion_store.resolve(session, raw)
-            if event is None:
-                event = occasions.EVENTS.get(decision["occasion"] or "")
-            if decision["ambiguous"]:
+            if event is None and decision.get("occasion"):
+                # La ocasión que propone el modelo solo se usa si el cliente
+                # la nombró: si no, inventaba contextos ("viaje", "películas").
+                candidato = occasions.EVENTS.get(decision["occasion"] or "")
+                pistas = [
+                    *((candidato or {}).get("aliases") or []),
+                    *((candidato or {}).get("direct") or []),
+                    (candidato or {}).get("label") or "",
+                ]
+                if any(
+                    pista and _fold_word(pista) in _fold_word(raw)
+                    for pista in pistas
+                ):
+                    event = candidato
+            if decision["ambiguous"] and not _pide_producto(raw):
                 return self._ambiguity_reply(event)
             if event is not None:
                 self._trace(f"Personal con ocasión: {event.get('label')}")
+                if decision.get("buy") or PRODUCT_REQUEST_RE.search(raw):
+                    return await self._occasion_reply(
+                        session, contact, raw, event
+                    )
                 return self._occasion_pivot(event)
             return self._personal_pivot()
 
         event_key, event = await occasion_store.resolve(session, raw)
         if event is not None:
             self._trace(f"Ocasión: {event.get('label')}")
-            if decision["ambiguous"] and not decision["buy"]:
+            if (
+                decision["ambiguous"]
+                and not decision["buy"]
+                and not _pide_producto(raw)
+            ):
                 return self._ambiguity_reply(event)
             return await self._occasion_reply(
                 session, contact, raw, event

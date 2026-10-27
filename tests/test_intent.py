@@ -58,7 +58,7 @@ async def test_frase_personal_pregunta_antes_de_asumir(session, monkeypatch):
         for message in reply.messages
         for button in (message.buttons or [])
     ]
-    assert "te vas de viaje" in texto.lower()
+    assert "para qué lo necesitás" in texto.lower() or "para que lo necesitas" in texto.lower()
     assert "sección específica" not in texto.lower()
     assert any(str(b).startswith("find:") for b in botones)
 
@@ -75,5 +75,5 @@ async def test_plan_de_viaje_claro_no_pregunta_y_ofrece(session, monkeypatch):
     )
 
     texto = " ".join(m.text or "" for m in reply.messages)
-    assert "viaje" in texto.lower()
+    assert "vacaciones" in texto.lower() or "viaje" in texto.lower()
     assert "sección específica" not in texto.lower()
