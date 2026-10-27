@@ -2379,6 +2379,20 @@ def _document_number(text: str) -> str | None:
         return suelto.group(1)
     return None
 
+
+# Preguntas sobre dueños o personal: el bot no tiene ese dato y no debe
+# confundirlas con "quién sos".
+EMPRESA_PERSONA_RE = re.compile(
+    r"\b(due[nñ]o|due[nñ]a|gerente|presidente|fundador|fundadora|"
+    r"propietario|jefe|jefa|empleado|empleados|personal de la empresa)\b",
+    re.IGNORECASE,
+)
+
+
+def _about_company_person(text: str) -> bool:
+    return bool(EMPRESA_PERSONA_RE.search(text or ""))
+
+
 PRECIO_BARATO_RE = re.compile(
     r"\b(m[aá]s\s+barat[oa]s?|m[aá]s\s+econ[oó]mic[oa]s?|"
     r"menor\s+precio|precio\s+m[aá]s\s+bajo|lo\s+m[aá]s\s+barato|"
@@ -2417,6 +2431,36 @@ def _nombra_producto(query: str, products: list[dict]) -> bool:
                 if re.search(rf"\b{re.escape(variante)}\b", nombre):
                     return True
     return False
+
+
+# "¿Tienen juguetes?": se verifica en el catálogo antes de responder. El
+# modelo tendía a decir "sí, tenemos" sin consultar.
+DISPONIBILIDAD_RE = re.compile(
+    r"\b(?:tienen|tiene|venden|vende|hay|manejan|maneja|"
+    r"disponen de|cuentan con)\s+(.+)$",
+    re.IGNORECASE,
+)
+# Temas de política: no son productos y no deben pasar por esta verificación.
+_NO_ES_PRODUCTO = re.compile(
+    r"\b(env[ií]o|env[ií]os|entrega|garant[ií]a|pago|pagos|cuotas?|"
+    r"devoluci[oó]n|factura|cr[eé]dito|descuento|promoci[oó]n)\b",
+    re.IGNORECASE,
+)
+
+
+def _availability_term(text: str) -> str | None:
+    """Producto que el cliente pregunta si existe ("juguetes")."""
+    valor = (text or "").strip()
+    if _NO_ES_PRODUCTO.search(valor):
+        return None
+    match = DISPONIBILIDAD_RE.search(valor)
+    if match is None:
+        return None
+    resto = _clean_query(match.group(1))
+    if len(resto) < 3:
+        return None
+    return resto
+
 
 def _price_intent(text: str) -> str | None:
     """'asc' si pide lo más barato, 'desc' si pide lo más caro."""
@@ -4448,6 +4492,27 @@ class Agent:
             gap = session_info.get("gap_minutes") or 0
             self._trace(f"Charla nueva (pausa de {gap} min)")
 
+        # Preguntas sobre dueños o personal: el bot no tiene ese dato y no
+        # debe confundirlas con "quién sos".
+        if _about_company_person(raw):
+            self._trace("Pregunta sobre la empresa: sin dato")
+            return AgentReply(
+                [
+                    Outbound(
+                        kind="buttons",
+                        text=(
+                            "No tengo información sobre los dueños ni el "
+                            "personal de ROHO, así que no quiero inventarla. "
+                            "¿Te ayudo con productos, precios o stock?"
+                        ),
+                        buttons=[
+                            {"id": "catalog", "title": "Ver productos"},
+                            {"id": "human", "title": "Asesor"},
+                        ],
+                    )
+                ]
+            )
+
         # "¿Quién eres?": se responde con la identidad, nunca con productos ni
         # como si fuera la respuesta a una pregunta pendiente.
         if IDENTITY_RE.search(raw):
@@ -4520,6 +4585,36 @@ class Agent:
         if decision.get("frustrated"):
             self._trace("Enojo: disculpa y derivación")
             return await self._frustration_reply(session, contact)
+        # "¿Tienen juguetes?": si el catálogo no lo tiene, se dice de entrada
+        # (el modelo inventaba disponibilidad).
+        termino = _availability_term(raw)
+        if termino:
+            caja = Toolbox(session, contact, self.wa)
+            sonda = await caja.tool_search_products(
+                query=termino, limit=3, ignore_state=True
+            )
+            if not sonda.get("products"):
+                self._trace(f"Sin stock de rubro: {termino}")
+                return AgentReply(
+                    [
+                        Outbound(
+                            kind="buttons",
+                            text=(
+                                f"Por ahora no tenemos *{termino}* en el "
+                                "catálogo. Trabajamos con artículos para el "
+                                "hogar: línea blanca, colchones, muebles, "
+                                "iluminación, baño, ferretería y herramientas.\n\n"
+                                "¿Te muestro alguna de esas líneas o preferís "
+                                "hablar con un asesor?"
+                            ),
+                            buttons=[
+                                {"id": "catalog", "title": "Ver categorías"},
+                                {"id": "human", "title": "Asesor"},
+                            ],
+                        )
+                    ]
+                )
+
         # "Quiero los más baratos": se listan artículos con precio, no marcas.
         direccion = _price_intent(raw)
         entendido = None

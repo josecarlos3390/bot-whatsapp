@@ -12,7 +12,7 @@ from ..models import Contact, Conversation, ConversationGuard
 
 SLOT_PATTERNS = (
     ("size", re.compile(r"\b(medida|pulgadas?|plazas?|tamaño)\b", re.I)),
-    ("budget", re.compile(r"\b(presupuesto|precio|cu[aá]nto quer[eé]s gastar)\b", re.I)),
+    ("budget", re.compile(r"\b(presupuesto|cu[aá]nto quer[eé]s gastar|qu[eé] precio)\b", re.I)),
     ("quantity", re.compile(r"\b(cantidad|cu[aá]ntas? unidades)\b", re.I)),
     ("brand", re.compile(r"\b(marca|preferencia de marca)\b", re.I)),
     ("topic", re.compile(r"\b(qu[eé] tipo|qu[eé] clase|para qu[eé]|qu[eé] te interesa|qu[eé] busc[aá]s)\b", re.I)),
@@ -86,12 +86,24 @@ async def clear_pending(session: AsyncSession, contact: Contact) -> None:
 
 
 def detect_slot(answer: str | None) -> tuple[str, str] | None:
-    text = answer or ""
-    if "?" not in text and "¿" not in text:
+    """Ranura pendiente solo si la ÚLTIMA pregunta pide ese dato.
+
+    Antes se buscaba en toda la respuesta y bastaba que mencionara "precio"
+    en cualquier lado para dejar una ranura abierta; eso hacía que el
+    mensaje siguiente se mezclara con el anterior.
+    """
+    text = (answer or "").strip()
+    if "?" not in text:
         return None
+    preguntas = [parte.strip() for parte in text.split("?") if "?" in parte + "?"]
+    # Se toma desde la última línea que termina en pregunta.
+    lineas = [linea for linea in text.splitlines() if "?" in linea]
+    if not lineas:
+        return None
+    ultima = lineas[-1]
     for slot, pattern in SLOT_PATTERNS:
-        if pattern.search(text):
-            return slot, text
+        if pattern.search(ultima):
+            return slot, ultima
     return None
 
 
