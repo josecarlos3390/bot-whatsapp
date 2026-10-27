@@ -113,3 +113,38 @@ def _descripcion():
         "atributos": "13mm",
         "descripcion": "un taladro azul",
     }
+
+
+def test_usa_la_clave_de_deepseek_si_no_hay_vision_dedicada(monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "vision_api_key", "")
+    monkeypatch.setattr(settings, "vision_model", "")
+    monkeypatch.setattr(settings, "deepseek_api_key", "clave-deepseek")
+
+    credenciales = vision._credenciales()
+
+    assert credenciales is not None
+    assert credenciales[0] == "clave-deepseek"
+    assert credenciales[2] == "deepseek-chat"
+
+
+def test_ordena_por_marca_y_objeto():
+    from app.agent import Agent
+
+    productos = [
+        {"name": "Pincel Silicona Verde", "category": "Accesorios de parrilla", "brand": "MOZC"},
+        {"name": "Brocha 1plg Cerda Pet Ingco", "category": "Brochas", "brand": "INGCO"},
+        {"name": "Brocha 2plg Cerda Pet Ingco", "category": "Brochas", "brand": "INGCO"},
+    ]
+    descripcion = {
+        "objeto": "brocha de pintura",
+        "categoria": "pinturería",
+        "marca": "INGCO",
+        "atributos": "1 pulgada",
+    }
+
+    ordenados = Agent._ordenar_por_imagen(productos, descripcion)
+
+    assert ordenados[0]["brand"] == "INGCO"
+    assert all("pincel" not in p["name"].lower() for p in ordenados[:2])

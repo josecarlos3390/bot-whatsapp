@@ -47,6 +47,8 @@ SYNONYMS: dict[str, list[str]] = {    "living": ["sala", "sofa", "sillon", "mueb
     "secadora": ["linea blanca"],
     "ventilador": ["aire", "climatizacion"],
     "pintura": ["latex", "esmalte", "barniz"],
+    "pincel": ["brocha"],
+    "brocha": ["pincel"],
     "jardin": ["exterior", "planta", "maceta"],
     "navidad": ["arbol", "navideno"],
     "cocina": ["mesada", "alacena", "mueble"],

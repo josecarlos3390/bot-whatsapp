@@ -26,27 +26,47 @@ un paisaje), devolvé {"objeto": "", "categoria": "", "marca": "", "atributos": 
 No inventes marcas ni medidas que no se vean."""
 
 
+def _credenciales() -> tuple[str, str | None, str] | None:
+    """Clave, base y modelo para visión.
+
+    Si no hay una clave dedicada, se usa la misma de DeepSeek: su API
+    compatible con OpenAI acepta imágenes en `deepseek-chat`.
+    """
+    if settings.vision_api_key and settings.vision_model:
+        return (
+            settings.vision_api_key,
+            settings.vision_base_url or None,
+            settings.vision_model,
+        )
+    if settings.deepseek_api_key:
+        return (
+            settings.deepseek_api_key,
+            settings.deepseek_base_url or None,
+            settings.vision_model or "deepseek-chat",
+        )
+    return None
+
+
 def disponible() -> bool:
-    return bool(settings.vision_api_key and settings.vision_model)
+    return _credenciales() is not None
 
 
 async def describe(contenido: bytes, mime: str = "image/jpeg") -> dict | None:
     """Describe el producto de la imagen. None si no hay visión configurada."""
-    if not disponible() or not contenido:
+    credenciales = _credenciales()
+    if credenciales is None or not contenido:
         return None
     try:
         from openai import AsyncOpenAI
     except ImportError:  # pragma: no cover - dependencia opcional
         return None
 
-    cliente = AsyncOpenAI(
-        api_key=settings.vision_api_key,
-        base_url=settings.vision_base_url or None,
-    )
+    api_key, base_url, modelo = credenciales
+    cliente = AsyncOpenAI(api_key=api_key, base_url=base_url)
     datos = base64.b64encode(contenido).decode("ascii")
     try:
         respuesta = await cliente.chat.completions.create(
-            model=settings.vision_model,
+            model=modelo,
             messages=[
                 {
                     "role": "user",

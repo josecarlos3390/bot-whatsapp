@@ -2822,6 +2822,40 @@ class Agent:
             [Outbound(kind="buttons", text=text, buttons=buttons[:3])]
         )
 
+    @staticmethod
+    def _ordenar_por_imagen(
+        productos: list[dict], descripcion: dict
+    ) -> list[dict]:
+        """Prioriza lo que coincide con lo que vio el modelo."""
+        marca = (descripcion.get("marca") or "").lower()
+        objeto = (descripcion.get("objeto") or "").lower()
+        categoria = (descripcion.get("categoria") or "").lower()
+        palabras = [parte for parte in objeto.split() if len(parte) >= 5]
+        palabras_cat = [parte for parte in categoria.split() if len(parte) >= 5]
+
+        def puntaje(producto: dict) -> tuple[int, int]:
+            nombre = (producto.get("name") or "").lower()
+            rubro = (producto.get("category") or "").lower()
+            puntos = 0
+            if marca and marca in (producto.get("brand") or "").lower():
+                puntos += 3
+            if any(palabra in nombre for palabra in palabras):
+                puntos += 2
+            if any(palabra in rubro for palabra in palabras_cat):
+                puntos += 1
+            if palabras and palabras[0] in nombre:
+                puntos += 2
+            return (puntos, -len(nombre))
+
+        con_puntos = [
+            (puntaje(producto), producto) for producto in productos
+        ]
+        con_puntos.sort(key=lambda par: par[0], reverse=True)
+        ordenados = [
+            producto for (puntos, _largo), producto in con_puntos if puntos > 0
+        ]
+        return ordenados or productos
+
     async def _image_reply(
         self,
         session: AsyncSession,
@@ -2895,9 +2929,11 @@ class Agent:
         )
         caja = Toolbox(session, contact, self.wa)
         resultado = await caja.tool_search_products(
-            query=consulta, limit=3, ignore_state=True
+            query=consulta, limit=8, ignore_state=True
         )
-        productos = resultado.get("products") or []
+        productos = self._ordenar_por_imagen(
+            resultado.get("products") or [], descripcion
+        )[:3]
         if productos:
             self._trace(f"Imagen: {objeto} con opciones")
             lead = (
@@ -2923,9 +2959,11 @@ class Agent:
         # Sin coincidencia: se prueba por el rubro que detectó la visión.
         if categoria:
             rubro = await caja.tool_search_products(
-                query=categoria, limit=3, ignore_state=True
+                query=categoria, limit=6, ignore_state=True
             )
-            productos = rubro.get("products") or []
+            productos = self._ordenar_por_imagen(
+                rubro.get("products") or [], descripcion
+            )[:3]
         if productos:
             self._trace(f"Imagen: {objeto} sin igual, rubro {categoria}")
             return AgentReply(
