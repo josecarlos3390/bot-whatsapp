@@ -147,6 +147,24 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
     busquedas_pendientes: { term: string; misses: number }[];
     nombres_cruzados_muestra: { sku: string; name: string; category: string }[];
   } | null>(null);
+  const [readiness, setReadiness] = useState<{
+    ready: boolean;
+    score: string;
+    criteria: { key: string; label: string; ok: boolean; detail: string; manual?: boolean }[];
+  } | null>(null);
+
+  async function cargarReadiness() {
+    try {
+      const data = await api<{
+        ready: boolean;
+        score: string;
+        criteria: { key: string; label: string; ok: boolean; detail: string; manual?: boolean }[];
+      }>("/admin/readiness");
+      setReadiness(data);
+    } catch {
+      // El semáforo no debe romper el tablero.
+    }
+  }
 
   async function cargarCalidad() {
     try {
@@ -238,6 +256,7 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
     void load();
     void cargarAprendizaje();
     void cargarCalidad();
+    void cargarReadiness();
     const timer = window.setInterval(() => void load(), 30000);
     return () => window.clearInterval(timer);
   }, []);
@@ -443,6 +462,36 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
                 </>
               ) : (
                 <p className="mt-2 text-xs text-[#6b7280]">{t("Cargando informe…")}</p>
+              )}
+            </Card>
+
+            <Card className="mb-5 border-[#e5e7eb] bg-[#ffffff] p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-[.2em] text-[#e9082a]">{t("Preparación para producción")}</div>
+                  <p className="text-xs text-[#6b7280]">{t("Qué falta para migrar al número productivo y usar el catálogo nativo.")}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${readiness?.ready ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-800"}`}>
+                    {readiness ? `${readiness.score}` : "—"}
+                  </span>
+                  <a href="/admin/catalog-feed.csv" className="rounded-lg bg-[#e9082a] px-3 py-2 text-xs font-semibold text-white">{t("Descargar feed CSV")}</a>
+                </div>
+              </div>
+              {readiness ? (
+                <ul className="mt-3 grid gap-1 text-xs text-[#4b5563] md:grid-cols-2">
+                  {readiness.criteria.map((item) => (
+                    <li key={item.key} className="flex items-start gap-2">
+                      <span className={item.ok ? "text-emerald-600" : "text-[#a90418]"}>{item.ok ? "✓" : "✗"}</span>
+                      <span>
+                        <strong className="text-[#111111]">{t(item.label)}</strong> · {item.detail}
+                        {item.manual ? ` (${t("manual")})` : ""}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-2 text-xs text-[#6b7280]">{t("Cargando semáforo…")}</p>
               )}
             </Card>
 

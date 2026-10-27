@@ -589,6 +589,48 @@ async def admin_metrics(
 
 
 @router.get(
+    "/admin/readiness",
+    dependencies=[Depends(require_supervisor)],
+)
+async def admin_readiness(
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Semáforo de preparación para producción y catálogo nativo."""
+    from .services import readiness
+
+    return {"ok": True, **(await readiness.readiness(session))}
+
+
+@router.get(
+    "/admin/catalog-feed.csv",
+    dependencies=[Depends(require_supervisor)],
+)
+async def admin_catalog_feed(
+    session: AsyncSession = Depends(get_session),
+):
+    """Feed CSV para Commerce Manager (solo productos con foto)."""
+    import csv
+    import io
+
+    from fastapi.responses import Response
+
+    from .services import native_commerce
+
+    filas, omitidos = await native_commerce.catalog_feed(session)
+    buffer = io.StringIO()
+    if filas:
+        writer = csv.DictWriter(buffer, fieldnames=list(filas[0].keys()))
+        writer.writeheader()
+        writer.writerows(filas)
+    cabecera = {"X-Feed-Rows": str(len(filas)), "X-Feed-Skipped": str(omitidos)}
+    return Response(
+        content=buffer.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={**cabecera, "Content-Disposition": 'attachment; filename="catalogo-roho.csv"'},
+    )
+
+
+@router.get(
     "/admin/catalog-quality",
     dependencies=[Depends(require_supervisor)],
 )

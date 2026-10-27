@@ -15,7 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
-from ..models import CatalogItem, Contact
+from ..models import ProductImage, CatalogItem, Contact
 from . import cart as cart_service
 
 logger = logging.getLogger(__name__)
@@ -146,10 +146,28 @@ async def catalog_feed(
     if limit:
         stmt = stmt.limit(limit)
     items = list((await session.scalars(stmt)).all())
+    # La foto puede estar en la ficha o en la tabla de imágenes.
+    skus = [item.sku for item in items]
+    imagenes: dict[str, str] = {}
+    if skus:
+        filas_imagen = (
+            await session.execute(
+                select(ProductImage.sku, ProductImage.url).where(
+                    ProductImage.sku.in_(skus),
+                    ProductImage.approved.is_(True),
+                )
+            )
+        ).all()
+        for sku, url in filas_imagen:
+            imagenes.setdefault(sku, url)
     rows: list[dict] = []
     skipped = 0
     for item in items:
-        image = item.image_url or settings.meta_catalog_placeholder_image
+        image = (
+            item.image_url
+            or imagenes.get(item.sku)
+            or settings.meta_catalog_placeholder_image
+        )
         if not image:
             skipped += 1
             continue
