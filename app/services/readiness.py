@@ -26,16 +26,14 @@ PLACEHOLDERS = ("[verificar", "por definir", "pendiente", "xxx")
 def _politica(articulo) -> dict:
     contenido = (articulo.content or "").lower()
     tiene_placeholder = any(marca in contenido for marca in PLACEHOLDERS)
-    return {
-        "ok": articulo.status == "published" and not tiene_placeholder,
-        "detail": (
-            "borrador con datos por completar"
-            if tiene_placeholder and articulo.status == "published"
-            else f"estado {articulo.status}"
-            if articulo.status != "published"
-            else "publicada"
-        ),
-    }
+    publicado = articulo.status == "published"
+    if tiene_placeholder:
+        return {"ok": False, "detail": "borrador con datos por completar"}
+    if not publicado:
+        return {"ok": False, "detail": f"estado {articulo.status}"}
+    if getattr(articulo, "sample", False):
+        return {"ok": True, "detail": "publicada de ejemplo, falta validar"}
+    return {"ok": True, "detail": "publicada"}
 
 
 async def readiness(session: AsyncSession) -> dict:
@@ -70,6 +68,7 @@ async def readiness(session: AsyncSession) -> dict:
 
     articulos = {a.source.rsplit("/", 1)[-1].replace(".md", ""): a for a in knowledge.load_articles()}
     faltantes = []
+    ejemplos = []
     for clave in POLITICAS:
         articulo = articulos.get(clave)
         if articulo is None:
@@ -78,12 +77,23 @@ async def readiness(session: AsyncSession) -> dict:
         estado = _politica(articulo)
         if not estado["ok"]:
             faltantes.append(f"{clave}: {estado['detail']}")
+        elif getattr(articulo, "sample", False):
+            ejemplos.append(clave)
+    if faltantes:
+        detalle = "; ".join(faltantes)
+    elif ejemplos:
+        detalle = (
+            f"publicadas, {len(ejemplos)} de ejemplo "
+            f"({', '.join(ejemplos)}) — falta validar"
+        )
+    else:
+        detalle = "todas publicadas"
     criterios.append(
         {
             "key": "politicas",
             "label": "Políticas publicadas",
             "ok": not faltantes,
-            "detail": "; ".join(faltantes) if faltantes else "todas publicadas",
+            "detail": detalle,
         }
     )
 

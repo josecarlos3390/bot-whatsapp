@@ -25,6 +25,7 @@ class KnowledgeArticle:
     tags: list[str] = field(default_factory=list)
     source: str = ""
     status: str = "draft"
+    sample: bool = False
 
 
 def _normalize(value: str) -> str:
@@ -66,6 +67,7 @@ def _parse(path: Path) -> KnowledgeArticle | None:
         tags=tags,
         source=path.name,
         status=status,
+        sample=(meta.get("sample") or "").strip().lower() in {"true", "si", "sí", "1"},
     )
 
 
@@ -129,6 +131,7 @@ def search_articles(
             "content": article.content[:800],
             "tags": article.tags,
             "source": article.source,
+            "sample": article.sample,
         }
         for _, article in scored[: max(int(limit), 1)]
     ]
