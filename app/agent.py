@@ -2436,7 +2436,7 @@ def _nombra_producto(query: str, products: list[dict]) -> bool:
 # "¿Tienen juguetes?": se verifica en el catálogo antes de responder. El
 # modelo tendía a decir "sí, tenemos" sin consultar.
 DISPONIBILIDAD_RE = re.compile(
-    r"\b(?:tienen|tiene|venden|vende|hay|manejan|maneja|"
+    r"^\s*(?:tienen|tiene|venden|vende|hay|manejan|maneja|"
     r"disponen de|cuentan con)\s+(.+)$",
     re.IGNORECASE,
 )
@@ -2450,11 +2450,18 @@ _NO_ES_PRODUCTO = re.compile(
 
 def _availability_term(text: str) -> str | None:
     """Producto que el cliente pregunta si existe ("juguetes")."""
-    valor = (text or "").strip()
+    valor = re.sub(r"^[¿¡\s]+", "", (text or "").strip())
     if _NO_ES_PRODUCTO.search(valor):
         return None
     match = DISPONIBILIDAD_RE.search(valor)
     if match is None:
+        return None
+    # "¿venden algo para halloween?" no es un producto: es una ocasión.
+    if re.search(
+        r"\b(algo|alg[uú]n|alguna|un|una|regalo|regalar|para)\b",
+        match.group(1),
+        re.IGNORECASE,
+    ):
         return None
     resto = _clean_query(match.group(1))
     if len(resto) < 3:
