@@ -43,6 +43,12 @@ type Overview = {
     counts: Record<string, number>;
     issues: { kind: string; inbound: string; outbound: string | null; at: string | null }[];
   };
+  learning: {
+    aprendidas: number;
+    pendientes: number;
+    top_pendientes: { term: string; misses: number }[];
+    top_aprendidas: { term: string; query: string; hits: number }[];
+  };
   tokens: {
     calls: number;
     prompt_tokens: number;
@@ -267,6 +273,50 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
                 <div className="mt-1 text-xs text-[#4b5563]">Última: {formatDate(data.sync.at)}</div>
               </Card>
             </div>
+
+            <Card className="mb-5 border-[#e5e7eb] bg-[#ffffff] p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-[.2em] text-[#e9082a]">{t("Aprendizaje de búsquedas")}</div>
+                  <p className="text-xs text-[#6b7280]">{t("Lo que el bot no encontraba y ya aprendió. Las pendientes son candidatas para cargar en el catálogo.")}</p>
+                </div>
+                <div className="flex gap-4 text-xs">
+                  <span><strong className="text-[#111111]">{data.learning?.aprendidas ?? 0}</strong> {t("aprendidas")}</span>
+                  <span><strong className="text-[#111111]">{data.learning?.pendientes ?? 0}</strong> {t("pendientes")}</span>
+                </div>
+              </div>
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-[#6b7280]">{t("Búsquedas sin resultado")}</div>
+                  {data.learning?.top_pendientes?.length ? (
+                    <ul className="mt-1 space-y-1 text-xs text-[#4b5563]">
+                      {data.learning.top_pendientes.map((item) => (
+                        <li key={item.term} className="flex justify-between gap-2">
+                          <span className="truncate">{item.term}</span>
+                          <span className="font-semibold text-[#111111]">{item.misses}×</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-1 text-xs text-[#6b7280]">{t("Sin pendientes.")}</p>
+                  )}
+                </div>
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-[#6b7280]">{t("Consultas aprendidas")}</div>
+                  {data.learning?.top_aprendidas?.length ? (
+                    <ul className="mt-1 space-y-1 text-xs text-[#4b5563]">
+                      {data.learning.top_aprendidas.map((item) => (
+                        <li key={item.term} className="truncate">
+                          <span className="text-[#111111]">{item.term}</span> → {item.query}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-1 text-xs text-[#6b7280]">{t("Todavía no aprendió ninguna.")}</p>
+                  )}
+                </div>
+              </div>
+            </Card>
 
             <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <Metric label={t("Conversaciones")} value={data.counts.conversations} hint={`${data.counts.contacts} contactos`} />

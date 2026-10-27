@@ -729,6 +729,30 @@ class SapEventInbox(Base):
     error: Mapped[str | None] = mapped_column(Text)
 
 
+
+class QueryLearning(Base):
+    """Búsquedas que no encontraban nada y cómo se resolvieron.
+
+    Guarda el término del cliente, la consulta que sí funcionó (aprendida con
+    el modelo) y cuántas veces falló. Así el bot mejora solo: la próxima vez
+    resuelve el mismo término sin consultar la IA.
+    """
+
+    __tablename__ = "query_learning"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    term: Mapped[str] = mapped_column(String(200), unique=True, index=True)
+    query: Mapped[str | None] = mapped_column(String(300))
+    producto: Mapped[str | None] = mapped_column(String(120))
+    atributos: Mapped[str | None] = mapped_column(String(300))
+    hits: Mapped[int] = mapped_column(Integer, default=0)
+    misses: Mapped[int] = mapped_column(Integer, default=0)
+    source: Mapped[str] = mapped_column(String(20), default="ia")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
 class Handoff(Base):
     __tablename__ = "handoffs"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)

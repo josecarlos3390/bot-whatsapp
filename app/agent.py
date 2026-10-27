@@ -55,6 +55,7 @@ from .services import (
     return_flow,
     rule_policy,
     rules_engine,
+    learning,
     semantic,
     understanding,
     sales_stats,
@@ -3113,6 +3114,22 @@ class Agent:
             quantity=quantity,
             ignore_state=ignore_state,
         )
+        # Si ese término ya se resolvió antes, se usa la consulta aprendida.
+        consulta_original = query
+        aprendida = await learning.recall(session, consulta_original)
+        if aprendida and aprendida != query:
+            result = await toolbox.tool_search_products(
+                query=aprendida,
+                limit=min(int(limit), 5),
+                min_price=min_price,
+                max_price=max_price,
+                quantity=quantity,
+                ignore_state=True,
+            )
+            if result.get("products"):
+                query = aprendida
+                self._trace(f"Consulta aprendida: {aprendida}")
+
         products = result.get("products") or []
         if not products:
             # Relajación: si la frase trae un término que no existe ("oled"),
@@ -3135,7 +3152,41 @@ class Agent:
                         self._trace(f"Consulta relajada: {parcial}")
                     query = parcial
                     break
+        if not products and settings.deepseek_api_key:
+            # Última red: el modelo interpreta el término y se reintenta con
+            # producto + atributos. Si funciona, queda aprendido.
+            entendido = None
+            try:
+                entendido = await understanding.parse(self._llm(), consulta_original)
+            except Exception:  # noqa: BLE001 - interpretar no debe romper
+                entendido = None
+            producto = (entendido or {}).get("producto")
+            atributos = (entendido or {}).get("atributos") or []
+            candidato = " ".join([producto, *atributos]).strip() if producto else ""
+            if candidato and candidato.lower() != (query or "").lower():
+                retry = await toolbox.tool_search_products(
+                    query=candidato,
+                    limit=min(int(limit), 5),
+                    min_price=min_price,
+                    max_price=max_price,
+                    quantity=quantity,
+                    ignore_state=True,
+                )
+                if retry.get("products"):
+                    products = retry["products"]
+                    result = retry
+                    query = candidato
+                    self._trace(f"Consulta reinterpretada: {candidato}")
+                    await learning.remember(
+                        session,
+                        term=consulta_original,
+                        query=candidato,
+                        producto=producto,
+                        atributos=atributos,
+                    )
+
         if not products:
+            await learning.record_miss(session, consulta_original)
             if result.get("quantity_shortfall"):
                 qty = result["quantity_shortfall"]
                 return AgentReply(
