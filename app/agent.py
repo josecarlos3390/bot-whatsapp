@@ -2573,6 +2573,19 @@ def _is_purchase_query(text: str) -> bool:
             folded,
         )
     )
+# Qué se espera ver primero en cada ambiente (guía la lista).
+CATEGORY_ORDER = {
+    "sala": ("sofa", "sill", "mesa", "silla", "mueble tv", "rack", "alfombra"),
+    "dormitorio": ("cama", "colchon", "ropero", "placard", "velador", "comoda"),
+    "bano": ("ducha", "grif", "inodoro", "lavamanos", "repisa", "toallero"),
+    "cocina": ("alacena", "mesada", "cocina", "campana", "bacha"),
+    "iluminacion": ("lampara", "foco", "plafon", "portavela", "led"),
+    "pintura": ("pintura", "latex", "esmalte", "rodillo", "brocha"),
+    "ferreteria": ("taladro", "amoladora", "sierra", "destornillador", "llave"),
+    "jardin": ("maceta", "parrilla", "jardin", "manguera", "reposera"),
+    "linea-blanca": ("heladera", "lavadora", "secadora", "microondas", "cocina"),
+}
+
 FRIENDLY_CATEGORIES = [
     {"key": "sala", "label": "Sala y comedor", "category": "MUEBLES"},
     {"key": "dormitorio", "label": "Dormitorio", "category": "DECO HOGAR"},
@@ -2595,6 +2608,21 @@ SEARCH_RE = re.compile(
     re.IGNORECASE,
 )
 
+
+def _ordenar_por_ambiente(productos: list[dict], clave: str) -> list[dict]:
+    """Pone primero lo que se espera del ambiente (sofás antes que espejos)."""
+    orden = CATEGORY_ORDER.get(clave)
+    if not orden:
+        return productos
+
+    def posicion(producto: dict) -> int:
+        nombre = (producto.get("name") or "").lower()
+        for indice, termino in enumerate(orden):
+            if termino in nombre:
+                return indice
+        return len(orden)
+
+    return sorted(productos, key=posicion)
 
 class Agent:
     def __init__(self, wa: WhatsAppClient | None = None):
@@ -3725,10 +3753,28 @@ class Agent:
         canonical = friendly["category"] if friendly else category
         label = friendly["label"] if friendly else category
         toolbox = Toolbox(session, contact, self.wa)
-        result = await toolbox.tool_search_products(
-            category=canonical, limit=5
-        )
-        products = result.get("products") or []
+        products: list[dict] = []
+        # Para un ambiente se busca por lo que se espera ver (sofá, mesa...) y
+        # no por la categoría entera, que traía espejos primero.
+        for termino in CATEGORY_ORDER.get(key, ())[:5]:
+            encontrados = await toolbox.tool_search_products(
+                category=canonical, query=termino, limit=2
+            )
+            for producto in encontrados.get("products") or []:
+                if all(
+                    producto["sku"] != previo["sku"] for previo in products
+                ):
+                    products.append(producto)
+            if len(products) >= 9:
+                break
+        if not products:
+            result = await toolbox.tool_search_products(
+                category=canonical, limit=12
+            )
+            products = _ordenar_por_ambiente(
+                result.get("products") or [], key
+            )
+        products = products[:9]
         if not products:
             return AgentReply(
                 [
@@ -5215,24 +5261,6 @@ class Agent:
                 )
             return await self._purchase_history_reply(session, contact)
 
-        if SEARCH_RE.search(raw):
-            # Sin un término de producto ("quién eres", "gracias"), no se
-            # busca a ciegas: se responde conversando.
-            if not catalog._relevance_terms(raw):
-                if settings.deepseek_api_key:
-                    self._trace("Modelo de IA (charla)")
-                    return await self._llm_handle(
-                        session, contact, raw, history or [], memory
-                    )
-                self._trace("Reglas (charla)")
-                return await self._demo(session, contact, raw)
-            if settings.deepseek_api_key:
-                self._trace("Modelo de IA")
-                return await self._llm_handle(
-                    session, contact, raw, history or [], memory
-                )
-            return await self._search_reply(session, contact, raw)
-
         if normalized.startswith("cat:"):
             category = raw.split(":", 1)[1].strip()
             return await self._product_list(session, contact, category)
@@ -5296,6 +5324,24 @@ class Agent:
                     )
                 ]
             )
+
+        if SEARCH_RE.search(raw):
+            # Sin un término de producto ("quién eres", "gracias"), no se
+            # busca a ciegas: se responde conversando.
+            if not catalog._relevance_terms(raw):
+                if settings.deepseek_api_key:
+                    self._trace("Modelo de IA (charla)")
+                    return await self._llm_handle(
+                        session, contact, raw, history or [], memory
+                    )
+                self._trace("Reglas (charla)")
+                return await self._demo(session, contact, raw)
+            if settings.deepseek_api_key:
+                self._trace("Modelo de IA")
+                return await self._llm_handle(
+                    session, contact, raw, history or [], memory
+                )
+            return await self._search_reply(session, contact, raw)
 
         # Código de barra (EAN/UPC): se resuelve directo, sin LLM.
         barcode = catalog.barcode_from_text(raw)

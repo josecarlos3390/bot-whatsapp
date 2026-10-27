@@ -47,6 +47,8 @@ INTENCIONES = (
             r"poner\s+m[uú]sica",
             r"escuchar\s+m[uú]sica",
             r"parlantes?",
+            r"algo\s+de\s+(m[uú]sica|audio|sonido)",
+            r"m[uú]sica\s+para\s+(la\s+)?(casa|el\s+living|living)",
         ),
         "ideas": (
             {
