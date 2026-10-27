@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import asyncio
 import html
@@ -99,6 +99,13 @@ def money(amount: Decimal | int | float | str) -> str:
 
 
 _STOPWORDS = {
+    # Conectores de cambio de tema: "ahora quiero alfombras" -> "alfombras".
+    "ahora",
+    "despues",
+    "después",
+    "luego",
+    "tambien",
+    "también",
     # Ruido de conversación: "no me gusta, mejor quiero tv" debe quedar "tv".
     "no",
     "nada",
@@ -1291,6 +1298,20 @@ class Toolbox:
             )
         else:
             rows = await self._search_with_hot_cache(query, take)
+        if not rows and category and query:
+            # El cliente pudo cambiar de rubro ("ahora quiero alfombras"):
+            # se prueba sin la categoría que venía arrastrando la charla.
+            rows = await catalog.search_items(
+                self.session,
+                query,
+                limit=take,
+                brand=brand,
+                min_price=min_price,
+                max_price=max_price,
+                only_discount=only_discount,
+            )
+            if rows:
+                category = None
         fallback = False
         if not rows and only_discount:
             rows = await catalog.search_items(
@@ -1373,6 +1394,22 @@ class Toolbox:
                 shortfall = requested_quantity
         if query and TV_INTENT_RE.search(query):
             products = _only_tvs(products)
+        # Guard de coherencia: si la charla viene de un rubro y el cliente no
+        # nombró otro, no se muestran resultados de otra categoría (evita que
+        # "el precio más bajo" traiga alfombras).
+        if products and query:
+            estado_previo = await self._current_state()
+            rubro = (getattr(estado_previo, "category", None) or "").strip()
+            if rubro:
+                del_rubro = [
+                    p
+                    for p in products
+                    if rules_engine.same_category(rubro, p.get("category") or "")
+                ]
+                if del_rubro:
+                    products = del_rubro
+                elif not _nombra_producto(query, products):
+                    products = []
         rules = await rules_engine.brand_rules(
             self.session, category=category or query
         )
@@ -2362,6 +2399,25 @@ _COMPREHENSION_SKIP_RE = re.compile(
     r"menu|men[úu]|orden|seguimiento|\d+\s*$|s[íi]\s*$|no\s*$|ok\s*$|dale\s*$)",
     re.IGNORECASE,
 )
+def _nombra_producto(query: str, products: list[dict]) -> bool:
+    """¿La consulta nombra alguno de los productos devueltos?
+
+    Sirve para distinguir un cambio de tema real ("ahora quiero alfombras")
+    de una consulta de modificador ("el más barato"), que debe quedarse en
+    el rubro de la conversación.
+    """
+    terminos = catalog._relevance_terms(query)
+    if not terminos:
+        return False
+    for producto in products:
+        nombre = (producto.get("name") or "").lower()
+        for termino in terminos:
+            for variante in catalog._variants(termino):
+                # Palabra completa: "mas" no debe coincidir con "Mashru".
+                if re.search(rf"\b{re.escape(variante)}\b", nombre):
+                    return True
+    return False
+
 def _price_intent(text: str) -> str | None:
     """'asc' si pide lo más barato, 'desc' si pide lo más caro."""
     if PRECIO_BARATO_RE.search(text or ""):
@@ -3017,6 +3073,30 @@ class Agent:
         policy: rule_policy.RulePolicy | None = None,
     ) -> AgentReply:
         self._trace("Búsqueda en catálogo")
+        # Referencias y atributos ("ese", "de 13mm", "con luz"): si la frase es
+        # corta y ya hay rubro en la charla, el modelo la reescribe antes de
+        # buscar. Así no se pierde el hilo ni se buscan palabras sueltas.
+        if (
+            query
+            and settings.deepseek_api_key
+            and settings.understanding_enabled
+            and len(query.split()) <= 5
+        ):
+            try:
+                estado_actual = await self._current_state()
+                rubro = (getattr(estado_actual, "category", None) or "").strip()
+                if rubro and not _nombra_producto(query, [{"name": rubro}]):
+                    entendido = await understanding.parse(self._llm(), query)
+                    producto = (entendido or {}).get("producto")
+                    atributos = (entendido or {}).get("atributos") or []
+                    if producto:
+                        query = " ".join([producto, *atributos]).strip()
+                        self._trace(f"Consulta reinterpretada: {query}")
+                    elif atributos:
+                        query = " ".join([rubro, *atributos]).strip()
+                        self._trace(f"Consulta ampliada: {query}")
+            except Exception:  # noqa: BLE001 - interpretar no debe romper
+                logger.debug("No se pudo reinterpretar la búsqueda", exc_info=True)
         # Si el cliente ya dijo la medida, la búsqueda la usa sin volver a
         # preguntarla (memoria de preferencias).
         try:

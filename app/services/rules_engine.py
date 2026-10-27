@@ -70,6 +70,11 @@ _SAME_GROUPS = (
 )
 
 
+def same_category(left: str | None, right: str | None) -> bool:
+    """¿Son la misma categoría o familia? (para el guard de coherencia)."""
+    return _same(left, right)
+
+
 def _same(left: str | None, right: str | None) -> bool:
     a, b = _fold(left), _fold(right)
     if not a or not b:
