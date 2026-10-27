@@ -31,6 +31,8 @@ from .services import (
     area_router,
     coherence,
     conversation_state,
+    media as media_service,
+    vision,
     ideas,
     conversation_guard,
     customer_analysis,
@@ -2820,6 +2822,154 @@ class Agent:
             [Outbound(kind="buttons", text=text, buttons=buttons[:3])]
         )
 
+    async def _image_reply(
+        self,
+        session: AsyncSession,
+        contact: Contact,
+        media: dict,
+    ) -> AgentReply | None:
+        """Interpreta la imagen y ofrece productos parecidos del catálogo."""
+        contenido = await media_service.download(media.get("media_id") or "")
+        if contenido is None:
+            return AgentReply(
+                [
+                    Outbound(
+                        kind="buttons",
+                        text=(
+                            "Recibí tu imagen pero no pude abrirla. ¿Me contás "
+                            "qué producto es y qué querés saber?"
+                        ),
+                        buttons=[
+                            {"id": "catalog", "title": "Ver productos"},
+                            {"id": "human", "title": "Asesor"},
+                        ],
+                    )
+                ]
+            )
+        archivo, mime = contenido
+        descripcion = await vision.describe(archivo, mime)
+        if descripcion is None:
+            self._trace("Imagen sin visión configurada")
+            return AgentReply(
+                [
+                    Outbound(
+                        kind="buttons",
+                        text=(
+                            "Recibí tu imagen. Para buscarte algo igual o "
+                            "parecido necesito que me digas qué producto es "
+                            "(por ejemplo: taladro, licuadora, colchón).\n\n"
+                            "¿Me lo escribís y te muestro opciones?"
+                        ),
+                        buttons=[
+                            {"id": "catalog", "title": "Ver categorías"},
+                            {"id": "human", "title": "Asesor"},
+                        ],
+                    )
+                ]
+            )
+
+        objeto = descripcion.get("objeto") or ""
+        categoria = descripcion.get("categoria") or ""
+        marca = descripcion.get("marca") or ""
+        atributos = descripcion.get("atributos") or ""
+        if not objeto:
+            self._trace("Imagen sin producto reconocible")
+            return AgentReply(
+                [
+                    Outbound(
+                        kind="buttons",
+                        text=(
+                            "Miré la imagen pero no reconozco un producto en "
+                            "ella. ¿Me contás qué estás buscando?"
+                        ),
+                        buttons=[
+                            {"id": "catalog", "title": "Ver categorías"},
+                            {"id": "human", "title": "Asesor"},
+                        ],
+                    )
+                ]
+            )
+
+        consulta = " ".join(
+            parte for parte in (objeto, marca, atributos) if parte
+        )
+        caja = Toolbox(session, contact, self.wa)
+        resultado = await caja.tool_search_products(
+            query=consulta, limit=3, ignore_state=True
+        )
+        productos = resultado.get("products") or []
+        if productos:
+            self._trace(f"Imagen: {objeto} con opciones")
+            lead = (
+                f"Veo que me enviaste una imagen: parece *{objeto}*"
+                + (f" ({marca})" if marca else "")
+                + ". En la tienda tenemos opciones parecidas:"
+            )
+            return AgentReply(
+                [
+                    Outbound(text=lead),
+                    *self._search_cards(productos[:3]),
+                    Outbound(
+                        kind="buttons",
+                        text="¿Te muestro el detalle de alguno o buscamos otra cosa?",
+                        buttons=[
+                            {"id": "catalog", "title": "Ver categorías"},
+                            {"id": "human", "title": "Asesor"},
+                        ],
+                    ),
+                ]
+            )
+
+        # Sin coincidencia: se prueba por el rubro que detectó la visión.
+        if categoria:
+            rubro = await caja.tool_search_products(
+                query=categoria, limit=3, ignore_state=True
+            )
+            productos = rubro.get("products") or []
+        if productos:
+            self._trace(f"Imagen: {objeto} sin igual, rubro {categoria}")
+            return AgentReply(
+                [
+                    Outbound(
+                        text=(
+                            f"Veo que me enviaste una imagen: parece *{objeto}*"
+                            + (f" ({marca})" if marca else "")
+                            + f". No tengo ese modelo exacto, pero en "
+                            f"*{categoria or objeto}* tengo esto:"
+                        )
+                    ),
+                    *self._search_cards(productos[:3]),
+                    Outbound(
+                        kind="buttons",
+                        text="¿Te interesa alguna o hablamos con un asesor?",
+                        buttons=[
+                            {"id": "catalog", "title": "Ver categorías"},
+                            {"id": "human", "title": "Asesor"},
+                        ],
+                    ),
+                ]
+            )
+
+        self._trace(f"Imagen: {objeto} sin coincidencias")
+        return AgentReply(
+            [
+                Outbound(
+                    kind="buttons",
+                    text=(
+                        f"Veo que me enviaste una imagen: parece *{objeto}*"
+                        + (f" ({marca})" if marca else "")
+                        + ". No encontré algo igual en el catálogo ahora. "
+                        "¿Querés que lo busque un asesor o te muestro otras "
+                        "categorías?"
+                    ),
+                    buttons=[
+                        {"id": "human", "title": "Asesor"},
+                        {"id": "catalog", "title": "Ver categorías"},
+                    ],
+                )
+            ]
+        )
+
     async def _idea_reply(
         self,
         session: AsyncSession,
@@ -4457,6 +4607,7 @@ class Agent:
         text: str,
         history: list[dict] | None = None,
         memory: str | None = None,
+        media: dict | None = None,
     ) -> AgentReply:
         normalized = (text or "").strip().lower()
         raw = (text or "").strip()
@@ -4469,6 +4620,12 @@ class Agent:
         # Refrescar el vínculo desde la DB: evitar que una mutación en memoria
         # haga creer que el cliente ya está identificado.
         await session.refresh(contact)
+
+        # Imagen: se interpreta y se buscan productos parecidos en el catálogo.
+        if media and (media.get("kind") == "image"):
+            respuesta = await self._image_reply(session, contact, media)
+            if respuesta is not None:
+                return respuesta
 
         # Privacidad: sin vínculo no se consulta historial ni se deja que la IA
         # invente "no tenés compras". Primero se pide CI/NIT.

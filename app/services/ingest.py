@@ -191,7 +191,7 @@ async def ingest_inbound(
         started = time.perf_counter()
         try:
             reply = await agent.handle(
-                session, contact, text, history, memory=memory
+                session, contact, text, history, memory=memory, media=media
             )
             metrics.record((time.perf_counter() - started) * 1000)
         except Exception:  # noqa: BLE001 - nunca dejar al cliente sin respuesta

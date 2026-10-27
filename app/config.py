@@ -81,6 +81,11 @@ class Settings(BaseSettings):
     # Lectura del mensaje con el modelo antes de responder (intención,
     # producto y orden de precio). Se puede apagar para ahorrar latencia.
     understanding_enabled: bool = True
+    # Visión: modelo con imágenes por API compatible con OpenAI.
+    vision_enabled: bool = True
+    vision_model: str = ""
+    vision_api_key: str = ""
+    vision_base_url: str = ""
     outbound_pause_ms: int = 350
     # Espera antes del mensaje de cierre cuando viene después de una foto.
     outbound_close_pause_ms: int = 1500

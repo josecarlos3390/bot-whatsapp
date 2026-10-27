@@ -2262,9 +2262,6 @@ def _iter_messages(payload: dict):
                     }
                     continue
                 text = extract_text(message).strip()
-                if not text:
-                    logger.info("Mensaje sin texto ignorado: %s", message.get("type"))
-                    continue
                 media = None
                 kind = message.get("type")
                 if kind in {"image", "video", "document", "audio"}:
@@ -2275,6 +2272,10 @@ def _iter_messages(payload: dict):
                         "filename": content.get("filename"),
                         "kind": kind,
                     }
+                    if not text:
+                        # Una imagen sin texto sí se procesa: el agente la
+                        # interpreta y ofrece productos parecidos.
+                        text = f"[{kind}]"
                 yield {
                     "wa_id": message.get("from", ""),
                     "text": text,
