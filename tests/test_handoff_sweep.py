@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from datetime import datetime, timedelta, timezone
 
 from app.config import settings
@@ -9,6 +11,14 @@ from sqlalchemy import select
 
 from app.models import Contact, Conversation, Handoff
 from app.services import handoffs
+
+@pytest.fixture(autouse=True)
+def _horario_abierto(monkeypatch):
+    """Las pruebas no dependen de la hora real del servidor."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "office_hours_enabled", False)
+
 
 async def _asesor_online(session, nombre: str = "Ana"):
     """Crea (o marca) un asesor conectado, con tope de 5 casos."""

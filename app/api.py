@@ -589,6 +589,42 @@ async def admin_metrics(
 
 
 @router.get(
+    "/admin/pilot-report",
+    dependencies=[Depends(require_supervisor)],
+)
+async def admin_pilot_report(
+    hours: int = 24,
+) -> dict:
+    """Números del piloto para el período pedido."""
+    from scripts import pilot_report
+
+    texto, datos = await pilot_report.generar(hours)
+    return {"ok": True, "markdown": texto, **datos}
+
+
+@router.get(
+    "/admin/pilot-report.md",
+    dependencies=[Depends(require_supervisor)],
+)
+async def admin_pilot_report_md(
+    hours: int = 24,
+):
+    """Informe del piloto en Markdown."""
+    from fastapi.responses import Response
+
+    from scripts import pilot_report
+
+    texto, _datos = await pilot_report.generar(hours)
+    return Response(
+        content=texto,
+        media_type="text/markdown; charset=utf-8",
+        headers={
+            "Content-Disposition": 'attachment; filename="piloto.md"',
+        },
+    )
+
+
+@router.get(
     "/admin/readiness",
     dependencies=[Depends(require_supervisor)],
 )

@@ -147,11 +147,31 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
     busquedas_pendientes: { term: string; misses: number }[];
     nombres_cruzados_muestra: { sku: string; name: string; category: string }[];
   } | null>(null);
+  const [piloto, setPiloto] = useState<{
+    conversaciones: number; entrantes: number; salientes: number;
+    derivados: number; resueltos: number; en_cola: number;
+    escalados: number; incoherentes: number;
+    sin_resultado: [string, number][];
+  } | null>(null);
   const [readiness, setReadiness] = useState<{
     ready: boolean;
     score: string;
     criteria: { key: string; label: string; ok: boolean; detail: string; manual?: boolean }[];
   } | null>(null);
+
+  async function cargarPiloto() {
+    try {
+      const data = await api<{
+        conversaciones: number; entrantes: number; salientes: number;
+        derivados: number; resueltos: number; en_cola: number;
+        escalados: number; incoherentes: number;
+        sin_resultado: [string, number][];
+      }>("/admin/pilot-report?hours=24");
+      setPiloto(data);
+    } catch {
+      // El informe no debe romper el tablero.
+    }
+  }
 
   async function cargarReadiness() {
     try {
@@ -257,6 +277,7 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
     void cargarAprendizaje();
     void cargarCalidad();
     void cargarReadiness();
+    void cargarPiloto();
     const timer = window.setInterval(() => void load(), 30000);
     return () => window.clearInterval(timer);
   }, []);
@@ -492,6 +513,49 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
                 </ul>
               ) : (
                 <p className="mt-2 text-xs text-[#6b7280]">{t("Cargando semáforo…")}</p>
+              )}
+            </Card>
+
+            <Card className="mb-5 border-[#e5e7eb] bg-[#ffffff] p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-[.2em] text-[#e9082a]">{t("Piloto · últimas 24 h")}</div>
+                  <p className="text-xs text-[#6b7280]">{t("Lo que pasó con clientes reales en el día.")}</p>
+                </div>
+                <a href="/admin/pilot-report.md?hours=24" className="rounded-lg border border-[#e5e7eb] px-3 py-2 text-xs font-semibold text-[#4b5563]">{t("Descargar informe")}</a>
+              </div>
+              {piloto ? (
+                <>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
+                    {[
+                      { label: t("Conversaciones"), valor: piloto.conversaciones },
+                      { label: t("Recibidos"), valor: piloto.entrantes },
+                      { label: t("Derivados"), valor: piloto.derivados },
+                      { label: t("Resueltos"), valor: piloto.resueltos },
+                      { label: t("En cola"), valor: piloto.en_cola },
+                      { label: t("Incoherentes"), valor: piloto.incoherentes },
+                    ].map((item) => (
+                      <div key={item.label} className="rounded-xl border border-[#e5e7eb] bg-[#f9fafb] px-3 py-2">
+                        <div className="text-[10px] font-bold uppercase tracking-wide text-[#6b7280]">{item.label}</div>
+                        <div className="text-lg font-semibold text-[#111111]">{item.valor}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-[#6b7280]">{t("El bot no resolvió")}</div>
+                    {piloto.sin_resultado.length ? (
+                      <ul className="mt-1 space-y-1 text-xs text-[#4b5563]">
+                        {piloto.sin_resultado.map(([texto, veces]) => (
+                          <li key={texto} className="truncate">{veces}× · {texto}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="mt-1 text-xs text-[#6b7280]">{t("Nada pendiente.")}</p>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <p className="mt-2 text-xs text-[#6b7280]">{t("Cargando informe…")}</p>
               )}
             </Card>
 
