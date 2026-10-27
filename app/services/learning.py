@@ -41,7 +41,7 @@ async def recall(session: AsyncSession, text: str | None) -> str | None:
     fila = await session.scalar(
         select(QueryLearning).where(QueryLearning.term == clave)
     )
-    if fila is None or not fila.query:
+    if fila is None or not fila.query or fila.status == "rejected":
         return None
     fila.hits += 1
     await session.commit()
@@ -71,6 +71,8 @@ async def remember(
     fila.producto = (producto or "")[:120] or None
     fila.atributos = " ".join(atributos or [])[:300] or None
     fila.source = source
+    # Lo que aprende la IA queda pendiente hasta que alguien lo apruebe.
+    fila.status = "pending" if source == "ia" else "approved"
     fila.hits = (fila.hits or 0) + 1
     await session.commit()
     logger.info("Búsqueda aprendida: %r -> %r", clave, query)
@@ -110,3 +112,47 @@ async def summary(session: AsyncSession, limit: int = 10) -> dict:
             for f in sorted(aprendidas, key=lambda f: f.hits or 0, reverse=True)[:limit]
         ],
     }
+
+
+async def pending(session: AsyncSession, limit: int = 20) -> list[dict]:
+    """Consultas aprendidas por la IA que esperan revisión."""
+    filas = (
+        await session.scalars(
+            select(QueryLearning)
+            .where(QueryLearning.status == "pending")
+            .order_by(QueryLearning.updated_at.desc())
+            .limit(limit)
+        )
+    ).all()
+    return [
+        {
+            "id": fila.id,
+            "term": fila.term,
+            "query": fila.query,
+            "producto": fila.producto,
+            "atributos": fila.atributos,
+            "hits": fila.hits or 0,
+            "misses": fila.misses or 0,
+            "source": fila.source,
+        }
+        for fila in filas
+    ]
+
+
+async def decide(
+    session: AsyncSession,
+    learning_id: str,
+    *,
+    approve: bool,
+    query: str | None = None,
+) -> dict:
+    """Aprueba (opcionalmente corrigiendo la consulta) o descarta un mapeo."""
+    fila = await session.get(QueryLearning, learning_id)
+    if fila is None:
+        return {"ok": False, "error": "No encontrado"}
+    if query:
+        fila.query = query.strip()[:300]
+        fila.source = "manual"
+    fila.status = "approved" if approve else "rejected"
+    await session.commit()
+    return {"ok": True, "status": fila.status, "query": fila.query}

@@ -753,6 +753,8 @@ class QueryLearning(Base):
     hits: Mapped[int] = mapped_column(Integer, default=0)
     misses: Mapped[int] = mapped_column(Integer, default=0)
     source: Mapped[str] = mapped_column(String(20), default="ia")
+    # pending: aprendida por la IA, espera revisión; approved/rejected: decidida.
+    status: Mapped[str] = mapped_column(String(20), default="pending")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow

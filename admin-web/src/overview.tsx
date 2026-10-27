@@ -136,6 +136,33 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
   const [probeTrace, setProbeTrace] = useState<ProbeTrace>([]);
   const [probing, setProbing] = useState(false);
   const [probeHistory, setProbeHistory] = useState<ProbeEntry[]>([]);
+  const [pendientes, setPendientes] = useState<
+    { id: string; term: string; query: string | null; hits: number; misses: number }[]
+  >([]);
+  const [editando, setEditando] = useState<Record<string, string>>({});
+
+  async function cargarAprendizaje() {
+    try {
+      const data = await api<{
+        pending: { id: string; term: string; query: string | null; hits: number; misses: number }[];
+      }>("/admin/learning");
+      setPendientes(data.pending);
+    } catch {
+      // La revisión no debe romper el tablero.
+    }
+  }
+
+  async function decidir(id: string, approve: boolean) {
+    try {
+      await api(`/admin/learning/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ approve, query: editando[id] || undefined })
+      });
+      await cargarAprendizaje();
+    } catch {
+      // Sin conexión: se reintenta al recargar.
+    }
+  }
 
   async function loadProbeHistory() {
     try {
@@ -315,6 +342,28 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
                     <p className="mt-1 text-xs text-[#6b7280]">{t("Todavía no aprendió ninguna.")}</p>
                   )}
                 </div>
+              </div>
+              <div className="mt-4 border-t border-[#e5e7eb] pt-3">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-[#6b7280]">{t("Pendientes de revisión")}</div>
+                {pendientes.length ? (
+                  <ul className="mt-2 space-y-2">
+                    {pendientes.map((item) => (
+                      <li key={item.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-[#e5e7eb] px-2 py-1.5 text-xs">
+                        <span className="font-semibold text-[#111111]">{item.term}</span>
+                        <span className="text-[#6b7280]">→</span>
+                        <input
+                          className="min-w-[160px] flex-1 rounded-lg border border-[#e5e7eb] px-2 py-1"
+                          defaultValue={item.query ?? ""}
+                          onChange={(event) => setEditando((prev) => ({ ...prev, [item.id]: event.target.value }))}
+                        />
+                        <button onClick={() => void decidir(item.id, true)} className="rounded-lg bg-[#e9082a] px-2 py-1 font-semibold text-white">{t("Aprobar")}</button>
+                        <button onClick={() => void decidir(item.id, false)} className="rounded-lg border border-[#e5e7eb] px-2 py-1 font-semibold text-[#4b5563]">{t("Descartar")}</button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-1 text-xs text-[#6b7280]">{t("Nada para revisar.")}</p>
+                )}
               </div>
             </Card>
 

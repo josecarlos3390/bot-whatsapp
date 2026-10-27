@@ -589,6 +589,48 @@ async def admin_metrics(
 
 
 @router.get(
+    "/admin/learning",
+    dependencies=[Depends(require_supervisor)],
+)
+async def admin_learning(
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Consultas aprendidas por la IA que esperan revisión."""
+    from .services import learning
+
+    return {
+        "ok": True,
+        "pending": await learning.pending(session),
+        "summary": await learning.summary(session),
+    }
+
+
+class LearningDecision(BaseModel):
+    approve: bool
+    query: str | None = None
+
+
+@router.patch(
+    "/admin/learning/{learning_id}",
+    dependencies=[Depends(require_supervisor)],
+)
+async def admin_learning_decide(
+    learning_id: str,
+    payload: LearningDecision,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Aprueba (corrigiendo si hace falta) o descarta un aprendizaje."""
+    from .services import learning
+
+    return await learning.decide(
+        session,
+        learning_id,
+        approve=payload.approve,
+        query=payload.query,
+    )
+
+
+@router.get(
     "/admin/kpis",
     dependencies=[Depends(require_supervisor)],
 )
