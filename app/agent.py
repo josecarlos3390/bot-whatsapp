@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 import html
@@ -56,6 +56,7 @@ from .services import (
     rule_policy,
     rules_engine,
     semantic,
+    understanding,
     sales_stats,
     vtex_customers,
 )
@@ -2340,6 +2341,35 @@ def _document_number(text: str) -> str | None:
         return suelto.group(1)
     return None
 
+PRECIO_BARATO_RE = re.compile(
+    r"\b(m[aá]s\s+barat[oa]s?|m[aá]s\s+econ[oó]mic[oa]s?|"
+    r"menor\s+precio|precio\s+m[aá]s\s+bajo|lo\s+m[aá]s\s+barato|"
+    r"barat[oa]s?\s+que\s+haya|opci[oó]n\s+m[aá]s\s+barata)\b",
+    re.IGNORECASE,
+)
+PRECIO_CARO_RE = re.compile(
+    r"\b(m[aá]s\s+car[oa]s?|mayor\s+precio|precio\s+m[aá]s\s+alto|"
+    r"lo\s+m[aá]s\s+caro)\b",
+    re.IGNORECASE,
+)
+
+
+# Acciones que ya se resuelven con reglas: no hace falta interpretarlas.
+_COMPREHENSION_SKIP_RE = re.compile(
+    r"^\s*(agregar|a[ñn]adir|quitar|sacar|carrito|pagar|checkout|pedido|"
+    r"tienes|tiene|tienen|hay|busco|buscame|mostrame|venden|vende|necesito|"
+    r"menu|men[úu]|orden|seguimiento|\d+\s*$|s[íi]\s*$|no\s*$|ok\s*$|dale\s*$)",
+    re.IGNORECASE,
+)
+def _price_intent(text: str) -> str | None:
+    """'asc' si pide lo más barato, 'desc' si pide lo más caro."""
+    if PRECIO_BARATO_RE.search(text or ""):
+        return "asc"
+    if PRECIO_CARO_RE.search(text or ""):
+        return "desc"
+    return None
+
+
 def _is_purchase_query(text: str) -> bool:
     """Solo historial explícito; "la lavadora que compré" no es "mis compras"."""
     folded = _fold_word(text)
@@ -3470,6 +3500,96 @@ class Agent:
         cut = text[: limit - 1].rsplit(" ", 1)[0].rstrip()
         return (cut or text[: limit - 1]).rstrip() + "…"
 
+    async def _price_reply(
+        self,
+        session: AsyncSession,
+        contact: Contact,
+        raw: str,
+        direction: str,
+        base_hint: str | None = None,
+    ) -> AgentReply | None:
+        """Lista los artículos más baratos (o más caros) del rubro vigente."""
+        conversacion = await session.scalar(
+            select(Conversation).where(Conversation.contact_id == contact.id)
+        )
+        state = (
+            await conversation_state.get_state(session, conversacion.id)
+            if conversacion is not None
+            else None
+        )
+        base = (base_hint or "").strip() or (
+            (getattr(state, "category", None) or "") if state else ""
+        ).strip()
+        if not base and conversacion is not None:
+            base = (conversacion.last_query or "").strip()
+        base = _clean_query(base)
+        if not base and conversacion is not None:
+            # Sin rubro guardado: se toma el último mensaje del cliente que
+            # no haya sido otro pedido de precio ("tienes taladros?").
+            previos = (
+                await session.scalars(
+                    select(Message)
+                    .where(
+                        Message.conversation_id == conversacion.id,
+                        Message.direction == "in",
+                    )
+                    .order_by(Message.created_at.desc())
+                    .limit(6)
+                )
+            ).all()
+            for previo in previos:
+                candidato = _clean_query(previo.text or "")
+                if len(candidato) >= 4 and not _price_intent(candidato):
+                    base = candidato
+                    break
+        if not base:
+            return None
+
+        resultado = await Toolbox(
+            session, contact, self.wa
+        ).tool_search_products(query=base, limit=12)
+        productos = resultado.get("products") or []
+        if not productos:
+            return None
+
+        def precio(producto: dict) -> float:
+            valor = producto.get("promo_price") or producto.get("price") or 0
+            try:
+                return float(valor)
+            except (TypeError, ValueError):
+                return 0.0
+
+        productos.sort(key=precio, reverse=direction == "desc")
+        singular = bool(
+            re.search(
+                r"\b(cu[aá]l|cu[aá]les)\b.*\b(m[aá]s\s+barat|menor\s+precio|precio\s+m[aá]s\s+bajo|"
+                r"m[aá]s\s+car|mayor\s+precio)",
+                raw or "",
+                re.IGNORECASE,
+            )
+        )
+        elegidos = productos[:1] if singular else productos[:3]
+        rubro = ((getattr(state, "category", None) or base) if state else base).strip()
+        if direction == "asc":
+            texto_lead = (
+                f"El más barato de {rubro} es este:"
+                if singular
+                else f"Estos son los más baratos de {rubro}:"
+            )
+        else:
+            texto_lead = (
+                f"El más caro de {rubro} es este:"
+                if singular
+                else f"Estos son los más caros de {rubro}:"
+            )
+        self._trace(f"Orden por precio ({direction}): {rubro}")
+        return AgentReply(
+            [
+                Outbound(text=texto_lead),
+                *self._search_cards(elegidos),
+            ]
+        )
+
     @staticmethod
     def _search_cards(products: list[dict]) -> list[Outbound]:
         """Tarjetas visuales sin catálogo nativo: hasta 3 fotos + botones."""
@@ -4261,6 +4381,35 @@ class Agent:
         if decision.get("frustrated"):
             self._trace("Enojo: disculpa y derivación")
             return await self._frustration_reply(session, contact)
+        # "Quiero los más baratos": se listan artículos con precio, no marcas.
+        direccion = _price_intent(raw)
+        entendido = None
+        if (
+            direccion is None
+            and settings.deepseek_api_key
+            and settings.understanding_enabled
+            and not _COMPREHENSION_SKIP_RE.search(raw)
+        ):
+            # Solo se consulta al modelo cuando la regla no lo detectó: los
+            # caminos rápidos (agregar, sí/no, pedido) no pagan esa latencia.
+            try:
+                entendido = await understanding.parse(self._llm(), raw)
+            except Exception:  # noqa: BLE001 - interpretar no debe romper
+                entendido = None
+            direccion = (entendido or {}).get("orden_precio")
+            if direccion:
+                self._trace("Comprensión IA: pedido de precio")
+        if direccion is not None:
+            por_precio = await self._price_reply(
+                session,
+                contact,
+                raw,
+                direccion,
+                base_hint=(entendido or {}).get("producto"),
+            )
+            if por_precio is not None:
+                return por_precio
+
         if decision["intent"] == "personal":
             # La ocasión se busca en el panel (base), no sólo en el archivo
             # inicial: lo que el equipo publica tiene que llegar al bot.

@@ -66,6 +66,9 @@ class Settings(BaseSettings):
     session_gap_minutes: int = 360
     # WhatsApp procesa las imágenes de forma asíncrona: una pausa corta
     # entre mensajes evita que el cierre aparezca antes que las fotos.
+    # Lectura del mensaje con el modelo antes de responder (intención,
+    # producto y orden de precio). Se puede apagar para ahorrar latencia.
+    understanding_enabled: bool = True
     outbound_pause_ms: int = 350
     # Espera antes del mensaje de cierre cuando viene después de una foto.
     outbound_close_pause_ms: int = 1500
