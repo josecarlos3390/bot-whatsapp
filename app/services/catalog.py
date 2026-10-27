@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import difflib
 import logging
@@ -157,8 +157,12 @@ def _base_variants(term: str) -> list[str]:
         variants.append(base)
         if len(base) > 4 and base.endswith("es"):
             variants.append(base[:-2])
-        elif len(base) > 3 and base.endswith("s"):
-            variants.append(base[:-1])
+        elif len(base) > 4 and base.endswith("s"):
+            # Solo plurales reales: "gris" no debe convertirse en "gri"
+            # (y así "gris" no termina encontrando "grifos").
+            variante = base[:-1]
+            if len(variante) >= 4:
+                variants.append(variante)
     return list(dict.fromkeys(variants))
 
 
