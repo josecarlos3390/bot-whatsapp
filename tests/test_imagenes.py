@@ -148,3 +148,44 @@ def test_ordena_por_marca_y_objeto():
 
     assert ordenados[0]["brand"] == "INGCO"
     assert all("pincel" not in p["name"].lower() for p in ordenados[:2])
+
+async def test_reconoce_el_mensaje_que_acompana_la_foto(session, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "vision_api_key", "clave")
+    monkeypatch.setattr(settings, "vision_model", "modelo")
+    monkeypatch.setattr(media_service, "download", _descarga_falsa)
+
+    async def _describe_falso(contenido, mime):
+        return _descripcion()
+
+    monkeypatch.setattr(vision, "describe", _describe_falso)
+    session.add(
+        CatalogItem(
+            sku="IMG-2",
+            name="Brocha 1plg Cerda Pet Ingco",
+            price=9,
+            stock=3,
+            category="Brochas",
+            brand="INGCO",
+            image_url="https://example.com/b.png",
+            active=True,
+        )
+    )
+    await session.commit()
+    contacto = Contact(wa_id="59170020003", phone_e164="+59170020003")
+    session.add(contacto)
+    await session.flush()
+    session.add(Conversation(contact_id=contacto.id))
+    await session.commit()
+
+    respuesta = await Agent().handle(
+        session,
+        contacto,
+        "quiero comprar algo asi",
+        media={"kind": "image", "media_id": "abc"},
+    )
+    texto = " ".join(m.text or "" for m in respuesta.messages).lower()
+
+    assert "querés comprar algo así" in texto or "queres comprar algo asi" in texto
+    assert "parecidas" in texto or "no encontré" in texto

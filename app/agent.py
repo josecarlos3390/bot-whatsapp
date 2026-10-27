@@ -2470,6 +2470,53 @@ def _idea_producto_valido(
         palabra in nombre for palabra in (idea.get("excluir") or ())
     )
 
+_SOLO_INTENCION = re.compile(
+    r"^(quiero|quisiera|necesito|busco|me gustar[ií]a|me interesa|"
+    r"deseo|estoy buscando)?\s*(comprar|adquirir|ver|tener)?\s*"
+    r"(algo|uno|una|eso|esto|asi|as[ií]|igual|parecido|similar)"
+    r"(\s+(asi|as[ií]|igual|parecido|similar))?$",
+    re.IGNORECASE,
+)
+
+def _caption_intencion(texto: str) -> str:
+    """Qué pide el cliente junto a la foto: comprar, precio o nada."""
+    limpio = (texto or "").lower()
+    if re.search(r"\b(cu[aá]nto|precio|vale|cuesta|sale)\b", limpio):
+        return "precio"
+    if re.search(
+        r"\b(comprar|adquirir|llevar|encargar|me interesa|lo quiero)\b",
+        limpio,
+    ):
+        return "compra"
+    return ""
+
+
+def _caption_util(texto: str) -> str:
+    """Texto que acompaña la foto, sin ruido ni el marcador [image]."""
+    limpio = re.sub(r"\[(image|video|document|audio)\]", " ", texto or "")
+    limpio = _clean_query(limpio)
+    # Frases que solo expresan intención: no aportan a la búsqueda.
+    if _SOLO_INTENCION.match(limpio or ""):
+        return ""
+    return limpio if len(limpio) >= 3 else ""
+
+
+def _frase_imagen(
+    acompanante: str, objeto: str, marca: str, intencion: str = ""
+) -> str:
+    """Encabezado que reconoce la foto y lo que pidió el cliente."""
+    base = f"Veo tu foto: parece *{objeto}*"
+    if marca:
+        base += f" ({marca})"
+    if intencion == "compra":
+        return base + ". Querés comprar algo así."
+    if intencion == "precio":
+        return base + ". Esto es lo que tengo."
+    if acompanante:
+        return f'{base}. Me decís "{acompanante}".'
+    return base + "."
+
+
 def _pide_producto(text: str) -> bool:
     """¿El mensaje pide productos de forma explícita?"""
     return bool(PRODUCT_REQUEST_RE.search(text or ""))
@@ -2861,6 +2908,7 @@ class Agent:
         session: AsyncSession,
         contact: Contact,
         media: dict,
+        texto: str = "",
     ) -> AgentReply | None:
         """Interpreta la imagen y ofrece productos parecidos del catálogo."""
         contenido = await media_service.download(media.get("media_id") or "")
@@ -2924,8 +2972,14 @@ class Agent:
                 ]
             )
 
+        # Lo que el cliente escribió junto a la foto ("quiero comprar algo
+        # así") aporta intención y, si nombra un producto, manda la búsqueda.
+        acompanante = _caption_util(texto)
+        intencion = _caption_intencion(texto)
         consulta = " ".join(
-            parte for parte in (objeto, marca, atributos) if parte
+            parte
+            for parte in (acompanante, objeto, marca, atributos)
+            if parte
         )
         caja = Toolbox(session, contact, self.wa)
         resultado = await caja.tool_search_products(
@@ -2937,9 +2991,8 @@ class Agent:
         if productos:
             self._trace(f"Imagen: {objeto} con opciones")
             lead = (
-                f"Veo que me enviaste una imagen: parece *{objeto}*"
-                + (f" ({marca})" if marca else "")
-                + ". En la tienda tenemos opciones parecidas:"
+                _frase_imagen(acompanante, objeto, marca, intencion)
+                + " En la tienda tenemos opciones parecidas:"
             )
             return AgentReply(
                 [
@@ -2970,9 +3023,8 @@ class Agent:
                 [
                     Outbound(
                         text=(
-                            f"Veo que me enviaste una imagen: parece *{objeto}*"
-                            + (f" ({marca})" if marca else "")
-                            + f". No tengo ese modelo exacto, pero en "
+                            _frase_imagen(acompanante, objeto, marca, intencion)
+                            + f" No tengo ese modelo exacto, pero en "
                             f"*{categoria or objeto}* tengo esto:"
                         )
                     ),
@@ -2994,9 +3046,8 @@ class Agent:
                 Outbound(
                     kind="buttons",
                     text=(
-                        f"Veo que me enviaste una imagen: parece *{objeto}*"
-                        + (f" ({marca})" if marca else "")
-                        + ". No encontré algo igual en el catálogo ahora. "
+                        _frase_imagen(acompanante, objeto, marca, intencion)
+                        + " No encontré algo igual en el catálogo ahora. "
                         "¿Querés que lo busque un asesor o te muestro otras "
                         "categorías?"
                     ),
@@ -4661,7 +4712,9 @@ class Agent:
 
         # Imagen: se interpreta y se buscan productos parecidos en el catálogo.
         if media and (media.get("kind") == "image"):
-            respuesta = await self._image_reply(session, contact, media)
+            respuesta = await self._image_reply(
+                session, contact, media, texto=raw
+            )
             if respuesta is not None:
                 return respuesta
 
