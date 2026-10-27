@@ -589,6 +589,19 @@ async def admin_metrics(
 
 
 @router.get(
+    "/admin/catalog-quality",
+    dependencies=[Depends(require_supervisor)],
+)
+async def admin_catalog_quality(
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Defectos del catálogo que afectan las respuestas del bot."""
+    from .services import catalog_quality
+
+    return {"ok": True, **(await catalog_quality.report(session))}
+
+
+@router.get(
     "/admin/learning",
     dependencies=[Depends(require_supervisor)],
 )

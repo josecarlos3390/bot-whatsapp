@@ -140,6 +140,28 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
     { id: string; term: string; query: string | null; hits: number; misses: number }[]
   >([]);
   const [editando, setEditando] = useState<Record<string, string>>({});
+  const [calidad, setCalidad] = useState<{
+    total: number; sin_foto: number; nombres_largos: number;
+    nombres_cruzados: number; duplicados: number; sin_precio: number;
+    categorias_chicas: { category: string; count: number }[];
+    busquedas_pendientes: { term: string; misses: number }[];
+    nombres_cruzados_muestra: { sku: string; name: string; category: string }[];
+  } | null>(null);
+
+  async function cargarCalidad() {
+    try {
+      const data = await api<{
+        total: number; sin_foto: number; nombres_largos: number;
+        nombres_cruzados: number; duplicados: number; sin_precio: number;
+        categorias_chicas: { category: string; count: number }[];
+        busquedas_pendientes: { term: string; misses: number }[];
+        nombres_cruzados_muestra: { sku: string; name: string; category: string }[];
+      }>("/admin/catalog-quality");
+      setCalidad(data);
+    } catch {
+      // El informe no debe romper el tablero.
+    }
+  }
 
   async function cargarAprendizaje() {
     try {
@@ -214,6 +236,8 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
 
   useEffect(() => {
     void load();
+    void cargarAprendizaje();
+    void cargarCalidad();
     const timer = window.setInterval(() => void load(), 30000);
     return () => window.clearInterval(timer);
   }, []);
@@ -365,6 +389,61 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
                   <p className="mt-1 text-xs text-[#6b7280]">{t("Nada para revisar.")}</p>
                 )}
               </div>
+            </Card>
+
+            <Card className="mb-5 border-[#e5e7eb] bg-[#ffffff] p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-[.2em] text-[#e9082a]">{t("Calidad del catálogo")}</div>
+                  <p className="text-xs text-[#6b7280]">{t("Defectos de datos que el cliente termina viendo en las respuestas.")}</p>
+                </div>
+                <span className="text-xs text-[#6b7280]">{calidad?.total ?? 0} {t("artículos activos")}</span>
+              </div>
+              {calidad ? (
+                <>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                    {[
+                      { label: t("Sin foto"), valor: calidad.sin_foto },
+                      { label: t("Títulos largos"), valor: calidad.nombres_largos },
+                      { label: t("Títulos incoherentes"), valor: calidad.nombres_cruzados },
+                      { label: t("Duplicados"), valor: calidad.duplicados },
+                      { label: t("Sin precio"), valor: calidad.sin_precio },
+                      { label: t("Búsquedas sin resultado"), valor: calidad.busquedas_pendientes.reduce((total, item) => total + item.misses, 0) },
+                    ].map((item) => (
+                      <div key={item.label} className="rounded-xl border border-[#e5e7eb] bg-[#f9fafb] px-3 py-2">
+                        <div className="text-[10px] font-bold uppercase tracking-wide text-[#6b7280]">{item.label}</div>
+                        <div className={`text-lg font-semibold ${item.valor > 0 ? "text-[#a90418]" : "text-[#111111]"}`}>{item.valor}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {calidad.nombres_cruzados_muestra.length ? (
+                    <div className="mt-3">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-[#6b7280]">{t("Ejemplos a revisar")}</div>
+                      <ul className="mt-1 space-y-1 text-xs text-[#4b5563]">
+                        {calidad.nombres_cruzados_muestra.map((item) => (
+                          <li key={item.sku} className="truncate">
+                            <span className="text-[#111111]">{item.sku}</span> · {item.name}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                  {calidad.busquedas_pendientes.length ? (
+                    <div className="mt-3">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-[#6b7280]">{t("Lo que buscan y no existe")}</div>
+                      <ul className="mt-1 flex flex-wrap gap-2 text-xs text-[#4b5563]">
+                        {calidad.busquedas_pendientes.map((item) => (
+                          <li key={item.term} className="rounded-full border border-[#e5e7eb] px-2 py-0.5">
+                            {item.term} · {item.misses}×
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <p className="mt-2 text-xs text-[#6b7280]">{t("Cargando informe…")}</p>
+              )}
             </Card>
 
             <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
