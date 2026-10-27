@@ -36,6 +36,7 @@ $logDir = Join-Path $root ".tools"
 $tunnelLog = Join-Path $logDir "cloudflared.log"
 $tunnelErrLog = Join-Path $logDir "cloudflared.err.log"
 $urlFile = Join-Path $logDir "tunnel-url.txt"
+$fuzzStamp = Join-Path $logDir "fuzz.stamp"
 $botOut = Join-Path $logDir "bot.out.log"
 $botErr = Join-Path $logDir "bot.err.log"
 $envFile = Join-Path $root ".env"
@@ -142,6 +143,23 @@ function Start-WebhookWatch {
         -RedirectStandardOutput $webhookLog `
         -RedirectStandardError (Join-Path $logDir "webhook.err.log") `
         -WindowStyle Hidden -PassThru
+}
+
+function Fuzz-Due {
+    # Fuzzing nocturno: una corrida por día si está habilitado.
+    if ($env:FUZZ_NIGHTLY -eq "false") { return $false }
+    if (-not (Test-Path $fuzzStamp)) { return $true }
+    $last = (Get-Item $fuzzStamp).LastWriteTime
+    return ((Get-Date) - $last).TotalHours -ge 20
+}
+
+function Start-Fuzz {
+    Write-Host "[serve] fuzzing nocturno"
+    Write-TextNoBom -Path $fuzzStamp -Text (Get-Date -Format o)
+    Start-Process -FilePath $python `
+        -ArgumentList @("-m", "scripts.nightly_fuzz") `
+        -WorkingDirectory $root `
+        -WindowStyle Hidden
 }
 
 function Backup-Due {
@@ -267,6 +285,7 @@ while ($true) {
     try {
         if (Sync-Due) { Start-CatalogSync }
         if (Backup-Due) { Start-Backup }
+        if (Fuzz-Due) { Start-Fuzz }
 
         if ($webhook -and $webhook.HasExited) {
             Log "el vigilante del webhook se detuvo; reiniciando"

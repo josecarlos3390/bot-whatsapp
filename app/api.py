@@ -631,6 +631,45 @@ async def admin_catalog_feed(
 
 
 @router.get(
+    "/admin/titles-report.csv",
+    dependencies=[Depends(require_supervisor)],
+)
+async def admin_titles_report(
+    session: AsyncSession = Depends(get_session),
+):
+    """Títulos largos con una propuesta corta para ecommerce."""
+    import csv
+    import io
+
+    from fastapi.responses import Response
+
+    from .services import title_report
+
+    filas = await title_report.title_proposals(session)
+    buffer = io.StringIO()
+    columnas = [
+        "id",
+        "title",
+        "length",
+        "proposed_title",
+        "proposed_length",
+        "brand",
+        "category",
+    ]
+    writer = csv.DictWriter(buffer, fieldnames=columnas)
+    writer.writeheader()
+    writer.writerows(filas)
+    return Response(
+        content=buffer.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "X-Titles": str(len(filas)),
+            "Content-Disposition": 'attachment; filename="titulos-para-acortar.csv"',
+        },
+    )
+
+
+@router.get(
     "/admin/catalog-quality",
     dependencies=[Depends(require_supervisor)],
 )
