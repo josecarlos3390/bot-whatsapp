@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import asyncio
 import html
@@ -31,6 +31,7 @@ from .services import (
     area_router,
     coherence,
     conversation_state,
+    ideas,
     conversation_guard,
     customer_analysis,
     funnel,
@@ -2455,6 +2456,18 @@ _NO_ES_PRODUCTO = re.compile(
 )
 
 
+def _idea_producto_valido(
+    producto: dict, termino: str, idea: dict
+) -> bool:
+    """El producto debe nombrar el término y no ser otra cosa."""
+    nombre = (producto.get("name") or "").lower()
+    palabras = [parte for parte in termino.split() if len(parte) > 2]
+    if palabras and not all(palabra in nombre for palabra in palabras):
+        return False
+    return not any(
+        palabra in nombre for palabra in (idea.get("excluir") or ())
+    )
+
 def _pide_producto(text: str) -> bool:
     """¿El mensaje pide productos de forma explícita?"""
     return bool(PRODUCT_REQUEST_RE.search(text or ""))
@@ -2806,6 +2819,71 @@ class Agent:
         return AgentReply(
             [Outbound(kind="buttons", text=text, buttons=buttons[:3])]
         )
+
+    async def _idea_reply(
+        self,
+        session: AsyncSession,
+        contact: Contact,
+        intent: dict,
+    ) -> AgentReply:
+        """Responde una idea ("distraer a las visitas") con opciones reales."""
+        toolbox = Toolbox(session, contact, self.wa)
+        encontrados: list[dict] = []
+        vistos: set[str] = set()
+        frases: list[str] = []
+        for idea in intent["ideas"]:
+            for termino in idea["terminos"]:
+                resultado = await toolbox.tool_search_products(
+                    query=termino, limit=2, ignore_state=True
+                )
+                productos = [
+                    item
+                    for item in (resultado.get("products") or [])
+                    if _idea_producto_valido(item, termino, idea)
+                ]
+                if not productos:
+                    continue
+                producto = productos[0]
+                if producto["sku"] in vistos:
+                    break
+                vistos.add(producto["sku"])
+                encontrados.append(producto)
+                frases.append(idea["frase"])
+                break
+            if len(encontrados) >= 3:
+                break
+        if not encontrados:
+            return AgentReply(
+                [
+                    Outbound(
+                        kind="buttons",
+                        text=(
+                            f"Para {intent['label']} no tengo algo puntual en "
+                            "el catálogo ahora. Puedo mostrarte otras líneas o "
+                            "pasarte con un asesor que te oriente."
+                        ),
+                        buttons=[
+                            {"id": "catalog", "title": "Ver categorías"},
+                            {"id": "human", "title": "Asesor"},
+                        ],
+                    )
+                ]
+            )
+        encabezado = f"Para {intent['label']} te propongo:"
+        detalle = "\n".join(f"• {frase}" for frase in frases)
+        mensajes = [
+            Outbound(text=f"{encabezado}\n\n{detalle}"),
+            *self._search_cards(encontrados[:3]),
+            Outbound(
+                kind="buttons",
+                text="¿Te muestro el detalle de alguno o buscamos otra cosa?",
+                buttons=[
+                    {"id": "catalog", "title": "Ver categorías"},
+                    {"id": "human", "title": "Asesor"},
+                ],
+            ),
+        ]
+        return AgentReply(mensajes)
 
     async def _occasion_reply(
         self,
@@ -4718,6 +4796,14 @@ class Agent:
             return await self._occasion_reply(
                 session, contact, raw, event
             )
+
+        # "Algo para distraer a las visitas": es una idea, no un producto.
+        # Buscar la frase entera devolvía cualquier cosa (una vela de
+        # citronela); se traduce a categorías y se explican las opciones.
+        idea = ideas.detect(raw)
+        if idea is not None:
+            self._trace(f"Idea: {idea['label']}")
+            return await self._idea_reply(session, contact, idea)
 
         if SEMANTIC_QUERY_RE.search(raw):
             semantic_reply = await self._semantic_reply(
