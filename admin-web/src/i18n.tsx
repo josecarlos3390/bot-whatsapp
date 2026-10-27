@@ -296,6 +296,8 @@ const EN: Record<string, string> = {
   "Sin alertas activas": "No active alerts",
   "En línea": "Online",
   "Ocupado": "Busy",
+  "Desconectado": "Offline",
+  "Máx. casos": "Max cases",
   "Aprendizaje de búsquedas": "Search learning",
   "Lo que el bot no encontraba y ya aprendió. Las pendientes son candidatas para cargar en el catálogo.": "What the bot could not find and has learned. Pending ones are candidates to add to the catalog.",
   "aprendidas": "learned",

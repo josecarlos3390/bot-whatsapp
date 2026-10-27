@@ -1120,17 +1120,26 @@ function Agents({ me }: { me: Advisor }) {
   const navigate = useNavigate();
   const [advisors, setAdvisors] = useState<Advisor[]>([]);
   const [metrics, setMetrics] = useState<AdvisorMetric[]>([]);
+  const [presence, setPresence] = useState<Record<string, { status: string; open_cases: number; max_cases: number }>>({});
+  const [queued, setQueued] = useState(0);
   const [error, setError] = useState("");
   const [form, setForm] = useState({ username: "", display_name: "", password: "", role: "agent", on_duty: true });
 
   const load = useCallback(async () => {
     try {
-      const [data, metricData] = await Promise.all([
+      const [data, metricData, presencia] = await Promise.all([
         api<{ advisors: Advisor[] }>("/admin/advisors"),
-        api<{ advisors: AdvisorMetric[] }>("/admin/metrics?days=30")
+        api<{ advisors: AdvisorMetric[] }>("/admin/metrics?days=30"),
+        api<{ advisors: { username: string; status: string; open_cases: number; max_cases: number }[]; queued: number }>("/advisor/presence").catch(() => ({ advisors: [], queued: 0 }))
       ]);
       setAdvisors(data.advisors);
       setMetrics(metricData.advisors);
+      const mapa: Record<string, { status: string; open_cases: number; max_cases: number }> = {};
+      for (const fila of presencia.advisors) {
+        mapa[fila.username] = fila;
+      }
+      setPresence(mapa);
+      setQueued(presencia.queued ?? 0);
     } catch {
       setError(t("No se pudieron cargar los agentes."));
     }
@@ -1231,6 +1240,33 @@ function Agents({ me }: { me: Advisor }) {
               <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${advisor.on_duty ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>{advisor.on_duty ? "de guardia" : "fuera"}</span>
               <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600">{advisor.role || (advisor.is_admin ? "admin" : "agente")}</span>
               <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${advisor.active ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>{advisor.active ? "activo" : "inactivo"}</span>
+              {(() => {
+                const estado = presence[advisor.username];
+                if (!estado) return null;
+                const color = estado.status === "online" ? "bg-emerald-100 text-emerald-700" : estado.status === "busy" ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-500";
+                const etiqueta = estado.status === "online" ? t("En línea") : estado.status === "busy" ? t("Ocupado") : t("Desconectado");
+                return (
+                  <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${color}`}>
+                    {etiqueta} · {estado.open_cases}/{estado.max_cases}
+                  </span>
+                );
+              })()}
+              <label className="flex items-center gap-1 text-[11px] text-slate-500">
+                {t("Máx. casos")}
+                <input
+                  type="number"
+                  min={1}
+                  max={50}
+                  className="w-16 rounded-lg border border-slate-300 px-2 py-1 text-xs"
+                  defaultValue={presence[advisor.username]?.max_cases ?? 5}
+                  onBlur={(event) => {
+                    const valor = Number(event.target.value);
+                    if (valor >= 1 && valor !== presence[advisor.username]?.max_cases) {
+                      void patch(advisor.id!, { max_cases: valor });
+                    }
+                  }}
+                />
+              </label>
               <div className="flex gap-2">
                 <button onClick={() => patch(advisor.id!, { on_duty: !advisor.on_duty })} className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-semibold hover:bg-slate-50">{advisor.on_duty ? "Quitar guardia" : "Poner guardia"}</button>
                 <button onClick={() => patch(advisor.id!, { active: !advisor.active })} className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-semibold hover:bg-slate-50">{advisor.active ? "Desactivar" : "Activar"}</button>

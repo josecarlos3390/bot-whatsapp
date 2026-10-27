@@ -446,6 +446,7 @@ class AdvisorPatch(BaseModel):
     is_admin: bool | None = None
     role: str | None = None
     on_duty: bool | None = None
+    max_cases: int | None = None
     password: str | None = None
 
 
@@ -662,6 +663,8 @@ async def admin_advisor_patch(
         advisor.is_admin = payload.role == "admin"
     if payload.on_duty is not None:
         advisor.on_duty = payload.on_duty
+    if payload.max_cases is not None:
+        advisor.max_cases = max(1, min(int(payload.max_cases), 50))
     if payload.password:
         advisor.password_hash = advisor_service.hash_password(payload.password)
     await session.commit()
