@@ -73,6 +73,21 @@ def tokens_summary(window: int = 1000) -> dict:
     }
 
 
+
+_COHERENCE_BLOCKED = 0
+
+
+def record_coherence_block() -> None:
+    """Cuenta una respuesta descartada por incoherente."""
+    global _COHERENCE_BLOCKED
+    _COHERENCE_BLOCKED += 1
+    logger.info("Respuesta bloqueada por incoherencia (total %s)", _COHERENCE_BLOCKED)
+
+
+def coherence_blocked() -> int:
+    return _COHERENCE_BLOCKED
+
+
 def record(ms: float) -> None:
     """Anota una respuesta (milisegundos)."""
     try:

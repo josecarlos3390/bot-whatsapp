@@ -29,6 +29,7 @@ from .services import (
     cart as cart_service,
     catalog,
     area_router,
+    coherence,
     conversation_state,
     conversation_guard,
     customer_analysis,
@@ -4319,6 +4320,37 @@ class Agent:
         ).strip()
         if not answer:
             answer = conversation_guard.fallback_text()
+        # La respuesta no puede introducir un tema que nadie mencionó
+        # ("¿te vas de viaje?" cuando se hablaba de Halloween).
+        try:
+            contexto = await coherence.contexto_reciente(
+                session, contact, text
+            )
+            inventados = (
+                [] if en_ocasion else coherence.temas_inventados(answer, contexto)
+            )
+        except Exception:  # noqa: BLE001 - el guard no debe romper
+            logger.debug("No se pudo verificar coherencia", exc_info=True)
+            inventados = []
+        if inventados:
+            self._trace("Respuesta incoherente: se reemplaza")
+            metrics.record_coherence_block()
+            return AgentReply(
+                [
+                    Outbound(
+                        kind="buttons",
+                        text=(
+                            "Contame un poco más para mostrarte algo que te "
+                            "sirva: ¿qué estás buscando y para qué lo necesitás?"
+                        ),
+                        buttons=[
+                            {"id": "catalog", "title": "Ver productos"},
+                            {"id": "human", "title": "Asesor"},
+                        ],
+                    )
+                ]
+            )
+
         repeated = await conversation_guard.record_answer(
             session,
             contact,

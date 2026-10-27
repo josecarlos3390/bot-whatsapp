@@ -395,6 +395,7 @@ async def overview(session: AsyncSession) -> dict:
         "search_gaps": await funnel.search_gaps(session, 30),
         "qa": await qa.scan(session, 72),
         "learning": await learning.summary(session, limit=5),
+        "coherence_blocked": metrics.coherence_blocked(),
         "latency": metrics.summary(200),
         "tokens": metrics.tokens_summary(500),
         "alerts": alerts,
