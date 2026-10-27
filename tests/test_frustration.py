@@ -34,7 +34,7 @@ async def test_enojo_disculpa_y_deriva(session, monkeypatch):
     assert "persona del equipo" in texto.lower()
 
     handoff = await session.scalar(
-        select(Handoff).where(Handoff.status == "pending")
+        select(Handoff).where(Handoff.status.in_(("pending", "queued")))
     )
     assert handoff is not None
 

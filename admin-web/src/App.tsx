@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Link,
   Navigate,
@@ -764,6 +764,38 @@ function Inbox({ me }: { me: Advisor }) {
     return () => source.close();
   }, [load]);
 
+  // Latido de presencia: mientras el panel está abierto el asesor queda
+  // disponible para recibir casos (máximo 5).
+  const [presence, setPresence] = useState<{
+    status: string;
+    open_cases: number;
+    max_cases: number;
+    assigned_now?: number;
+  } | null>(null);
+
+  useEffect(() => {
+    let activo = true;
+    async function latir() {
+      try {
+        const data = await api<{
+          status: string;
+          open_cases: number;
+          max_cases: number;
+          assigned_now?: number;
+        }>("/advisor/heartbeat", { method: "POST" });
+        if (activo) setPresence(data);
+      } catch {
+        // Sin conexión: el panel sigue funcionando.
+      }
+    }
+    void latir();
+    const timer = window.setInterval(latir, 30000);
+    return () => {
+      activo = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+
   useEffect(() => {
     function focusSearch(event: KeyboardEvent) {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
@@ -930,6 +962,12 @@ function Inbox({ me }: { me: Advisor }) {
             <div>
               <h1 className="text-lg font-bold text-slate-900">{t("Handoffs abiertos")}</h1>
               <p className="text-xs text-slate-500">{t("Tiempo real + respaldo cada 30 s")}</p>
+              {presence && (
+                <span className={`mt-1 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold ${presence.status === "busy" ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-700"}`}>
+                  <span className={`h-1.5 w-1.5 rounded-full ${presence.status === "busy" ? "bg-amber-500" : "bg-emerald-500"}`} />
+                  {presence.status === "busy" ? t("Ocupado") : t("En línea")} · {presence.open_cases}/{presence.max_cases}
+                </span>
+              )}
             </div>
             <button onClick={load} className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold hover:bg-slate-50">{t("Actualizar")}</button>
           </div>

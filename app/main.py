@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 import logging
@@ -35,6 +35,23 @@ async def _warm_sap() -> None:
     except Exception:  # noqa: BLE001 - no tumbar la app
         logger.exception("No se pudo precalentar la sesión SAP")
 
+
+
+async def _assign_queue() -> None:
+    """Reparte cada minuto los casos en cola si hay asesores disponibles."""
+    from .services import presence
+
+    while True:
+        try:
+            await asyncio.sleep(60)
+            async with SessionLocal() as session:
+                asignados = await presence.assign_queued(session)
+            if asignados:
+                logger.info("Casos asignados desde la cola: %s", asignados)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001 - el reparto no debe matar la app
+            logger.exception("Error asignando la cola de casos")
 
 async def _sweep_handoffs() -> None:
     """Cierra los casos que nadie atendió, aunque el cliente no escriba.
@@ -79,12 +96,16 @@ async def lifespan(app: FastAPI):
         app.state.sap_warmup = asyncio.create_task(_warm_sap())
     await sap_event_consumer.start()
     app.state.handoff_sweeper = asyncio.create_task(_sweep_handoffs())
+    app.state.queue_assigner = asyncio.create_task(_assign_queue())
     logger.info("Servicio listo (SAP_MODE=%s, WA_DRY_RUN=%s)", settings.sap_mode, settings.wa_dry_run)
     yield
     await sap_event_consumer.stop()
     sweeper = getattr(app.state, "handoff_sweeper", None)
     if sweeper is not None and not sweeper.done():
         sweeper.cancel()
+    queue_task = getattr(app.state, "queue_assigner", None)
+    if queue_task is not None and not queue_task.done():
+        queue_task.cancel()
     task = getattr(app.state, "sap_warmup", None)
     if task is not None and not task.done():
         task.cancel()

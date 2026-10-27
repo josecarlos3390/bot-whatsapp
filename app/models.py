@@ -639,6 +639,11 @@ class Advisor(Base):
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     role: Mapped[str] = mapped_column(String(20), default="agent")
     on_duty: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Presencia: el panel manda un latido cada 30 s mientras está abierto.
+    last_seen_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    max_cases: Mapped[int] = mapped_column(Integer, default=5)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow
     )

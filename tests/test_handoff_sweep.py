@@ -5,8 +5,32 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from app.config import settings
+from sqlalchemy import select
+
 from app.models import Contact, Conversation, Handoff
 from app.services import handoffs
+
+async def _asesor_online(session, nombre: str = "Ana"):
+    """Crea (o marca) un asesor conectado, con tope de 5 casos."""
+    from app.models import Advisor
+    from app.services import advisors as advisor_service
+
+    fila = await session.scalar(select(Advisor).where(Advisor.username == "ana"))
+    if fila is None:
+        fila = await advisor_service.create_advisor(
+            session,
+            username="ana",
+            display_name=nombre,
+            password="clave12345",
+            role="agent",
+        )
+    fila.last_seen_at = datetime.now(timezone.utc)
+    fila.on_duty = True
+    fila.max_cases = 5
+    await session.commit()
+    return fila
+
+
 from app.whatsapp import WhatsAppClient
 
 
@@ -37,6 +61,7 @@ async def _conversation(session, wa_id: str):
 
 
 async def test_barrido_cierra_pendientes_vencidos(session):
+    await _asesor_online(session)
     contact, conversation = await _conversation(session, "59170000971")
     await session.commit()
 
@@ -56,6 +81,7 @@ async def test_barrido_cierra_pendientes_vencidos(session):
 
 
 async def test_barrido_no_toca_casos_recientes(session):
+    await _asesor_online(session)
     contact, conversation = await _conversation(session, "59170000972")
     await session.commit()
 

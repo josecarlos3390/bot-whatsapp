@@ -59,6 +59,15 @@ class Settings(BaseSettings):
     feedback_template_lang: str = "es"
     handoff_webhook_url: str = ""
     handoff_notify_enabled: bool = True
+    # Horario de atención: fuera de él el bot atiende y el caso queda en cola.
+    office_hours_enabled: bool = True
+    office_hours_start: str = "09:00"
+    office_hours_end: str = "18:00"
+    office_hours_days: str = "1,2,3,4,5"
+    # Presencia: segundos sin latido para considerar al asesor desconectado.
+    presence_timeout_seconds: int = 90
+    # Casos simultáneos por asesor (por defecto 5).
+    advisor_max_cases: int = 5
     handoff_auto_resume_minutes: int = 5
     handoff_sla_minutes: int = 5
     handoff_reassign_minutes: int = 5

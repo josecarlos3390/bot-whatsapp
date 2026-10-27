@@ -124,11 +124,17 @@ async def create_handoff(
 
     # El bot NO se pausa al crear el caso: sigue atendiendo consultas de
     # producto mientras un asesor lo revisa. Se pausa cuando lo toma.
-    assigned = await _choose_on_duty(session)
+    from . import presence
+
+    dentro_horario = presence.office_open()
+    assigned = await presence.pick_advisor(session) if dentro_horario else None
+    # Sin asesor conectado con lugar (o fuera de horario) el caso queda en
+    # cola: se asigna cuando alguien se conecta o libera un caso.
+    estado = "pending" if assigned is not None else "queued"
     handoff = Handoff(
         conversation_id=conversation.id,
         reason=(reason or "El cliente pidió un asesor")[:300],
-        status="pending",
+        status=estado,
         assigned_to=assigned.display_name if assigned else None,
     )
     session.add(handoff)
@@ -146,6 +152,9 @@ async def create_handoff(
     )
     await session.commit()
     notification = await notify(session, handoff, contact, conversation)
+    notification.update(
+        {"queued": estado == "queued", "office_open": dentro_horario}
+    )
     return handoff, notification
 
 

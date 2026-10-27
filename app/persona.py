@@ -75,6 +75,21 @@ def checkout_failed(reason: str) -> str:
     )
 
 
+def handoff_queued(office_open: bool = True) -> str:
+    """Aviso cuando no hay asesor conectado con lugar."""
+    if not office_open:
+        return (
+            "Estamos fuera del horario de atención (lunes a viernes, 9 a 18). "
+            "Dejé tu caso registrado y te contactan al abrir.\n\n"
+            "Mientras tanto, puedo ayudarte con productos, precios o stock."
+        )
+    return (
+        "En este momento los asesores están ocupados. Dejé tu caso en cola y "
+        "te asignamos uno en cuanto se libere.\n\n"
+        "Mientras tanto, puedo seguir ayudándote con productos, precios o stock."
+    )
+
+
 def empathy(topic: str | None = None, closing: bool = False) -> str:
     """Respuesta ante un tema delicado: empatía, sin vender."""
     if closing:

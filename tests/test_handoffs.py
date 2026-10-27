@@ -7,6 +7,28 @@ from sqlalchemy import select
 from app.models import Contact, Conversation, Handoff, Message
 from app.services import handoffs
 
+async def _asesor_online(session, nombre: str = "Ana"):
+    """Crea (o marca) un asesor conectado, con tope de 5 casos."""
+    from app.models import Advisor
+    from app.services import advisors as advisor_service
+
+    fila = await session.scalar(select(Advisor).where(Advisor.username == "ana"))
+    if fila is None:
+        fila = await advisor_service.create_advisor(
+            session,
+            username="ana",
+            display_name=nombre,
+            password="clave12345",
+            role="agent",
+        )
+    fila.last_seen_at = datetime.now(timezone.utc)
+    fila.on_duty = True
+    fila.max_cases = 5
+    await session.commit()
+    return fila
+
+
+
 class FakeWhatsApp:
     async def send_text(self, to, text):
         self.last = (to, text)
@@ -19,6 +41,7 @@ class FailingWhatsApp:
 
 
 async def test_create_take_resolve_handoff(session):
+    await _asesor_online(session)
     contact = Contact(wa_id="59170000991", phone_e164="+59170000991")
     session.add(contact)
     await session.flush()
@@ -126,6 +149,10 @@ async def test_handoff_auto_assigns_on_duty(session):
         select(Advisor).where(Advisor.username == "guardia")
     )
     advisor.on_duty = True
+    # Solo queda conectado el asesor de guardia.
+    for otro in (await session.scalars(select(Advisor))).all():
+        otro.last_seen_at = None
+    advisor.last_seen_at = datetime.now(timezone.utc)
     await session.commit()
 
     handoff, _ = await handoffs.create_handoff(

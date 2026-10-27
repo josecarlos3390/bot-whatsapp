@@ -2872,19 +2872,27 @@ class Agent:
         self, session: AsyncSession, contact: Contact, reason: str
     ) -> AgentReply:
         toolbox = Toolbox(session, contact, self.wa)
+        notification: dict = {}
         try:
-            await toolbox.tool_human_handoff(reason[:200])
+            resultado = await toolbox.tool_human_handoff(reason[:200])
+            notification = resultado.get("notification") or {}
         except Exception:  # noqa: BLE001 - no dejar sin respuesta
             logger.exception("No se pudo crear el handoff de aclaración")
+        if notification.get("queued"):
+            self._trace("Derivación en cola")
+            texto = persona.handoff_queued(
+                office_open=bool(notification.get("office_open", True))
+            )
+        else:
+            texto = (
+                "Para no darte una respuesta incorrecta, te derivo con un "
+                "asesor. ¿Querés que siga con otra consulta mientras tanto?"
+            )
         return AgentReply(
             [
                 Outbound(
                     kind="buttons",
-                    text=(
-                        "Para no darte una respuesta incorrecta, te derivo "
-                        "con un asesor. ¿Querés que siga con otra consulta "
-                        "mientras tanto?"
-                    ),
+                    text=texto,
                     buttons=[
                         {"id": "catalog", "title": "Ver productos"},
                         {"id": "human", "title": "Asesor"},

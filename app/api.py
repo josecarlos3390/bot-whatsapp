@@ -59,7 +59,7 @@ from .services import occasion_store
 from .services import overview as overview_service
 from .services import rule_simulator
 from .services import feedback as feedback_service
-from .services import handoffs
+from .services import handoffs, presence
 from .services import knowledge
 from .services import native_commerce
 from .services import refresh as refresh_service
@@ -311,6 +311,32 @@ async def advisor_logout() -> RedirectResponse:
 @router.get("/advisor/me")
 async def advisor_me(advisor: dict = Depends(require_advisor)) -> dict:
     return advisor
+
+
+@router.post("/advisor/heartbeat")
+async def advisor_heartbeat(
+    advisor: dict = Depends(require_advisor),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """El panel avisa que el asesor está conectado: presencia y reparto."""
+    fila = await session.scalar(
+        select(Advisor).where(Advisor.username == advisor.get("username"))
+    )
+    if fila is None:
+        return {"ok": False, "error": "Asesor no encontrado"}
+    resultado = await presence.heartbeat(session, fila)
+    resultado["open_cases"] = await presence.open_cases(session, fila)
+    resultado["max_cases"] = fila.max_cases
+    return resultado
+
+
+@router.get("/advisor/presence")
+async def advisor_presence(
+    advisor: dict = Depends(require_advisor),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Quiénes están conectados, cuántos casos tienen y cuántos hay en cola."""
+    return await presence.presence_summary(session)
 
 
 @router.get("/advisor/duty")
