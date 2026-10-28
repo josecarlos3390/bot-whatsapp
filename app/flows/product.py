@@ -66,8 +66,10 @@ async def detail(
         )
     else:
         lines.append(f"Precio: *Bs {final:,.2f}*")
-    if product.get("period_to"):
-        lines.append(f"Vigente hasta {product['period_to']}")
+    # VTEX usa 2100-01-01 como "sin vencimiento": mostrarlo parece un error.
+    vigencia = str(product.get("period_to") or "")
+    if vigencia and int(vigencia[:4] or 0) < 2099:
+        lines.append(f"Vigente hasta {vigencia}")
     # Disponibilidad concreta: el cliente pregunta "¿tenés stock?" y la
     # ficha repetía lo mismo sin responder.
     if stock > 0:

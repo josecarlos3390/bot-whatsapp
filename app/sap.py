@@ -130,7 +130,11 @@ class Offer:
             "category": self.category,
             "barcode": self.barcode,
             "period_from": self.period_from.isoformat() if self.period_from else None,
-            "period_to": self.period_to.isoformat() if self.period_to else None,
+            "period_to": (
+                self.period_to.isoformat()
+                if self.period_to and self.period_to.year < 2099
+                else None
+            ),
             "tier_quantity": self.tier_quantity,
             "tiers": [
                 {
