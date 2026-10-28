@@ -231,6 +231,42 @@ def _match_all(terms: list[str], *, expand: bool = True):
     return clauses
 
 
+
+# Valores que el cliente suele nombrar y que VTEX guarda como atributo.
+COLORES = (
+    "negro", "blanco", "gris", "beige", "marron", "marrón", "azul",
+    "rojo", "verde", "amarillo", "rosado", "celeste", "plomo", "crema",
+    "cafe", "café", "dorado", "plateado", "cobre", "turquesa", "violeta",
+    "lila", "naranja", "cromado", "avena", "humo",
+)
+MATERIALES = (
+    "cuero", "cuerina", "madera", "metal", "acero", "aluminio", "plastico",
+    "plástico", "vidrio", "algodon", "algodón", "poliester", "poliéster",
+    "lino", "ceramica", "cerámica", "marmol", "mármol", "granito",
+    "melamina", "mimbre", "ratan", "ratán", "tela", "microfibra", "goma",
+    "silicona", "porcelana",
+)
+
+
+def _atributo_en(terms: list[str], vocabulario: tuple[str, ...]) -> str | None:
+    """Primer valor del vocabulario que aparece en la búsqueda."""
+    for term in terms:
+        bajo = _fold(term)
+        for valor in vocabulario:
+            if _fold(valor) == bajo:
+                return valor
+    return None
+
+
+def _coincide_atributo(item, clave: str, valor: str) -> bool:
+    attributes = item.attributes if isinstance(item.attributes, dict) else {}
+    candidatos = [str(attributes.get(clave) or "")]
+    specs = attributes.get("specs")
+    if isinstance(specs, dict):
+        candidatos.extend(str(v) for v in specs.values())
+    buscado = _fold(valor)
+    return any(buscado in _fold(candidato) for candidato in candidatos if candidato)
+
 def _rank(item: CatalogItem, terms: list[str]) -> tuple[int, str]:
     """Puntaje por relevancia: los términos específicos pesan más.
 
@@ -478,6 +514,20 @@ async def search_items(
                 )
             ).all()
         )
+    # "sofá gris de cuero": si el cliente nombra color o material, se filtra
+    # por ese atributo. Si el filtro deja la lista vacía, se muestra igual lo
+    # que había (mejor eso que nada).
+    color = _atributo_en(terms, COLORES)
+    material = _atributo_en(terms, MATERIALES)
+    if (color or material) and rows:
+        filtrados = [
+            fila
+            for fila in rows
+            if (not color or _coincide_atributo(fila, "color", color))
+            and (not material or _coincide_atributo(fila, "material", material))
+        ]
+        if filtrados:
+            rows = filtrados
     # Un mismo producto puede venir con varios SKU (duplicados del sync):
     # se muestra una sola vez y se prefiere la ficha que tiene imagen.
     rows.sort(key=lambda item: 0 if item.image_url else 1)
@@ -630,7 +680,7 @@ async def facets(
     """
     term = primary_term(query)
     if not term:
-        return {"sizes": [], "brands": [], "total": 0}
+        return {"sizes": [], "brands": [], "types": [], "total": 0}
 
     rows = (
         await session.scalars(
@@ -653,6 +703,7 @@ async def facets(
 
     sizes: Counter[str] = Counter()
     brands: Counter[str] = Counter()
+    types: Counter[str] = Counter()
     for row in rows:
         name = _fold(row.name or "")
         match = SIZE_RE.search(name)
@@ -666,10 +717,15 @@ async def facets(
                 sizes[word.title()] += 1
         if row.brand:
             brands[row.brand.strip().title()] += 1
+        attributes = row.attributes if isinstance(row.attributes, dict) else {}
+        tipo = str(attributes.get("product_type") or "").strip()
+        if tipo:
+            types[tipo] += 1
 
     return {
         "sizes": [size for size, _ in sizes.most_common(limit)],
         "brands": [brand for brand, _ in brands.most_common(limit)],
+        "types": [tipo for tipo, _ in types.most_common(limit)],
         "total": len(rows),
     }
 
@@ -869,3 +925,31 @@ async def search_with_sap(
 
 def price_of(item: CatalogItem) -> Decimal:
     return Decimal(item.price)
+
+
+async def search_by_type(
+    session: AsyncSession, tipo: str, limit: int = 5
+) -> list[CatalogItem]:
+    """Artículos de un tipo concreto ("Disco de desbaste")."""
+    buscado = _fold(tipo)
+    if not buscado:
+        return []
+    filas = (
+        await session.scalars(
+            select(CatalogItem)
+            .where(
+                CatalogItem.active.is_(True),
+                CatalogItem.stock > 0,
+                CatalogItem.price > 0,
+            )
+            .limit(800)
+        )
+    ).all()
+    encontrados = []
+    for fila in filas:
+        attributes = fila.attributes if isinstance(fila.attributes, dict) else {}
+        valor = str(attributes.get("product_type") or "").strip()
+        if valor and _fold(valor) == buscado:
+            encontrados.append(fila)
+    encontrados.sort(key=lambda item: 0 if item.image_url else 1)
+    return encontrados[: int(limit)]

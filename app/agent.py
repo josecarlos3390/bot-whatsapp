@@ -32,6 +32,7 @@ from .services import (
     coherence,
     conversation_state,
     media as media_service,
+    product_view,
     vision,
     ideas,
     conversation_guard,
@@ -1039,44 +1040,8 @@ class Toolbox:
 
     @staticmethod
     def _product(item) -> dict:
-        data = {
-            "sku": item.sku,
-            "name": item.name,
-            "price": str(item.price),
-            "currency": item.currency,
-            "stock": item.stock,
-            "category": getattr(item, "category", None),
-            "brand": getattr(item, "brand", None),
-            "image_url": getattr(item, "image_url", None),
-            "description": getattr(item, "description", None),
-        }
-        # Especificaciones (garantía, medidas, material…) para que el asesor
-        # pueda filtrar y argumentar sin abrir la ficha.
-        attributes = getattr(item, "attributes", None)
-        if isinstance(attributes, dict):
-            specs = attributes.get("specs")
-            if isinstance(specs, dict) and specs:
-                data["specs"] = dict(list(specs.items())[:6])
-            for key, spec_names in (
-                ("product_type", ("Tipo", "Type")),
-                ("color", ("Color",)),
-                ("material", ("Material",)),
-            ):
-                value = attributes.get(key)
-                if not value and isinstance(specs, dict):
-                    for spec_name in spec_names:
-                        value = specs.get(spec_name) or specs.get(
-                            spec_name.lower()
-                        )
-                        if value:
-                            break
-                if value:
-                    data[key] = value
-            if attributes.get("seo_title"):
-                data["seo_title"] = attributes["seo_title"]
-        if getattr(item, "keywords", None):
-            data["keywords"] = item.keywords
-        return data
+        """Datos del artículo para el modelo (un solo constructor)."""
+        return product_view.payload(item)
 
     async def _attach_promotions(self, products: list[dict]) -> None:
         skus = [product["sku"] for product in products]
@@ -1636,23 +1601,7 @@ class Toolbox:
             data["category"] = row.category
             data["barcode"] = row.barcode
             data["attributes"] = row.attributes or {}
-            attributes = data["attributes"]
-            specs = attributes.get("specs") if isinstance(attributes, dict) else {}
-            for key, spec_names in (
-                ("product_type", ("Tipo", "Type")),
-                ("color", ("Color",)),
-                ("material", ("Material",)),
-            ):
-                value = attributes.get(key) if isinstance(attributes, dict) else None
-                if not value and isinstance(specs, dict):
-                    for spec_name in spec_names:
-                        value = specs.get(spec_name) or specs.get(spec_name.lower())
-                        if value:
-                            break
-                if value:
-                    data[key] = value
-            if row.keywords:
-                data["keywords"] = row.keywords
+            product_view.enrich(data, row)
         return {"ok": True, "product": data}
 
     async def tool_compare_products(self, sku_a: str, sku_b: str) -> dict:
@@ -1677,6 +1626,9 @@ class Toolbox:
                 ),
                 "model": attrs.get("model"),
                 "weight_kg": attrs.get("weight_kg"),
+                "product_type": product.get("product_type"),
+                "color": product.get("color"),
+                "material": product.get("material"),
                 "tiers": product.get("tiers") or [],
                 "barcode": product.get("barcode"),
             }
@@ -3650,14 +3602,25 @@ class Agent:
             and min_price is None
             and max_price is None
         ):
-            info = await catalog.facets(session, query, limit=3)
+            info = await catalog.facets(session, query, limit=4)
+            tipos = info.get("types") or []
             options = (
-                info["sizes"][:3] if info["sizes"] else info["brands"][:3]
+                tipos[:3]
+                if len(tipos) >= 2
+                else (info["sizes"][:3] if info["sizes"] else info["brands"][:3])
             )
+            es_tipo = len(tipos) >= 2
             total = int(info.get("total") or 0)
             if total and options:
                 plural = "opciones" if total != 1 else "opción"
-                if info["sizes"]:
+                if es_tipo:
+                    text = (
+                        f"Tenemos {total} {plural} de {query}. "
+                        "¿Cuál de estos tipos te sirve?\n"
+                        f"{_numbered_lines(tipos[:3])}\n\n"
+                        "Elegí uno y te muestro las opciones."
+                    )
+                elif info["sizes"]:
                     text = (
                         f"Tenemos {total} {plural} de {query} en medidas:\n"
                         f"{_numbered_lines(info['sizes'][:3])}\n\n"
@@ -3677,8 +3640,17 @@ class Agent:
                             text=text,
                             buttons=[
                                 {
-                                    "id": f"refine:{option}",
-                                    "title": self._truncate(option, 20),
+                                    "id": (
+                                        f"type:{option}"
+                                        if es_tipo
+                                        else f"refine:{option}"
+                                    ),
+                                    "title": self._truncate(
+                                        option.split(" de ")[-1]
+                                        if es_tipo
+                                        else option,
+                                        20,
+                                    ),
                                 }
                                 for option in options[:3]
                             ],
@@ -5393,6 +5365,46 @@ class Agent:
             sku = raw.split(":", 1)[1].strip()
             return await self._product_detail(session, contact, sku)
 
+        # Botón de tipo de producto ("Disco de desbaste").
+        if normalized.startswith("type:"):
+            tipo = raw.split(":", 1)[1].strip()
+            filas = await catalog.search_by_type(session, tipo, limit=3)
+            if filas:
+                self._trace(f"Tipo de producto: {tipo}")
+                productos = [Toolbox._product(fila) for fila in filas]
+                await Toolbox(
+                    session, contact, self.wa
+                )._attach_promotions(productos)
+                return AgentReply(
+                    [
+                        Outbound(text=f"Estas son las opciones de *{tipo}*:"),
+                        *self._search_cards(productos),
+                        Outbound(
+                            kind="buttons",
+                            text="¿Te muestro el detalle de alguna?",
+                            buttons=[
+                                {"id": "catalog", "title": "Ver categorías"},
+                                {"id": "human", "title": "Asesor"},
+                            ],
+                        ),
+                    ]
+                )
+            return AgentReply(
+                [
+                    Outbound(
+                        kind="buttons",
+                        text=(
+                            f"Ya no tengo stock de *{tipo}*. ¿Probamos con "
+                            "otro tipo o te muestro el rubro completo?"
+                        ),
+                        buttons=[
+                            {"id": "catalog", "title": "Ver categorías"},
+                            {"id": "human", "title": "Asesor"},
+                        ],
+                    )
+                ]
+            )
+
         # Botón de la pregunta de medida/marca: se combina con la búsqueda previa.
         if normalized.startswith("refine:"):
             option = raw.split(":", 1)[1].strip()
@@ -5466,6 +5478,38 @@ class Agent:
                     )
                     if respuesta is not None:
                         return respuesta
+
+        # Pedido amplio y el rubro tiene varios tipos ("disco"): se pregunta
+        # el tipo en vez de listar 40 artículos mezclados.
+        if catalog.is_broad_query(raw) and settings.deepseek_api_key:
+            termino = catalog.primary_term(raw) or _clean_query(raw)
+            if termino:
+                info = await catalog.facets(session, termino, limit=4)
+                tipos = info.get("types") or []
+                total = int(info.get("total") or 0)
+                if len(tipos) >= 2 and total >= 4:
+                    self._trace(f"Tipos disponibles: {termino}")
+                    return AgentReply(
+                        [
+                            Outbound(
+                                kind="buttons",
+                                text=(
+                                    f"Tenemos {total} opciones de *{termino}*. "
+                                    "¿Cuál de estos tipos te sirve?\n"
+                                    f"{_numbered_lines(tipos[:3])}"
+                                ),
+                                buttons=[
+                                    {
+                                        "id": f"type:{tipo}",
+                                        "title": self._truncate(
+                                            tipo.split(" de ")[-1], 20
+                                        ),
+                                    }
+                                    for tipo in tipos[:3]
+                                ],
+                            )
+                        ]
+                    )
 
         if SEARCH_RE.search(raw):
             # Sin un término de producto ("quién eres", "gracias"), no se
