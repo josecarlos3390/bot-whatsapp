@@ -58,9 +58,11 @@ async def frustration(
     agent, session: AsyncSession, contact: Contact
 ) -> AgentReply:
     """Cliente enojado o esperando: disculpa y derivación inmediata."""
-    from ..agent import Toolbox, persona
+    from sqlalchemy import select
 
-    """Cliente enojado o esperando: disculpa y derivación inmediata."""
+    from ..agent import Toolbox, persona
+    from ..models import Message
+
     toolbox = Toolbox(session, contact, agent.wa)
     try:
         await toolbox.tool_human_handoff(
@@ -68,6 +70,28 @@ async def frustration(
         )
     except Exception:  # noqa: BLE001 - la disculpa no se pierde
         logger.exception("No se pudo crear el handoff por frustración")
+
+    # Si ya nos disculpamos hace un momento, no se repite el mismo texto:
+    # el cliente enojado nota la repetición y se enoja más.
+    if await _ya_se_disculpo(agent, session, contact):
+        agent._trace("Enojo: ya derivado, se evita repetir")
+        return AgentReply(
+            [
+                Outbound(
+                    kind="buttons",
+                    text=(
+                        "Tu caso ya está con una persona del equipo. "
+                        "Para no repetirte el mismo mensaje: si me dejás el "
+                        "número de pedido lo adjunto, y si preferís que te "
+                        "llamen, decime el horario en que te queda bien."
+                    ),
+                    buttons=[
+                        {"id": "estado", "title": "Ver mi pedido"},
+                        {"id": "human", "title": "Asesor"},
+                    ],
+                )
+            ]
+        )
     return AgentReply(
         [
             Outbound(
@@ -77,6 +101,34 @@ async def frustration(
             )
         ]
     )
+
+
+async def _ya_se_disculpo(agent, session, contact: Contact) -> bool:
+    """¿La última respuesta del bot ya fue la disculpa por enojo?"""
+    from sqlalchemy import select
+
+    from ..agent import persona
+    from ..models import Conversation, Message
+
+    conversacion = await session.scalar(
+        select(Conversation).where(Conversation.contact_id == contact.id)
+    )
+    if conversacion is None:
+        return False
+    ultimo = await session.scalar(
+        select(Message.text)
+        .where(
+            Message.conversation_id == conversacion.id,
+            Message.direction == "out",
+            Message.text.is_not(None),
+        )
+        .order_by(Message.created_at.desc())
+        .limit(1)
+    )
+    if not ultimo:
+        return False
+    inicio = persona.frustration()[:40].lower()
+    return inicio and ultimo.strip().lower().startswith(inicio)
 
 
 

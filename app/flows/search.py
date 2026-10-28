@@ -107,3 +107,110 @@ def cards(products: list[dict]) -> list[Outbound]:
     )
     return messages
 
+
+
+async def price_reply(
+    agent,
+    session,
+    contact,
+    raw: str,
+    direction: str,
+    base_hint: str | None = None,
+):
+    """Lista los artículos más baratos (o más caros) del rubro vigente."""
+    import re
+
+    from sqlalchemy import select
+
+    from ..agent import (
+        Toolbox,
+        _clean_query,
+        _price_intent,
+        conversation_state,
+    )
+    from ..models import Conversation, Message
+    from ..replies import AgentReply
+    from ..whatsapp import Outbound
+
+    """Lista los artículos más baratos (o más caros) del rubro vigente."""
+    conversacion = await session.scalar(
+        select(Conversation).where(Conversation.contact_id == contact.id)
+    )
+    state = (
+        await conversation_state.get_state(session, conversacion.id)
+        if conversacion is not None
+        else None
+    )
+    base = (base_hint or "").strip() or (
+        (getattr(state, "category", None) or "") if state else ""
+    ).strip()
+    if not base and conversacion is not None:
+        base = (conversacion.last_query or "").strip()
+    base = _clean_query(base)
+    if not base and conversacion is not None:
+        # Sin rubro guardado: se toma el último mensaje del cliente que
+        # no haya sido otro pedido de precio ("tienes taladros?").
+        previos = (
+            await session.scalars(
+                select(Message)
+                .where(
+                    Message.conversation_id == conversacion.id,
+                    Message.direction == "in",
+                )
+                .order_by(Message.created_at.desc())
+                .limit(6)
+            )
+        ).all()
+        for previo in previos:
+            candidato = _clean_query(previo.text or "")
+            if len(candidato) >= 4 and not _price_intent(candidato):
+                base = candidato
+                break
+    if not base:
+        return None
+
+    resultado = await Toolbox(
+        session, contact, agent.wa
+    ).tool_search_products(query=base, limit=12)
+    productos = resultado.get("products") or []
+    if not productos:
+        return None
+
+    def precio(producto: dict) -> float:
+        valor = producto.get("promo_price") or producto.get("price") or 0
+        try:
+            return float(valor)
+        except (TypeError, ValueError):
+            return 0.0
+
+    productos.sort(key=precio, reverse=direction == "desc")
+    singular = bool(
+        re.search(
+            r"\b(cu[aá]l|cu[aá]les)\b.*\b(m[aá]s\s+barat|menor\s+precio|precio\s+m[aá]s\s+bajo|"
+            r"m[aá]s\s+car|mayor\s+precio)",
+            raw or "",
+            re.IGNORECASE,
+        )
+    )
+    elegidos = productos[:1] if singular else productos[:3]
+    rubro = ((getattr(state, "category", None) or base) if state else base).strip()
+    if direction == "asc":
+        texto_lead = (
+            f"El más barato de {rubro} es este:"
+            if singular
+            else f"Estos son los más baratos de {rubro}:"
+        )
+    else:
+        texto_lead = (
+            f"El más caro de {rubro} es este:"
+            if singular
+            else f"Estos son los más caros de {rubro}:"
+        )
+    agent._trace(f"Orden por precio ({direction}): {rubro}")
+    return AgentReply(
+        [
+            Outbound(text=texto_lead),
+            *agent._search_cards(elegidos),
+        ]
+    )
+
