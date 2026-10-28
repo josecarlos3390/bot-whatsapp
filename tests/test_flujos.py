@@ -58,3 +58,33 @@ def test_empatia_responde_con_salida_amable():
     assert reply.messages
     botones = [b["id"] for b in (reply.messages[0].buttons or [])]
     assert "human" in botones
+
+def test_las_tarjetas_de_producto_se_arman():
+    from app.flows import search as search_flow
+
+    productos = [
+        {
+            "sku": "S-1",
+            "name": "Sofá Bradford 2 Puestos",
+            "price": "5990",
+            "brand": "BRADFORD",
+            "category": "Sofás",
+            "description": "Un sofá cómodo",
+            "image_url": "https://example.com/sofa.png",
+        }
+    ]
+
+    mensajes = search_flow.cards(productos)
+
+    assert any(m.kind == "image" for m in mensajes)
+    assert any(m.kind == "list" for m in mensajes)
+
+
+def test_las_tarjetas_sin_imagen_van_como_texto():
+    from app.flows import search as search_flow
+
+    mensajes = search_flow.cards(
+        [{"sku": "S-2", "name": "Silla", "price": "450"}]
+    )
+
+    assert any(m.kind == "text" for m in mensajes)
