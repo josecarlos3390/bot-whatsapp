@@ -4122,6 +4122,47 @@ class Agent:
                 ]
             )
 
+        # Mismos productos que la respuesta anterior: el cliente pidió otra
+        # cosa y volver a mostrar el mismo listado parece que no escucha.
+        try:
+            actuales = repeat_guard.skus_de(reply)
+            if actuales:
+                conversacion = await session.scalar(
+                    select(Conversation).where(
+                        Conversation.contact_id == contact.id
+                    )
+                )
+                if conversacion is not None:
+                    estado = await conversation_state.get_state(
+                        session, conversacion.id
+                    )
+                    anteriores = list(estado.shown_skus or [])
+                    if repeat_guard.repite_el_mismo_listado(
+                        anteriores, actuales
+                    ):
+                        self._trace("Mismos productos: se cambia de enfoque")
+                        return AgentReply(
+                            [
+                                Outbound(
+                                    kind="buttons",
+                                    text=(
+                                        "Ya te mostré esos productos y no quiero "
+                                        "repetirlos. Decime qué te falta (medida, "
+                                        "marca o presupuesto) y busco otra cosa, "
+                                        "o te paso con un asesor."
+                                    ),
+                                    buttons=[
+                                        {"id": "human", "title": "Asesor"},
+                                        {"id": "catalog", "title": "Ver categorías"},
+                                    ],
+                                )
+                            ]
+                        )
+                    estado.shown_skus = actuales[:12]
+                    await session.commit()
+        except Exception:  # noqa: BLE001 - el guard no debe romper
+            logger.debug("No se pudo comparar el listado", exc_info=True)
+
         # El cliente insiste con lo mismo y la respuesta iba a ser parecida:
         # se cambia el enfoque en vez de repetir la misma información.
         try:

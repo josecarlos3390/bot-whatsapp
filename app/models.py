@@ -77,6 +77,9 @@ class ConversationState(Base):
     max_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
     intent: Mapped[str | None] = mapped_column(String(40))
     last_sku: Mapped[str | None] = mapped_column(String(64))
+    # SKUs que se mostraron en la última respuesta: sirve para no repetir
+    # el mismo listado cuando el cliente pide otra cosa.
+    shown_skus: Mapped[list | None] = mapped_column(JSON, default=list)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )

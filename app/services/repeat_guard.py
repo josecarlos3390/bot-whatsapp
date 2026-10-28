@@ -123,3 +123,32 @@ def cambio_de_enfoque(contact: Contact) -> str:
         "o presupuesto) y lo busco de nuevo, o te paso con un asesor que lo "
         "revise con vos."
     )
+
+
+def skus_de(reply) -> list[str]:
+    """SKUs que muestra una respuesta (listas y botones)."""
+    encontrados: list[str] = []
+    for mensaje in getattr(reply, "messages", []) or []:
+        for seccion in (getattr(mensaje, "sections", None) or []):
+            for fila in (seccion.get("rows") or []):
+                identificador = str(fila.get("id") or "")
+                if identificador.startswith(("product:", "add:")):
+                    sku = identificador.split(":")[1]
+                    if sku and sku not in encontrados:
+                        encontrados.append(sku)
+        for boton in (getattr(mensaje, "buttons", None) or []):
+            identificador = str(boton.get("id") or "")
+            if identificador.startswith(("product:", "add:")):
+                sku = identificador.split(":")[1]
+                if sku and sku not in encontrados:
+                    encontrados.append(sku)
+    return encontrados
+
+
+def repite_el_mismo_listado(
+    anteriores: list[str] | None, actuales: list[str]
+) -> bool:
+    """¿Se están mostrando exactamente los mismos productos que antes?"""
+    if not actuales or not anteriores:
+        return False
+    return set(actuales) == set(anteriores)
