@@ -13,7 +13,10 @@ from ..models import Contact, Conversation, ConversationFlow
 from ..sap import SapError, SapNotFound, get_sap
 
 
-ORDER_ID_RE = re.compile(r"\b(\d{4,20}(?:-\d{2})?)\b")
+# El ID se busca dentro del texto tal cual: quitar los espacios pegaba el
+# número a la palabra anterior y el borde de palabra no coincidía
+# ("mipedido1234-01" no tenía límite antes de los dígitos).
+ORDER_ID_RE = re.compile(r"(?<!\d)(\d{4,20}(?:-\d{1,3})?)(?!\d)")
 STATUS_LABELS = {
     "payment-pending": "Pendiente de pago",
     "waiting-for-authorization": "Esperando autorización",
@@ -83,7 +86,7 @@ async def start(session: AsyncSession, contact: Contact) -> str:
 
 
 def extract_order_id(text: str) -> str | None:
-    match = ORDER_ID_RE.search((text or "").replace(" ", ""))
+    match = ORDER_ID_RE.search(text or "")
     if not match:
         return None
     return match.group(1)

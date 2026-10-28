@@ -77,9 +77,14 @@ _SENSITIVE_TERMS = {
         "cancer", "cáncer", "ansiedad", "depresion", "depresión",
         "operacion", "operación", "internado",
     ),
+    # Solo frases que hablan del estado de ánimo: "mal" o "solo" sueltos
+    # aparecían en reclamos ("me llegó mal el pedido") y el bot respondía
+    # con empatía cuando el cliente estaba hablando de otra cosa.
     "animo": (
-        "triste", "tristeza", "solo", "sola", "mal", "angustia",
-        "llorar", "llorando", "deprimido", "deprimida", "no estoy bien",
+        "estoy triste", "me siento triste", "tristeza", "angustia",
+        "estoy angustiado", "estoy angustiada", "llorar", "estoy llorando",
+        "deprimido", "deprimida", "me siento solo", "me siento sola",
+        "estoy solo", "estoy sola", "no estoy bien",
     ),
     "familia": (
         "divorcio", "separacion", "separación", "se murio mi", "se murió mi",

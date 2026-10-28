@@ -49,7 +49,7 @@ def variante(contact: Contact) -> str:
     nombre = (contact.name or "").split(" ")[0]
     saludo = f"{nombre}, " if nombre else ""
     return (
-        f"{saludo}seguimos con tu caso. Para no repetirte lo mismo: "
-        "¿preferís que te pase con un asesor o que te muestre otra cosa "
-        "mientras tanto?"
+        f"{saludo}ya te pasé lo que tengo sobre eso. Si necesitás confirmar "
+        "un dato puntual (precio final, stock o plazo), te paso con un asesor "
+        "para que te lo confirme."
     )

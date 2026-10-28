@@ -68,6 +68,13 @@ async def detail(
         lines.append(f"Precio: *Bs {final:,.2f}*")
     if product.get("period_to"):
         lines.append(f"Vigente hasta {product['period_to']}")
+    # Disponibilidad concreta: el cliente pregunta "¿tenés stock?" y la
+    # ficha repetía lo mismo sin responder.
+    if stock > 0:
+        unidades = "unidad" if stock == 1 else "unidades"
+        lines.append(f"Disponible: {stock:,} {unidades}".replace(",", "."))
+    else:
+        lines.append("Sin stock por ahora")
     for tier in product.get("tiers") or []:
         if tier.get("quantity") and tier.get("price"):
             lines.append(

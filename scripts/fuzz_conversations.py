@@ -46,11 +46,51 @@ PERSONAS = [
     "Quiero amueblar un living chico con poco presupuesto.",
 ]
 
+
+# Casos fijos de regresión: se repiten todos los meses para comparar.
+# Cada uno nació de un bug real encontrado por el fuzzing.
+ESCENARIOS = [
+    {
+        "id": "pedido-id",
+        "persona": "Pedí una heladera y me llegó una cocina. Tengo el ID del pedido a mano.",
+        "primer_mensaje": "Hola, me llegó un producto equivocado y tengo el número de pedido",
+    },
+    {
+        "id": "stock",
+        "persona": "Quiero saber si hay stock de un producto para hoy.",
+        "primer_mensaje": "¿Tenés stock disponible para hoy?",
+    },
+    {
+        "id": "envio-zona",
+        "persona": "Necesito saber si envían a mi ciudad.",
+        "primer_mensaje": "¿Hacen envíos a Santa Cruz capital?",
+    },
+    {
+        "id": "enojo",
+        "persona": "Estoy muy molesto y quiero que me atienda una persona.",
+        "primer_mensaje": "Ya me cansé, quiero hablar con una persona",
+    },
+    {
+        "id": "precio",
+        "persona": "Busco un televisor y me interesa el más barato.",
+        "primer_mensaje": "¿Cuál es el televisor más barato que tenés?",
+    },
+    {
+        "id": "imagen",
+        "persona": "Voy a mandar una foto de una brocha y quiero comprar algo igual.",
+        "primer_mensaje": "Te mando una foto, quiero comprar algo así",
+    },
+]
+
 JUEZ = """Eres un evaluador de calidad de un chatbot de ventas.
 Te paso una conversación entre un cliente y el bot. Evalúa SOLO el desempeño del bot.
 
 Devuelve JSON con este formato exacto:
-{"nota": 1-5, "problemas": ["..."], "correcto": true|false}
+{"nota": 1-5, "problemas": ["..."], "correcto": true|false,
+ "criterios": {"responde": 0-2, "no_inventa": 0-2, "no_repite": 0-2,
+                "siguiente_paso": 0-2, "tono": 0-2}}
+
+En "criterios" poné 2 si cumple, 1 si cumple a medias y 0 si falla.
 
 Criterios:
 - Responde lo que el cliente preguntó (no otro tema).
@@ -129,6 +169,16 @@ async def main() -> None:
     parser.add_argument("--conversaciones", type=int, default=5)
     parser.add_argument("--turnos", type=int, default=6)
     parser.add_argument("--solo-reglas", action="store_true")
+    parser.add_argument(
+        "--escenarios",
+        action="store_true",
+        help="Usa los casos fijos de regresión (recomendado para comparar meses).",
+    )
+    parser.add_argument(
+        "--comparar",
+        action="store_true",
+        help="Compara con la última corrida guardada en el historial.",
+    )
     args = parser.parse_args()
 
     cliente = AsyncOpenAI(
@@ -138,8 +188,16 @@ async def main() -> None:
     resultados: list[dict] = []
 
     async with SessionLocal() as session:
-        for indice in range(args.conversaciones):
-            persona = random.choice(PERSONAS)
+        casos = (
+            ESCENARIOS[: args.conversaciones]
+            if args.escenarios
+            else [
+                {"id": f"libre-{i}", "persona": random.choice(PERSONAS), "primer_mensaje": ""}
+                for i in range(args.conversaciones)
+            ]
+        )
+        for indice, caso in enumerate(casos):
+            persona = caso["persona"]
             sufijo = uuid.uuid4().hex[:10]
             contact = Contact(
                 wa_id=f"fuzz{sufijo}",
@@ -154,12 +212,14 @@ async def main() -> None:
 
             historial: list[str] = []
             agente = Agent()
-            print(f"\n=== Conversación {indice + 1}: {persona}")
+            print(f"\n=== Conversación {indice + 1} [{caso['id']}]: {persona}")
             for turno in range(args.turnos):
-                if args.solo_reglas:
-                    texto = persona if turno == 0 else "¿y qué más tenés?"
+                if turno == 0 and caso.get("primer_mensaje"):
+                    texto = caso["primer_mensaje"]
+                elif args.solo_reglas:
+                    texto = "¿y qué más tenés?"
                 else:
-                    texto = await _cliente_habla(cliente, persona, historial) if turno else await _cliente_habla(cliente, persona, [])
+                    texto = await _cliente_habla(cliente, persona, historial)
                 if not texto:
                     break
                 historial.append(f"Cliente: {texto}")
@@ -181,8 +241,10 @@ async def main() -> None:
             )
             resultados.append(
                 {
+                    "escenario": caso["id"],
                     "persona": persona,
                     "nota": evaluacion.get("nota"),
+                    "criterios": evaluacion.get("criterios"),
                     "correcto": evaluacion.get("correcto"),
                     "problemas": evaluacion.get("problemas"),
                     "transcripcion": transcripcion,
@@ -196,8 +258,36 @@ async def main() -> None:
         json.dumps(resultados, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     notas = [r["nota"] for r in resultados if isinstance(r["nota"], (int, float))]
+    from scripts import fuzz_scores
+
+    resumen = {
+        "fecha": __import__("datetime").datetime.now(
+            __import__("datetime").timezone.utc
+        ).isoformat(),
+        "escenarios": args.escenarios,
+        "promedio": fuzz_scores.promedio(resultados),
+        "criterios": fuzz_scores.por_criterio(resultados),
+    }
+    historial_path = Path("logs/fuzz-history.json")
+    historial_path.parent.mkdir(parents=True, exist_ok=True)
+    historial = []
+    if historial_path.exists():
+        try:
+            historial = json.loads(historial_path.read_text(encoding="utf-8"))
+        except ValueError:
+            historial = []
+    anterior = historial[-1] if historial else None
+    historial.append(resumen)
+    historial_path.write_text(
+        json.dumps(historial[-24:], ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
     print("\n--- resumen ---")
     print(f"conversaciones: {len(resultados)}")
+    for linea in fuzz_scores.comparar(anterior if args.comparar else None, resumen):
+        print(linea)
+    print(f"criterios: {resumen['criterios']}")
     if notas:
         print(f"nota promedio: {sum(notas) / len(notas):.2f}")
     print(f"informe: {salida}")
