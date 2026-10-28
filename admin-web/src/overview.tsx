@@ -148,6 +148,11 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
     busquedas_pendientes: { term: string; misses: number }[];
     nombres_cruzados_muestra: { sku: string; name: string; category: string }[];
   } | null>(null);
+  const [fuzz, setFuzz] = useState<{
+    promedio: number; anterior: number | null; delta: number | null;
+    corridas: number; criterios: Record<string, number>;
+    fecha: string | null; problemas: string[];
+  } | null>(null);
   const [piloto, setPiloto] = useState<{
     conversaciones: number; entrantes: number; salientes: number;
     derivados: number; resueltos: number; en_cola: number;
@@ -159,6 +164,19 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
     score: string;
     criteria: { key: string; label: string; ok: boolean; detail: string; manual?: boolean }[];
   } | null>(null);
+
+  async function cargarFuzz() {
+    try {
+      const data = await api<{
+        promedio: number; anterior: number | null; delta: number | null;
+        corridas: number; criterios: Record<string, number>;
+        fecha: string | null; problemas: string[];
+      }>("/admin/fuzz");
+      setFuzz(data);
+    } catch {
+      // El fuzzing no debe romper el tablero.
+    }
+  }
 
   async function cargarPiloto() {
     try {
@@ -280,6 +298,7 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
     void cargarCalidad();
     void cargarReadiness();
     void cargarPiloto();
+    void cargarFuzz();
     const timer = window.setInterval(() => void load(), 30000);
     return () => window.clearInterval(timer);
   }, []);
@@ -516,6 +535,52 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
                 </ul>
               ) : (
                 <p className="mt-2 text-xs text-[#6b7280]">{t("Cargando semáforo…")}</p>
+              )}
+            </Card>
+
+            <Card className="mb-5 border-[#e5e7eb] bg-[#ffffff] p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-[.2em] text-[#e9082a]">{t("Calidad automática (fuzzing)")}</div>
+                  <p className="text-xs text-[#6b7280]">{t("Conversaciones simuladas: detecta cuando algo se rompe.")}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${fuzz && fuzz.promedio >= 3 ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-800"}`}>
+                    {fuzz ? `${fuzz.promedio}/5` : "—"}
+                  </span>
+                  {fuzz?.delta != null ? (
+                    <span className={`text-xs font-semibold ${fuzz.delta >= 0 ? "text-emerald-600" : "text-[#a90418]"}`}>
+                      {fuzz.delta >= 0 ? "+" : ""}{fuzz.delta}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+              {fuzz ? (
+                <>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-3 lg:grid-cols-5">
+                    {["responde", "no_inventa", "no_repite", "siguiente_paso", "tono"].map((clave) => (
+                      <div key={clave} className="rounded-xl border border-[#e5e7eb] bg-[#f9fafb] px-3 py-2">
+                        <div className="text-[10px] font-bold uppercase tracking-wide text-[#6b7280]">{t(clave)}</div>
+                        <div className="text-lg font-semibold text-[#111111]">{fuzz.criterios?.[clave] ?? "—"}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-[#6b7280]">{t("Últimos problemas detectados")}</div>
+                    {fuzz.problemas.length ? (
+                      <ul className="mt-1 space-y-1 text-xs text-[#4b5563]">
+                        {fuzz.problemas.map((problema) => (
+                          <li key={problema} className="truncate">• {problema}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="mt-1 text-xs text-[#6b7280]">{t("Sin problemas en la última corrida.")}</p>
+                    )}
+                  </div>
+                  <p className="mt-2 text-[11px] text-[#9ca3af]">{fuzz.corridas} {t("corridas guardadas")}</p>
+                </>
+              ) : (
+                <p className="mt-2 text-xs text-[#6b7280]">{t("Sin corridas todavía.")}</p>
               )}
             </Card>
 

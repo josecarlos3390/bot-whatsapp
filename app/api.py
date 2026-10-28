@@ -625,6 +625,17 @@ async def admin_pilot_report_md(
 
 
 @router.get(
+    "/admin/fuzz",
+    dependencies=[Depends(require_supervisor)],
+)
+async def admin_fuzz() -> dict:
+    """Nota del fuzzing, tendencia y últimos problemas."""
+    from .services import fuzz_status
+
+    return {"ok": True, **fuzz_status.status()}
+
+
+@router.get(
     "/admin/readiness",
     dependencies=[Depends(require_supervisor)],
 )

@@ -1,4 +1,4 @@
-"""No repetir la misma respuesta dos veces."""
+﻿"""No repetir la misma respuesta dos veces."""
 
 from __future__ import annotations
 
@@ -60,6 +60,64 @@ async def test_la_variante_nombra_al_cliente(session):
     await session.commit()
 
     texto = repeat_guard.variante(contacto)
+
+    assert "Ana" in texto
+    assert "asesor" in texto.lower()
+
+
+async def test_detecta_que_el_cliente_insiste(session):
+    contacto, conversacion = await _contacto(session, "59170024004")
+    session.add_all(
+        [
+            Message(
+                conversation_id=conversacion.id,
+                wa_message_id="wamid-ins-1",
+                direction="in",
+                type="text",
+                text="¿Hacen envíos a Santa Cruz capital?",
+            ),
+            Message(
+                conversation_id=conversacion.id,
+                wa_message_id="wamid-ins-2",
+                direction="in",
+                type="text",
+                text="¿Hacen envíos a Santa Cruz capital?",
+            ),
+        ]
+    )
+    await session.commit()
+
+    assert (
+        await repeat_guard.cliente_repite(
+            session, contacto, "¿Hacen envíos a Santa Cruz capital?"
+        )
+        is True
+    )
+
+
+async def test_una_pregunta_nueva_no_es_insistencia(session):
+    contacto, conversacion = await _contacto(session, "59170024005")
+    session.add(
+        Message(
+            conversation_id=conversacion.id,
+            wa_message_id="wamid-ins-3",
+            direction="in",
+            type="text",
+            text="¿Hacen envíos a Santa Cruz capital?",
+        )
+    )
+    await session.commit()
+
+    assert (
+        await repeat_guard.cliente_repite(
+            session, contacto, "¿Cuánto sale un colchón de 2 plazas?"
+        )
+        is False
+    )
+
+
+def test_el_cambio_de_enfoque_ofrece_salida(session):
+    texto = repeat_guard.cambio_de_enfoque(Contact(wa_id="1", name="Ana"))
 
     assert "Ana" in texto
     assert "asesor" in texto.lower()

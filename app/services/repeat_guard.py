@@ -53,3 +53,72 @@ def variante(contact: Contact) -> str:
         "un dato puntual (precio final, stock o plazo), te paso con un asesor "
         "para que te lo confirme."
     )
+
+
+def _parecido(a: str, b: str, umbral: float = 0.75) -> bool:
+    """Similitud de texto (0 a 1) por difflib."""
+    from difflib import SequenceMatcher
+
+    uno, otro = _normalizar(a), _normalizar(b)
+    if not uno or not otro:
+        return False
+    return SequenceMatcher(None, uno, otro).ratio() >= umbral
+
+
+async def cliente_repite(
+    session: AsyncSession, contact: Contact, texto: str, limite: int = 6
+) -> bool:
+    """¿El cliente ya preguntó lo mismo en los mensajes anteriores?"""
+    conversacion = await session.scalar(
+        select(Conversation).where(Conversation.contact_id == contact.id)
+    )
+    if conversacion is None:
+        return False
+    filas = (
+        await session.scalars(
+            select(Message.text)
+            .where(
+                Message.conversation_id == conversacion.id,
+                Message.direction == "in",
+                Message.text.is_not(None),
+            )
+            .order_by(Message.created_at.desc())
+            .limit(limite + 1)
+        )
+    ).all()
+    # La primera es el mensaje actual (ya guardado antes de responder).
+    anteriores = list(filas[1:]) if filas else []
+    return any(_parecido(texto or "", previo or "") for previo in anteriores)
+
+
+async def respuesta_parecida(
+    session: AsyncSession, contact: Contact, answer: str
+) -> bool:
+    """¿La respuesta se parece a la anterior (no idéntica)?"""
+    conversacion = await session.scalar(
+        select(Conversation).where(Conversation.contact_id == contact.id)
+    )
+    if conversacion is None:
+        return False
+    ultimo = await session.scalar(
+        select(Message.text)
+        .where(
+            Message.conversation_id == conversacion.id,
+            Message.direction == "out",
+            Message.text.is_not(None),
+        )
+        .order_by(Message.created_at.desc())
+        .limit(1)
+    )
+    return bool(ultimo) and _parecido(ultimo or "", answer or "")
+
+
+def cambio_de_enfoque(contact: Contact) -> str:
+    """Mensaje cuando el cliente insiste y el bot iba a repetir."""
+    nombre = (contact.name or "").split(" ")[0]
+    saludo = f"{nombre}, " if nombre else ""
+    return (
+        f"{saludo}ya te mostré lo que tengo sobre eso y no quiero repetirte "
+        "lo mismo. Para avanzar: decime qué te falta (medida, marca o "
+        "presupuesto) o te paso con un asesor que lo revise con vos."
+    )

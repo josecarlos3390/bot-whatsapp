@@ -4104,6 +4104,30 @@ class Agent:
                 ]
             )
 
+        # El cliente insiste con lo mismo y la respuesta iba a ser parecida:
+        # se cambia el enfoque en vez de repetir la misma información.
+        try:
+            if await repeat_guard.cliente_repite(
+                session, contact, text
+            ) and await repeat_guard.respuesta_parecida(
+                session, contact, answer
+            ):
+                self._trace("Cliente insiste: cambio de enfoque")
+                return AgentReply(
+                    [
+                        Outbound(
+                            kind="buttons",
+                            text=repeat_guard.cambio_de_enfoque(contact),
+                            buttons=[
+                                {"id": "human", "title": "Asesor"},
+                                {"id": "catalog", "title": "Ver productos"},
+                            ],
+                        )
+                    ]
+                )
+        except Exception:  # noqa: BLE001 - el guard no debe romper
+            logger.debug("No se pudo verificar insistencia", exc_info=True)
+
         # Si es exactamente la misma respuesta que la anterior, se cambia:
         # repetirse frente a un cliente enojado empeora la situación.
         try:
