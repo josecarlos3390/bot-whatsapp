@@ -2537,6 +2537,17 @@ def _atributo_preguntado(text: str) -> str | None:
     return None
 
 
+def _etiqueta_busqueda(query: str) -> str:
+    """Texto corto para citar en un mensaje de sin resultados.
+
+    Si la consulta es una frase larga (un reclamo, una queja), no se cita:
+    repetirle al cliente su propia queja completa suena a error.
+    """
+    limpio = _clean_query(query) or ""
+    if not limpio or len(limpio.split()) > 6 or len(limpio) > 60:
+        return ""
+    return limpio
+
 def _pide_producto(text: str) -> bool:
     """¿El mensaje pide productos de forma explícita?"""
     return bool(PRODUCT_REQUEST_RE.search(text or ""))
@@ -3466,11 +3477,18 @@ class Agent:
                     Outbound(
                         kind="buttons",
                         text=(
-                            f"No tengo nada para *{query.strip()}* en este "
-                            "momento. Trabajo con línea blanca, colchones, "
-                            "muebles, iluminación, baño y ferretería. "
-                            "¿Te muestro alguna categoría o buscamos de otra "
-                            "forma?"
+                            f"No tengo nada para *{_etiqueta_busqueda(query)}*"
+                            " en este momento. Trabajo con línea blanca, "
+                            "colchones, muebles, iluminación, baño y "
+                            "ferretería. ¿Te muestro alguna categoría o "
+                            "buscamos de otra forma?"
+                            if _etiqueta_busqueda(query)
+                            else (
+                                "No tengo eso en este momento. Trabajo con "
+                                "línea blanca, colchones, muebles, iluminación, "
+                                "baño y ferretería. ¿Te muestro alguna "
+                                "categoría o buscamos de otra forma?"
+                            )
                         ),
                         buttons=[
                             {"id": "search", "title": "Buscar otra cosa"},
