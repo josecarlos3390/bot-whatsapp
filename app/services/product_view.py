@@ -40,22 +40,38 @@ def payload(item) -> dict:
         "brand": getattr(item, "brand", None),
         "image_url": getattr(item, "image_url", None),
         "description": getattr(item, "description", None),
-        **_atributos(getattr(item, "attributes", None), getattr(item, "keywords", None)),
+        **_atributos(item),
     }
 
 
-def _atributos(attributes: Any, keywords: str | None) -> dict:
+def atributo(item, clave: str) -> str | None:
+    """Valor de un atributo: columna propia y, si falta, el JSON."""
+    valor = getattr(item, clave, None)
+    if valor:
+        return str(valor)
+    attributes = getattr(item, "attributes", None)
+    if isinstance(attributes, dict):
+        directo = attributes.get(clave)
+        if directo:
+            return str(directo)
+        return _spec_value(attributes.get("specs"), SPEC_ALIASES.get(clave, ()))
+    return None
+
+
+def _atributos(item) -> dict:
     data: dict = {}
+    attributes = getattr(item, "attributes", None)
     if isinstance(attributes, dict):
         specs = attributes.get("specs")
         if isinstance(specs, dict) and specs:
             data["specs"] = dict(list(specs.items())[:6])
-        for clave, alias in SPEC_ALIASES.items():
-            valor = attributes.get(clave) or _spec_value(specs, alias)
-            if valor:
-                data[clave] = valor
         if attributes.get("seo_title"):
             data["seo_title"] = attributes["seo_title"]
+    for clave in SPEC_ALIASES:
+        valor = atributo(item, clave)
+        if valor:
+            data[clave] = valor
+    keywords = getattr(item, "keywords", None)
     if keywords:
         data["keywords"] = keywords
     return data
@@ -63,5 +79,5 @@ def _atributos(attributes: Any, keywords: str | None) -> dict:
 
 def enrich(data: dict, item) -> dict:
     """Suma al diccionario los atributos y keywords del artículo."""
-    data.update(_atributos(getattr(item, "attributes", None), getattr(item, "keywords", None)))
+    data.update(_atributos(item))
     return data

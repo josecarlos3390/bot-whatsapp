@@ -15,7 +15,7 @@ import argparse
 import asyncio
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import httpx
 from sqlalchemy import select
@@ -31,6 +31,24 @@ SPEC_KEYS = {
     "color": ("Color",),
     "material": ("Material",),
 }
+
+
+def _needs_refresh(item: CatalogItem, refresh_days: int) -> bool:
+    attributes = item.attributes if isinstance(item.attributes, dict) else {}
+    if attributes.get("keywords_source") != "vtex":
+        return True
+    if refresh_days <= 0:
+        return True
+    raw = attributes.get("keywords_synced_at")
+    if not raw:
+        return True
+    try:
+        synced = datetime.fromisoformat(str(raw))
+        if synced.tzinfo is None:
+            synced = synced.replace(tzinfo=timezone.utc)
+    except ValueError:
+        return True
+    return datetime.now(timezone.utc) - synced >= timedelta(days=refresh_days)
 
 
 def _joined_keywords(item: CatalogItem, detail: dict) -> str | None:
@@ -74,10 +92,39 @@ def _apply_detail(item: CatalogItem, detail: dict) -> bool:
         if keywords and keywords != item.keywords:
             item.keywords = keywords
             changed = True
+    ahora = datetime.now(timezone.utc)
     attributes["keywords_source"] = "vtex"
-    attributes["keywords_synced_at"] = datetime.now(
-        timezone.utc
-    ).isoformat()
+    attributes["keywords_synced_at"] = ahora.isoformat()
+    # Columnas propias (el JSON queda como respaldo para las especificaciones).
+    item.product_type = (
+        str(detail.get("product_type"))[:80]
+        if detail.get("product_type")
+        else item.product_type
+        or (
+            str(attributes.get("product_type"))[:80]
+            if attributes.get("product_type")
+            else None
+        )
+    )
+    item.color = (
+        str(detail.get("color"))[:60]
+        if detail.get("color")
+        else item.color or (
+            str(attributes.get("color"))[:60] if attributes.get("color") else None
+        )
+    )
+    item.material = (
+        str(detail.get("material"))[:60]
+        if detail.get("material")
+        else item.material
+        or (
+            str(attributes.get("material"))[:60]
+            if attributes.get("material")
+            else None
+        )
+    )
+    item.keywords_source = "vtex"
+    item.keywords_synced_at = ahora
     changed = True
     if changed:
         item.attributes = attributes
@@ -119,6 +166,7 @@ async def run(
     all_items: bool,
     concurrency: int,
     delay: float,
+    refresh_days: int,
     dry_run: bool,
 ) -> dict:
     await init_db()
@@ -135,10 +183,7 @@ async def run(
     pending = [
         item
         for item in items
-        if not (
-            isinstance(item.attributes, dict)
-            and item.attributes.get("keywords_source") == "vtex"
-        )
+        if _needs_refresh(item, refresh_days)
     ]
     logger.info(
         "Artículos activos: %s · pendientes de keywords: %s",
@@ -203,6 +248,7 @@ def main() -> None:
     parser.add_argument("--all", action="store_true")
     parser.add_argument("--concurrency", type=int, default=1)
     parser.add_argument("--delay", type=float, default=0.8)
+    parser.add_argument("--refresh-days", type=int, default=30)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     logging.basicConfig(
@@ -215,6 +261,7 @@ def main() -> None:
             all_items=args.all,
             concurrency=min(max(args.concurrency, 1), 12),
             delay=max(args.delay, 0),
+            refresh_days=max(args.refresh_days, 0),
             dry_run=args.dry_run,
         )
     )

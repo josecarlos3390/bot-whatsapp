@@ -1,4 +1,4 @@
-﻿# Sincronizacion periodica del bot contra VTEX.
+# Sincronizacion periodica del bot contra VTEX.
 # Ejecutar con:
 #   powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\vtex_sync_all.ps1
 #
@@ -47,6 +47,14 @@ $steps = @()
 $code = Run-Step "Catalogo VTEX" @("-m", "scripts.sync_vtex")
 $failed += $code
 $steps += [pscustomobject]@{ name = "Catalogo VTEX"; exit_code = $code }
+
+# KeyWords SEO y especificaciones del detalle del SKU. Refresco diario.
+$code = Run-Step "Keywords VTEX" @(
+    "-m", "scripts.enrich_vtex_keywords", "--all",
+    "--concurrency", "1", "--delay", "0.8", "--refresh-days", "1"
+)
+$failed += $code
+$steps += [pscustomobject]@{ name = "Keywords VTEX"; exit_code = $code }
 
 # Promociones locales con vigencia.
 $code = Run-Step "Promociones VTEX" @("-m", "scripts.sync_vtex_promotions")

@@ -505,6 +505,14 @@ class CatalogItem(Base):
     stock: Mapped[int] = mapped_column(default=0)
     image_url: Mapped[str | None] = mapped_column(String(500))
     keywords: Mapped[str | None] = mapped_column(Text)
+    # Clasificación de VTEX (columnas propias: antes vivían en `attributes`).
+    product_type: Mapped[str | None] = mapped_column(String(80), index=True)
+    color: Mapped[str | None] = mapped_column(String(60), index=True)
+    material: Mapped[str | None] = mapped_column(String(60))
+    keywords_source: Mapped[str | None] = mapped_column(String(20), index=True)
+    keywords_synced_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     sap_valid: Mapped[bool] = mapped_column(Boolean, default=True)
     sap_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

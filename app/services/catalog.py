@@ -248,6 +248,17 @@ MATERIALES = (
 )
 
 
+def _tipo_de(item) -> str:
+    """Tipo de producto: columna propia y, si falta, el JSON."""
+    valor = str(getattr(item, "product_type", None) or "").strip()
+    if valor:
+        return valor
+    attributes = getattr(item, "attributes", None)
+    if isinstance(attributes, dict):
+        return str(attributes.get("product_type") or "").strip()
+    return ""
+
+
 def _atributo_en(terms: list[str], vocabulario: tuple[str, ...]) -> str | None:
     """Primer valor del vocabulario que aparece en la búsqueda."""
     for term in terms:
@@ -260,10 +271,12 @@ def _atributo_en(terms: list[str], vocabulario: tuple[str, ...]) -> str | None:
 
 def _coincide_atributo(item, clave: str, valor: str) -> bool:
     attributes = item.attributes if isinstance(item.attributes, dict) else {}
-    candidatos = [str(attributes.get(clave) or "")]
-    specs = attributes.get("specs")
-    if isinstance(specs, dict):
-        candidatos.extend(str(v) for v in specs.values())
+    candidatos = [str(getattr(item, clave, None) or "")]
+    if isinstance(attributes, dict):
+        candidatos.append(str(attributes.get(clave) or ""))
+        specs = attributes.get("specs")
+        if isinstance(specs, dict):
+            candidatos.extend(str(v) for v in specs.values())
     buscado = _fold(valor)
     return any(buscado in _fold(candidato) for candidato in candidatos if candidato)
 
@@ -276,8 +289,7 @@ def _rank(item: CatalogItem, terms: list[str]) -> tuple[int, str]:
     name = _fold(item.name or "")
     category = _fold(item.category or "")
     brand = _fold(item.brand or "")
-    attributes = item.attributes if isinstance(item.attributes, dict) else {}
-    tipo = _fold(str(attributes.get("product_type") or ""))
+    tipo = _fold(_tipo_de(item))
     keywords = _fold(item.keywords or "")
     puntos = 0
     for term in terms:
@@ -717,8 +729,7 @@ async def facets(
                 sizes[word.title()] += 1
         if row.brand:
             brands[row.brand.strip().title()] += 1
-        attributes = row.attributes if isinstance(row.attributes, dict) else {}
-        tipo = str(attributes.get("product_type") or "").strip()
+        tipo = _tipo_de(row)
         if tipo:
             types[tipo] += 1
 
@@ -947,8 +958,10 @@ async def search_by_type(
     ).all()
     encontrados = []
     for fila in filas:
-        attributes = fila.attributes if isinstance(fila.attributes, dict) else {}
-        valor = str(attributes.get("product_type") or "").strip()
+        valor = str(getattr(fila, "product_type", None) or "").strip()
+        if not valor:
+            attributes = fila.attributes if isinstance(fila.attributes, dict) else {}
+            valor = str(attributes.get("product_type") or "").strip()
         if valor and _fold(valor) == buscado:
             encontrados.append(fila)
     encontrados.sort(key=lambda item: 0 if item.image_url else 1)
