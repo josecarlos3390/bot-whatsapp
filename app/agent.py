@@ -25,6 +25,7 @@ from .models import (
     Message,
     ProductPromotion,
 )
+from .flows import handoff as handoff_flow
 from .flows import media as media_flow
 from .flows import menu as menu_flow
 from .flows import product as product_flow
@@ -2820,42 +2821,13 @@ class Agent:
     async def _frustration_reply(
         self, session: AsyncSession, contact: Contact
     ) -> AgentReply:
-        """Cliente enojado o esperando: disculpa y derivación inmediata."""
-        toolbox = Toolbox(session, contact, self.wa)
-        try:
-            await toolbox.tool_human_handoff(
-                "Cliente enojado o esperando respuesta"
-            )
-        except Exception:  # noqa: BLE001 - la disculpa no se pierde
-            logger.exception("No se pudo crear el handoff por frustración")
-        return AgentReply(
-            [
-                Outbound(
-                    kind="buttons",
-                    text=persona.frustration(),
-                    buttons=[{"id": "human", "title": "Hablar con alguien"}],
-                )
-            ]
-        )
+        """Cliente enojado: disculpa y derivación (flows/handoff.py)."""
+        return await handoff_flow.frustration(self, session, contact)
 
     @staticmethod
     def _empathy_reply(decision: dict) -> AgentReply:
-        """Ante algo delicado: empatía, cero venta y una salida amable."""
-        text = persona.empathy(
-            decision.get("sensitive_topic"), closing=bool(decision.get("closing"))
-        )
-        return AgentReply(
-            [
-                Outbound(
-                    kind="buttons",
-                    text=text,
-                    buttons=[
-                        {"id": "human", "title": "Hablar con alguien"},
-                        {"id": "catalog", "title": "Seguir con productos"},
-                    ],
-                )
-            ]
-        )
+        """Empatía ante un tema delicado (flows/handoff.py)."""
+        return handoff_flow.empathy(None, decision)
 
     @staticmethod
     def _personal_pivot() -> AgentReply:
@@ -3071,35 +3043,8 @@ class Agent:
     async def _human_fallback(
         self, session: AsyncSession, contact: Contact, reason: str
     ) -> AgentReply:
-        toolbox = Toolbox(session, contact, self.wa)
-        notification: dict = {}
-        try:
-            resultado = await toolbox.tool_human_handoff(reason[:200])
-            notification = resultado.get("notification") or {}
-        except Exception:  # noqa: BLE001 - no dejar sin respuesta
-            logger.exception("No se pudo crear el handoff de aclaración")
-        if notification.get("queued"):
-            self._trace("Derivación en cola")
-            texto = persona.handoff_queued(
-                office_open=bool(notification.get("office_open", True))
-            )
-        else:
-            texto = (
-                "Para no darte una respuesta incorrecta, te derivo con un "
-                "asesor. ¿Querés que siga con otra consulta mientras tanto?"
-            )
-        return AgentReply(
-            [
-                Outbound(
-                    kind="buttons",
-                    text=texto,
-                    buttons=[
-                        {"id": "catalog", "title": "Ver productos"},
-                        {"id": "human", "title": "Asesor"},
-                    ],
-                )
-            ]
-        )
+        """Deriva a un asesor (flows/handoff.py)."""
+        return await handoff_flow.fallback(self, session, contact, reason)
 
     async def _clarify_reply(
         self,

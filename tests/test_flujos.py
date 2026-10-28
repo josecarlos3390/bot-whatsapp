@@ -41,3 +41,20 @@ def test_los_flujos_de_menu_y_media_existen():
     assert callable(menu_flow.product_list)
     assert callable(menu_flow.idea)
     assert callable(media_flow.reply)
+
+def test_el_flujo_de_derivacion_existe():
+    from app.flows import handoff as handoff_flow
+
+    assert callable(handoff_flow.fallback)
+    assert callable(handoff_flow.frustration)
+    assert callable(handoff_flow.empathy)
+
+
+def test_empatia_responde_con_salida_amable():
+    from app.flows import handoff as handoff_flow
+
+    reply = handoff_flow.empathy(None, {"sensitive_topic": "duelo", "closing": False})
+
+    assert reply.messages
+    botones = [b["id"] for b in (reply.messages[0].buttons or [])]
+    assert "human" in botones
