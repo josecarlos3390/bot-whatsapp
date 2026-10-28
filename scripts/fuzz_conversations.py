@@ -1,4 +1,4 @@
-﻿"""Simula conversaciones con clientes y evalúa las respuestas.
+"""Simula conversaciones con clientes y evalúa las respuestas.
 
 Un modelo hace de cliente (con un objetivo) y otro evalúa el resultado. Sirve
 para encontrar combinaciones que a un humano no se le ocurren, sin usar
@@ -230,6 +230,27 @@ async def main() -> None:
                 )
                 salida = " ".join(m.text or "" for m in respuesta.messages)
                 historial.append(f"Bot: {salida[:400]}")
+                # Igual que en producción: se guardan los mensajes para que
+                # los guards de repetición tengan historial real que revisar.
+                session.add(
+                    Message(
+                        conversation_id=conversation.id,
+                        wa_message_id=f"fuzz-in-{uuid.uuid4().hex[:12]}",
+                        direction="in",
+                        type="text",
+                        text=texto,
+                    )
+                )
+                session.add(
+                    Message(
+                        conversation_id=conversation.id,
+                        wa_message_id=f"fuzz-out-{uuid.uuid4().hex[:12]}",
+                        direction="out",
+                        type="text",
+                        text=salida,
+                    )
+                )
+                await session.commit()
                 print(f"  C: {texto[:110]}")
                 print(f"  B: {salida.replace(chr(10), ' ')[:150]}")
 
@@ -265,6 +286,7 @@ async def main() -> None:
             __import__("datetime").timezone.utc
         ).isoformat(),
         "escenarios": args.escenarios,
+        "casos": len(resultados),
         "promedio": fuzz_scores.promedio(resultados),
         "criterios": fuzz_scores.por_criterio(resultados),
     }

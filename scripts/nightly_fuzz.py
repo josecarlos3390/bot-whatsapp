@@ -123,8 +123,18 @@ def main() -> int:
         return 1
 
     historial = _historial()
-    anterior = historial[-2] if len(historial) >= 2 else None
     actual = historial[-1] if historial else None
+    # Solo se compara con una corrida del mismo tipo: 4 casos no se comparan
+    # con 6.
+    anterior = None
+    if actual:
+        for entrada in reversed(historial[:-1]):
+            if (
+                entrada.get("escenarios") == actual.get("escenarios")
+                and entrada.get("casos") == actual.get("casos")
+            ):
+                anterior = entrada
+                break
     if not actual:
         logger.warning("El fuzzing no dejó resumen en el historial")
         return 1

@@ -118,7 +118,8 @@ def cambio_de_enfoque(contact: Contact) -> str:
     nombre = (contact.name or "").split(" ")[0]
     saludo = f"{nombre}, " if nombre else ""
     return (
-        f"{saludo}ya te mostré lo que tengo sobre eso y no quiero repetirte "
-        "lo mismo. Para avanzar: decime qué te falta (medida, marca o "
-        "presupuesto) o te paso con un asesor que lo revise con vos."
+        f"{saludo}entiendo que lo que te mostré no te sirvió. Para no "
+        "repetirte la misma información: decime qué te falta (medida, marca "
+        "o presupuesto) y lo busco de nuevo, o te paso con un asesor que lo "
+        "revise con vos."
     )

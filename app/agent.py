@@ -4202,9 +4202,11 @@ class Agent:
                     Outbound(
                         kind="buttons",
                         text=(
-                            "Tu caso ya está con una persona del equipo. Para no "
-                            "demorarte, no te ofrezco productos: seguimos cuando "
-                            "te responda el asesor."
+                            "Entiendo la espera y ya está con una persona del "
+                            "equipo. Para no hacerte perder tiempo no te ofrezco "
+                            "productos: si me dejás el número de pedido lo sumo "
+                            "al caso, y apenas te responda el asesor seguimos "
+                            "por acá."
                         ),
                         buttons=[
                             {"id": "human", "title": "Ver mi caso"},
