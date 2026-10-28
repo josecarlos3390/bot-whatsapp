@@ -15,14 +15,25 @@ def first_name(contact_name: str | None) -> str:
     return f" {value}" if value else ""
 
 
+# Variantes del saludo: mismo formato, distinta frase, para no repetirse.
+_VARIANTES_SALUDO = (
+    "¿Qué necesitás hoy? Podés escribirme directamente o elegir una opción 👇",
+    "¿En qué te doy una mano hoy? Escribime o tocá una opción 👇",
+    "¿Qué estás buscando hoy? Contame o elegí una opción 👇",
+)
+
+
 def welcome(contact_name: str | None = None) -> str:
-    greeting = context.greeting()
-    holiday = context.holiday_today()
-    extra = f" Hoy es {holiday}, por si te sirve." if holiday else ""
+    """Saludo principal: nombre, quién es y tres opciones."""
+    import random
+
+    nombre = first_name(contact_name).strip()
+    saludo = f"¡Hola, {nombre}! 👋" if nombre else "¡Hola! 👋"
+    variante = random.choice(_VARIANTES_SALUDO)
     return (
-        f"¡{greeting}{first_name(contact_name)}! 👋 Soy *{name()}*, "
-        f"tu asesora de hogar en ROHO.{extra} "
-        "Contame qué estás buscando y lo vemos con calma."
+        f"{saludo} Soy *{name()}*, tu asistente virtual de ROHO Homecenter. 🏡\n"
+        "Estoy acá para ayudarte a encontrar productos y resolver tus "
+        f"consultas.\n{variante}"
     )
 
 

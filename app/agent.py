@@ -4249,6 +4249,19 @@ class Agent:
         # haga creer que el cliente ya está identificado.
         await session.refresh(contact)
 
+        # El botón "asesor" tiene que funcionar siempre, incluso dentro de
+        # un flujo (seguimiento de pedido, devolución): era el caso donde el
+        # bot seguía pidiendo el ID en lugar de derivar.
+        if normalized in {"human", "asesor", "humano"}:
+            self._trace("Botón: asesor")
+            await conversation_guard.clear_pending(session, contact)
+            caja = Toolbox(session, contact, self.wa)
+            try:
+                await caja.tool_human_handoff("El cliente pidió un asesor")
+            except Exception:  # noqa: BLE001 - la derivación no se pierde
+                logger.exception("No se pudo derivar desde el botón")
+            return AgentReply([Outbound(text=persona.handoff())])
+
         # Si el caso ya está con un asesor, no se sigue vendiendo: ofrecer
         # productos mientras alguien espera atención humana genera rechazo.
         conversacion_actual = await session.scalar(
@@ -4414,6 +4427,18 @@ class Agent:
         if session_info.get("new"):
             gap = session_info.get("gap_minutes") or 0
             self._trace(f"Charla nueva (pausa de {gap} min)")
+
+        # Botón "Consultar mi pedido": va directo al seguimiento, sin
+        # preguntar "¿pedido o producto?" (el cliente ya eligió).
+        if normalized == "estado":
+            self._trace("Botón: consultar pedido")
+            return AgentReply(
+                [
+                    Outbound(
+                        text=await order_tracking.start(session, contact)
+                    )
+                ]
+            )
 
         # Preguntas sobre dueños o personal: el bot no tiene ese dato y no
         # debe confundirlas con "quién sos".
@@ -4667,8 +4692,9 @@ class Agent:
                         kind="buttons",
                         text=persona.welcome(contact.name),
                         buttons=[
-                            {"id": "search", "title": "Buscar producto"},
-                            {"id": "human", "title": "Asesor"},
+                            {"id": "catalog", "title": "Buscar productos"},
+                            {"id": "estado", "title": "Consultar mi pedido"},
+                            {"id": "human", "title": "Hablar con un asesor"},
                         ],
                     )
                 ]
