@@ -20,6 +20,44 @@ PEDIR_DOCUMENTO = (
     "compras a tu nombre."
 )
 
+KIND_LABELS = {
+    "carnet": "carnet",
+    "nit": "NIT",
+    "telefono": "teléfono",
+}
+
+
+def pregunta_tipo(numero: str) -> dict:
+    """Pregunta con qué dato buscar cuando el número es ambiguo."""
+    return {
+        "text": (
+            f"El número *{numero}* puede ser tu carnet, tu NIT o tu "
+            "teléfono. ¿Cuál de los tres es? Así busco con el criterio "
+            "correcto."
+        ),
+        "buttons": [
+            {"id": "doc:carnet", "title": "Carnet"},
+            {"id": "doc:nit", "title": "NIT"},
+            {"id": "doc:telefono", "title": "Teléfono"},
+        ],
+        "finished": False,
+        "needs_handoff": False,
+    }
+
+
+def tipo_del_texto(text: str) -> str | None:
+    """Qué tipo de número nombró el cliente, si lo dijo."""
+    import re
+
+    valor = (text or "").lower()
+    if re.search(r"\b(carnet|cedula|cédula|ci)\b", valor):
+        return "carnet"
+    if re.search(r"\bnit\b", valor):
+        return "nit"
+    if re.search(r"\b(tel[eé]fono|celular|cel|whatsapp)\b", valor):
+        return "telefono"
+    return None
+
 
 def extract_documento(text: str) -> str | None:
     """Documento (CI/NIT) dentro del mensaje, si lo hay."""
@@ -38,16 +76,26 @@ async def lookup_by_document(
     session: AsyncSession,
     contact: Contact,
     documento: str,
+    kind: str = "carnet",
 ) -> dict:
-    """Busca los pedidos del cliente por CI/NIT."""
+    """Busca los pedidos del cliente por carnet, NIT o teléfono."""
     from ..sap import SapError, SapNotFound, get_sap
 
     documento = (documento or "").strip()
-    if not contact.tax_id:
+    if kind in {"carnet", "nit"} and not contact.tax_id:
         contact.tax_id = documento[:20]
     try:
         sap = get_sap(session)
         pedidos = await sap.get_customer_purchases(documento, top=5, skip=0)
+        if not pedidos and kind == "telefono":
+            # El teléfono no siempre resuelve directo: se busca el cliente y
+            # después sus compras por documento.
+            cliente = await sap.get_customer(documento)
+            documento_cliente = str((cliente or {}).get("document") or "")
+            if documento_cliente:
+                pedidos = await sap.get_customer_purchases(
+                    documento_cliente, top=5, skip=0
+                )
     except SapNotFound:
         pedidos = []
     except SapError:
@@ -74,9 +122,9 @@ async def lookup_by_document(
     if not pedidos:
         return {
             "text": (
-                f"No encontré compras con el documento *{documento}*. "
-                "Puede ser que la compra esté a nombre de otra persona o con "
-                "otro documento.\n\n"
+                f"No encontré compras con ese {KIND_LABELS.get(kind, 'dato')} "
+                f"(*{documento}*). Puede ser que la compra esté a nombre de "
+                "otra persona o con otro dato.\n\n"
                 "¿Querés que te derive con un asesor para revisarlo?"
             ),
             "finished": True,
@@ -84,8 +132,21 @@ async def lookup_by_document(
         }
 
     if len(pedidos) == 1:
+        # La lista de compras no trae el detalle completo: se pide el pedido
+        # para mostrar total, artículos y entrega.
+        completo = pedidos[0]
+        numero = str(completo.get("orderId") or "")
+        if numero:
+            try:
+                from ..sap import get_sap as _get_sap
+
+                detalle = await _get_sap(session).get_order(numero)
+                if detalle:
+                    completo = detalle
+            except Exception:  # noqa: BLE001 - se muestra lo que haya
+                logger.debug("No se pudo ampliar el pedido", exc_info=True)
         return {
-            "text": format_order(pedidos[0]),
+            "text": format_order(completo),
             "finished": True,
             "needs_handoff": False,
         }

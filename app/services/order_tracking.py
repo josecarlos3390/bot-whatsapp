@@ -253,20 +253,56 @@ def format_order(order: dict) -> str:
 async def lookup(
     session: AsyncSession, flow: ConversationFlow, text: str
 ) -> dict:
-    from .order_by_document import extract_documento, lookup_by_document
+    from .order_by_document import (
+        extract_documento,
+        lookup_by_document,
+        pregunta_tipo,
+        tipo_del_texto,
+    )
+
+    contact = await session.get(Contact, flow.contact_id) if hasattr(flow, "contact_id") else None
+    if contact is None:
+        conversacion = await session.get(Conversation, flow.conversation_id)
+        if conversacion is not None:
+            contact = await session.get(Contact, conversacion.contact_id)
 
     order_id = extract_order_id(text)
     answers = dict(flow.answers or {})
+
+    # Botón de tipo ("doc:carnet", "doc:nit", "doc:telefono").
+    if (text or "").strip().lower().startswith("doc:"):
+        kind = text.split(":", 1)[1].strip().lower()
+        numero = str(answers.get("numero") or "")
+        flow.status = "completed"
+        await session.commit()
+        if not numero:
+            return {
+                "text": "Pasame el número de nuevo, por favor.",
+                "finished": False,
+                "needs_handoff": False,
+            }
+        return await lookup_by_document(session, contact, numero, kind)
+
     # Si el cliente ofrece su documento (o no recuerda el número), se busca
-    # por CI/NIT. Antes el bot insistía con el ID y no avanzaba.
+    # por carnet/NIT/teléfono. Antes el bot insistía con el ID y no avanzaba.
     documento = extract_documento(text)
     es_id_largo = bool(order_id) and (
         "-" in (order_id or "") or len(order_id or "") >= 13
     )
     if documento and not es_id_largo:
-        flow.status = "completed"
+        kind = tipo_del_texto(text)
+        if kind:
+            flow.status = "completed"
+            await session.commit()
+            return await lookup_by_document(
+                session, contact, documento, kind
+            )
+        # Número sin contexto: se pregunta qué es antes de buscar, para no
+        # consultar con el criterio equivocado.
+        answers["numero"] = documento
+        flow.answers = answers
         await session.commit()
-        return await lookup_by_document(session, contact, documento)
+        return pregunta_tipo(documento)
     if not order_id:
         answers["attempts"] = int(answers.get("attempts") or 0) + 1
         flow.answers = answers

@@ -4375,7 +4375,16 @@ class Agent:
                     await toolbox.tool_human_handoff(
                         "Seguimiento de pedido sin resultado"
                     )
-                return AgentReply([Outbound(text=outcome["text"])])
+                botones = outcome.get("buttons") or []
+                return AgentReply(
+                    [
+                        Outbound(
+                            kind="buttons" if botones else "text",
+                            text=outcome["text"],
+                            buttons=botones,
+                        )
+                    ]
+                )
 
         # Si el cliente ya dio su CI o NIT, se guarda y se usa en el acto:
         # no tiene sentido volver a pedirlo en el mensaje siguiente.
