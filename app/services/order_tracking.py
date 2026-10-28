@@ -17,18 +17,78 @@ from ..sap import SapError, SapNotFound, get_sap
 # número a la palabra anterior y el borde de palabra no coincidía
 # ("mipedido1234-01" no tenía límite antes de los dígitos).
 ORDER_ID_RE = re.compile(r"(?<!\d)(\d{4,20}(?:-\d{1,3})?)(?!\d)")
-STATUS_LABELS = {
-    "payment-pending": "Pendiente de pago",
-    "waiting-for-authorization": "Esperando autorización",
-    "authorized": "Pago autorizado",
-    "ready-for-handling": "Listo para preparar",
-    "handling": "En preparación",
-    "invoiced": "Facturado",
-    "shipped": "Enviado",
-    "delivered": "Entregado",
-    "canceled": "Cancelado",
-    "cancelled": "Cancelado",
+# Código de estado de VTEX -> (etiqueta, qué significa, siguiente paso).
+# VTEX devuelve el código en inglés y una descripción en portugués
+# ("Pronto para o manuseio"); acá se traduce y se explica qué hacer.
+STATUS_GUIDE = {
+    "on-order-completed": (
+        "Pedido creado",
+        "El pedido se registró pero todavía no se pagó.",
+        "Completá el pago para que avance.",
+    ),
+    "payment-pending": (
+        "Pendiente de pago",
+        "Estamos esperando la confirmación del pago.",
+        "Si ya pagaste, puede tardar unos minutos en acreditarse.",
+    ),
+    "payment-approved": (
+        "Pago aprobado",
+        "El pago se acreditó y el pedido entra en preparación.",
+        "No tenés que hacer nada más.",
+    ),
+    "authorized": (
+        "Pago autorizado",
+        "El pago quedó autorizado por el banco.",
+        "No tenés que hacer nada más.",
+    ),
+    "waiting-for-authorization": (
+        "Esperando autorización",
+        "El banco todavía no confirmó el pago.",
+        "Si demora, consultá con tu banco o pedí un asesor.",
+    ),
+    "ready-for-handling": (
+        "Listo para preparar",
+        "El pago está confirmado y el pedido espera ser armado.",
+        "Te avisamos cuando salga para entrega.",
+    ),
+    "handling": (
+        "En preparación",
+        "Estamos armando y embalando tu pedido.",
+        "Te avisamos cuando salga para entrega.",
+    ),
+    "invoiced": (
+        "Facturado",
+        "El pedido se facturó y está listo para despacho.",
+        "En breve sale para entrega.",
+    ),
+    "shipped": (
+        "En camino",
+        "El pedido salió del depósito.",
+        "Te contactamos para coordinar la entrega.",
+    ),
+    "delivered": (
+        "Entregado",
+        "El pedido figura como entregado.",
+        "Si no lo recibiste, avisanos y lo revisamos.",
+    ),
+    "canceled": (
+        "Cancelado",
+        "El pedido fue cancelado.",
+        "Si no lo cancelaste vos, pedí un asesor.",
+    ),
+    "cancelled": (
+        "Cancelado",
+        "El pedido fue cancelado.",
+        "Si no lo cancelaste vos, pedí un asesor.",
+    ),
+    "request-cancel": (
+        "Cancelación solicitada",
+        "Pediste cancelar y está en revisión.",
+        "Te confirmamos cuando se procese.",
+    ),
 }
+
+STATUS_LABELS = {codigo: datos[0] for codigo, datos in STATUS_GUIDE.items()}
 
 
 def _conversation(session: AsyncSession, contact: Contact) -> None:
@@ -156,6 +216,10 @@ def format_order(order: dict) -> str:
         f"Estado: *{label}*",
         f"Total: Bs {_money(order.get('value'))}",
     ]
+    guia = STATUS_GUIDE.get(status)
+    if guia:
+        lines.append(guia[1])
+        lines.append(f"→ {guia[2]}")
     items = order.get("items") or []
     if items:
         lines.append("Productos:")
