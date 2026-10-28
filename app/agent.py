@@ -4139,7 +4139,10 @@ class Agent:
                     anteriores = list(estado.shown_skus or [])
                     if repeat_guard.repite_el_mismo_listado(
                         anteriores, actuales
-                    ) or repeat_guard.repite_parcial(anteriores, actuales):
+                    ) or (
+                        settings.repeat_partial_enabled
+                        and repeat_guard.repite_parcial(anteriores, actuales)
+                    ):
                         self._trace("Mismos productos: se cambia de enfoque")
                         return AgentReply(
                             [

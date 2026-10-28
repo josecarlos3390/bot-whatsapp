@@ -81,6 +81,10 @@ class Settings(BaseSettings):
     # Lectura del mensaje con el modelo antes de responder (intención,
     # producto y orden de precio). Se puede apagar para ahorrar latencia.
     understanding_enabled: bool = True
+    # Guard de repeticion parcial: desactivado por defecto. Las mediciones
+    # no mostraron mejora (2,33 y 2,17 con guard vs 2,56 sin el) y agrega
+    # complejidad; se deja el codigo para probarlo cuando haya mas muestra.
+    repeat_partial_enabled: bool = False
     # Visión: modelo con imágenes por API compatible con OpenAI.
     vision_enabled: bool = True
     vision_model: str = ""
