@@ -21,7 +21,7 @@ def test_el_saludo_tiene_el_formato_pedido():
 
     assert texto.startswith("¡Hola, Chipi! 👋")
     assert "ROHO Homecenter" in texto
-    assert "asistente virtual" in texto
+    assert "asesora virtual" in texto
     assert "👇" in texto
 
 

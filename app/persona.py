@@ -31,7 +31,7 @@ def welcome(contact_name: str | None = None) -> str:
     saludo = f"¡Hola, {nombre}! 👋" if nombre else "¡Hola! 👋"
     variante = random.choice(_VARIANTES_SALUDO)
     return (
-        f"{saludo} Soy *{name()}*, tu asistente virtual de ROHO Homecenter. 🏡\n"
+        f"{saludo} Soy *{name()}*, tu asesora virtual de ROHO Homecenter. 🏡\n"
         "Estoy acá para ayudarte a encontrar productos y resolver tus "
         f"consultas.\n{variante}"
     )
