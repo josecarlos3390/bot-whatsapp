@@ -143,6 +143,7 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
   const [calidad, setCalidad] = useState<{
     total: number; sin_foto: number; nombres_largos: number;
     nombres_cruzados: number; duplicados: number; sin_precio: number;
+    enriquecidos?: number; enriquecidos_pct?: number;
     categorias_chicas: { category: string; count: number }[];
     busquedas_pendientes: { term: string; misses: number }[];
     nombres_cruzados_muestra: { sku: string; name: string; category: string }[];
@@ -191,6 +192,7 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
       const data = await api<{
         total: number; sin_foto: number; nombres_largos: number;
         nombres_cruzados: number; duplicados: number; sin_precio: number;
+    enriquecidos?: number; enriquecidos_pct?: number;
         categorias_chicas: { category: string; count: number }[];
         busquedas_pendientes: { term: string; misses: number }[];
         nombres_cruzados_muestra: { sku: string; name: string; category: string }[];
@@ -448,11 +450,12 @@ export function OverviewPage({ onLogout }: { onLogout: () => void }) {
                       { label: t("Títulos incoherentes"), valor: calidad.nombres_cruzados },
                       { label: t("Duplicados"), valor: calidad.duplicados },
                       { label: t("Sin precio"), valor: calidad.sin_precio },
+                      { label: t("Enriquecidos con VTEX"), valor: `${calidad.enriquecidos ?? 0} (${calidad.enriquecidos_pct ?? 0}%)` },
                       { label: t("Búsquedas sin resultado"), valor: calidad.busquedas_pendientes.reduce((total, item) => total + item.misses, 0) },
                     ].map((item) => (
                       <div key={item.label} className="rounded-xl border border-[#e5e7eb] bg-[#f9fafb] px-3 py-2">
                         <div className="text-[10px] font-bold uppercase tracking-wide text-[#6b7280]">{item.label}</div>
-                        <div className={`text-lg font-semibold ${item.valor > 0 ? "text-[#a90418]" : "text-[#111111]"}`}>{item.valor}</div>
+                        <div className={`text-lg font-semibold ${typeof item.valor === "number" && item.valor > 0 ? "text-[#a90418]" : "text-[#111111]"}`}>{item.valor}</div>
                       </div>
                     ))}
                   </div>

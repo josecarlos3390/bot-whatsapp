@@ -119,6 +119,8 @@ def _specs(row: dict) -> dict[str, str]:
 
 def _keywords(row: dict) -> str | None:
     parts = [
+        row.get("keywords"),
+        row.get("seo_keywords"),
         row.get("sku"),
         row.get("name"),
         row.get("brand"),
@@ -131,6 +133,15 @@ def _keywords(row: dict) -> str | None:
         parts.extend(f"{key} {value}" for key, value in specs.items())
     text = " ".join(str(part) for part in parts if part)
     return text[:4000] or None
+
+
+def _spec_value(specs: dict, *names: str) -> str | None:
+    folded = {str(key).strip().lower(): value for key, value in specs.items()}
+    for name in names:
+        value = folded.get(name.lower())
+        if value:
+            return str(value)
+    return None
 
 
 def _catalog_fields(row: dict) -> dict:
@@ -152,6 +163,19 @@ def _catalog_fields(row: dict) -> dict:
     specs = _specs(row)
     if specs:
         attributes["specs"] = specs
+    product_type = row.get("product_type") or _spec_value(specs, "Tipo", "Type")
+    color = row.get("color") or _spec_value(specs, "Color")
+    material = row.get("material") or _spec_value(specs, "Material")
+    if product_type:
+        attributes["product_type"] = product_type
+    if color:
+        attributes["color"] = color
+    if material:
+        attributes["material"] = material
+    if row.get("seo_title"):
+        attributes["seo_title"] = row["seo_title"]
+    if row.get("meta_description"):
+        attributes["meta_description"] = row["meta_description"]
     return {
         "name": _display_name(row) or _clean(row.get("sku"), 64) or "?",
         "foreign_name": None,

@@ -232,20 +232,35 @@ def _match_all(terms: list[str], *, expand: bool = True):
 
 
 def _rank(item: CatalogItem, terms: list[str]) -> tuple[int, str]:
+    """Puntaje por relevancia: los términos específicos pesan más.
+
+    Así "disco para desbastar" gana con el disco de desbaste y no con el
+    de corte (que solo coincide en "disco").
+    """
     name = _fold(item.name or "")
     category = _fold(item.category or "")
     brand = _fold(item.brand or "")
-    best = 3
+    attributes = item.attributes if isinstance(item.attributes, dict) else {}
+    tipo = _fold(str(attributes.get("product_type") or ""))
+    keywords = _fold(item.keywords or "")
+    puntos = 0
     for term in terms:
         for variant in _variants(term):
             variant = _fold(variant)
+            if not variant:
+                continue
+            peso = len(variant)
             if name.startswith(variant):
-                best = min(best, 0)
+                puntos += 10 + peso * 3
             elif variant in name:
-                best = min(best, 1)
+                puntos += 6 + peso * 2
+            elif variant in tipo:
+                puntos += 6 + peso * 2
             elif variant in category or variant in brand:
-                best = min(best, 2)
-    return best, name
+                puntos += 3 + peso
+            elif peso >= 5 and variant[:6] in keywords:
+                puntos += 2 + peso
+    return -puntos, name
 
 
 async def categories(session: AsyncSession, limit: int = 10) -> list[dict]:

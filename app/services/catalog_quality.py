@@ -108,6 +108,14 @@ async def report(session: AsyncSession, limit: int = 6) -> dict:
 
     sin_precio = [item for item in activos if not item.price or item.price <= 0]
 
+    # Avance del enriquecimiento con VTEX (keywords y especificaciones).
+    enriquecidos = sum(
+        1
+        for item in activos
+        if isinstance(item.attributes, dict)
+        and item.attributes.get("keywords_source") == "vtex"
+    )
+
     aprendidas = await learning.summary(session, limit=limit)
 
     def muestra(items: list) -> list[dict]:
@@ -127,6 +135,8 @@ async def report(session: AsyncSession, limit: int = 6) -> dict:
         "duplicados": len(duplicados),
         "duplicados_muestra": duplicados[:limit],
         "sin_precio": len(sin_precio),
+        "enriquecidos": enriquecidos,
+        "enriquecidos_pct": round(enriquecidos / total * 100, 1) if total else 0,
         "sin_precio_muestra": muestra(sin_precio),
         "categorias_chicas": categorias_chicas,
         "busquedas_pendientes": aprendidas.get("top_pendientes", []),

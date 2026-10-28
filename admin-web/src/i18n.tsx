@@ -320,6 +320,7 @@ const EN: Record<string, string> = {
   "Títulos incoherentes": "Incoherent titles",
   "Duplicados": "Duplicates",
   "Sin precio": "No price",
+  "Enriquecidos con VTEX": "Enriched from VTEX",
   "Ejemplos a revisar": "Examples to review",
   "Lo que buscan y no existe": "Searched but missing",
   "Cargando informe…": "Loading report…",

@@ -1057,6 +1057,25 @@ class Toolbox:
             specs = attributes.get("specs")
             if isinstance(specs, dict) and specs:
                 data["specs"] = dict(list(specs.items())[:6])
+            for key, spec_names in (
+                ("product_type", ("Tipo", "Type")),
+                ("color", ("Color",)),
+                ("material", ("Material",)),
+            ):
+                value = attributes.get(key)
+                if not value and isinstance(specs, dict):
+                    for spec_name in spec_names:
+                        value = specs.get(spec_name) or specs.get(
+                            spec_name.lower()
+                        )
+                        if value:
+                            break
+                if value:
+                    data[key] = value
+            if attributes.get("seo_title"):
+                data["seo_title"] = attributes["seo_title"]
+        if getattr(item, "keywords", None):
+            data["keywords"] = item.keywords
         return data
 
     async def _attach_promotions(self, products: list[dict]) -> None:
@@ -1617,6 +1636,23 @@ class Toolbox:
             data["category"] = row.category
             data["barcode"] = row.barcode
             data["attributes"] = row.attributes or {}
+            attributes = data["attributes"]
+            specs = attributes.get("specs") if isinstance(attributes, dict) else {}
+            for key, spec_names in (
+                ("product_type", ("Tipo", "Type")),
+                ("color", ("Color",)),
+                ("material", ("Material",)),
+            ):
+                value = attributes.get(key) if isinstance(attributes, dict) else None
+                if not value and isinstance(specs, dict):
+                    for spec_name in spec_names:
+                        value = specs.get(spec_name) or specs.get(spec_name.lower())
+                        if value:
+                            break
+                if value:
+                    data[key] = value
+            if row.keywords:
+                data["keywords"] = row.keywords
         return {"ok": True, "product": data}
 
     async def tool_compare_products(self, sku_a: str, sku_b: str) -> dict:
@@ -2517,6 +2553,32 @@ def _frase_imagen(
     return base + "."
 
 
+# Preguntas por atributo del producto que se acaba de ver.
+ATRIBUTO_RE = re.compile(
+    r"\b(de qu[eé] (color|material|tama[nñ]o|medida)|"
+    r"qu[eé] (color|material|tipo)|cu[aá]l es (el )?(color|material|tipo)|"
+    r"(y )?el (color|material|tipo)\b|tiene color|tiene material|"
+    r"colores disponibles|cu[aá]nto mide|qu[eé] medidas? tiene)\b",
+    re.IGNORECASE,
+)
+
+
+def _atributo_preguntado(text: str) -> str | None:
+    """Qué atributo pregunta el cliente: color, material, tipo o medida."""
+    if not ATRIBUTO_RE.search(text or ""):
+        return None
+    valor = (text or "").lower()
+    if re.search(r"\bcolor", valor):
+        return "color"
+    if re.search(r"\bmaterial", valor):
+        return "material"
+    if re.search(r"\btipo\b", valor):
+        return "tipo"
+    if re.search(r"\b(mide|medida|tama[nñ]o)\b", valor):
+        return "medida"
+    return None
+
+
 def _pide_producto(text: str) -> bool:
     """¿El mensaje pide productos de forma explícita?"""
     return bool(PRODUCT_REQUEST_RE.search(text or ""))
@@ -3083,6 +3145,68 @@ class Agent:
                         {"id": "human", "title": "Asesor"},
                         {"id": "catalog", "title": "Ver categorías"},
                     ],
+                )
+            ]
+        )
+
+    async def _attribute_reply(
+        self,
+        session: AsyncSession,
+        contact: Contact,
+        sku: str,
+        atributo: str,
+    ) -> AgentReply | None:
+        """Responde color/material/tipo con los datos de VTEX."""
+        caja = Toolbox(session, contact, self.wa)
+        resultado = await caja.tool_get_product(sku)
+        if not resultado.get("ok"):
+            return None
+        producto = resultado.get("product") or {}
+        attributes = producto.get("attributes") or {}
+        specs = attributes.get("specs") if isinstance(attributes, dict) else {}
+        specs = specs if isinstance(specs, dict) else {}
+        nombre = producto.get("name") or "ese producto"
+
+        if atributo == "color":
+            valor = attributes.get("color") or specs.get("Color")
+            etiqueta = "color"
+        elif atributo == "material":
+            valor = attributes.get("material") or specs.get("Material")
+            etiqueta = "material"
+        elif atributo == "tipo":
+            valor = attributes.get("product_type") or specs.get("Tipo")
+            etiqueta = "tipo"
+        else:
+            valor = specs.get("Medidas") or specs.get("Tamaño") or attributes.get(
+                "size"
+            )
+            etiqueta = "medida"
+        if not valor:
+            self._trace(f"Atributo sin dato: {atributo}")
+            return AgentReply(
+                [
+                    Outbound(
+                        kind="buttons",
+                        text=(
+                            f"No tengo el {etiqueta} de *{nombre}* cargado en "
+                            "el catálogo. ¿Querés que te derive con un asesor "
+                            "o ver otra opción?"
+                        ),
+                        buttons=[
+                            {"id": "human", "title": "Asesor"},
+                            {"id": "catalog", "title": "Ver categorías"},
+                        ],
+                    )
+                ]
+            )
+        self._trace(f"Atributo: {etiqueta}")
+        return AgentReply(
+            [
+                Outbound(
+                    text=(
+                        f"*{nombre}*\n"
+                        f"{etiqueta.capitalize()}: *{valor}*"
+                    )
                 )
             ]
         )
@@ -5324,6 +5448,24 @@ class Agent:
                     )
                 ]
             )
+
+        # "¿De qué color es?": se responde con los atributos de VTEX del
+        # último producto visto, sin ir al modelo.
+        atributo = _atributo_preguntado(raw)
+        if atributo:
+            conversacion = await session.scalar(
+                select(Conversation).where(Conversation.contact_id == contact.id)
+            )
+            if conversacion is not None:
+                estado = await conversation_state.get_state(
+                    session, conversacion.id
+                )
+                if estado is not None and estado.last_sku:
+                    respuesta = await self._attribute_reply(
+                        session, contact, estado.last_sku, atributo
+                    )
+                    if respuesta is not None:
+                        return respuesta
 
         if SEARCH_RE.search(raw):
             # Sin un término de producto ("quién eres", "gracias"), no se
