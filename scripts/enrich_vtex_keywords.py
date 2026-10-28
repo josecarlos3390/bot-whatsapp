@@ -95,7 +95,9 @@ async def _fetch(
         url = f"/api/vtex/items/{sku}"
         for attempt in range(6):
             try:
-                response = await client.get(url, timeout=30)
+                response = await asyncio.wait_for(
+                    client.get(url, timeout=30), timeout=45
+                )
                 if response.status_code == 404:
                     return None
                 if response.status_code in (429, 500, 502, 503, 504):
@@ -103,7 +105,7 @@ async def _fetch(
                     continue
                 response.raise_for_status()
                 return response.json()
-            except (httpx.HTTPError, ValueError):
+            except (asyncio.TimeoutError, httpx.HTTPError, ValueError):
                 if attempt == 5:
                     logger.warning("No se pudo enriquecer %s", sku)
                     return None
@@ -159,8 +161,8 @@ async def run(
     failed = 0
     headers = {"X-Api-Key": settings.sap_paas_api_key}
     async with httpx.AsyncClient(base_url=base + "/", headers=headers) as client:
-        for start in range(0, len(pending), 100):
-            batch = pending[start : start + 100]
+        for start in range(0, len(pending), 50):
+            batch = pending[start : start + 50]
             details = await asyncio.gather(
                 *[
                     _fetch(client, item.sku, semaphore, delay)
@@ -180,7 +182,7 @@ async def run(
                 await session.commit()
             logger.info(
                 "Progreso keywords: %s/%s (actualizados %s, fallidos %s)",
-                min(start + 100, len(pending)),
+                min(start + 50, len(pending)),
                 len(pending),
                 updated,
                 failed,
