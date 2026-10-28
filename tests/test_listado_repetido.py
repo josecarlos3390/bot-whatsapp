@@ -1,4 +1,4 @@
-"""No repetir el mismo listado de productos."""
+﻿"""No repetir el mismo listado de productos."""
 
 from __future__ import annotations
 
@@ -71,3 +71,27 @@ async def test_el_estado_recuerda_los_skus(session):
 
     guardado = await session.get(ConversationState, estado.id)
     assert guardado.shown_skus == ["A-1"]
+
+
+def test_detecta_repeticion_parcial():
+    anteriores = ["A-1", "B-2", "C-3"]
+    actuales = ["A-1", "B-2", "D-4"]
+
+    assert repeat_guard.repite_parcial(anteriores, actuales) is True
+
+
+def test_un_listado_nuevo_no_es_repeticion_parcial():
+    assert (
+        repeat_guard.repite_parcial(["A-1", "B-2"], ["C-3", "D-4"]) is False
+    )
+
+
+def test_listados_cortos_no_cuentan_como_parcial():
+    assert repeat_guard.repite_parcial(["A-1"], ["A-1"]) is False
+
+
+def test_el_filtro_sugerido_ofrece_salida():
+    texto = repeat_guard.filtro_sugerido(Contact(wa_id="1", name="Ana"))
+
+    assert "Ana" in texto
+    assert "medida" in texto

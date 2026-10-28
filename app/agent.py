@@ -4139,17 +4139,14 @@ class Agent:
                     anteriores = list(estado.shown_skus or [])
                     if repeat_guard.repite_el_mismo_listado(
                         anteriores, actuales
-                    ):
+                    ) or repeat_guard.repite_parcial(anteriores, actuales):
                         self._trace("Mismos productos: se cambia de enfoque")
                         return AgentReply(
                             [
                                 Outbound(
                                     kind="buttons",
                                     text=(
-                                        "Ya te mostré esos productos y no quiero "
-                                        "repetirlos. Decime qué te falta (medida, "
-                                        "marca o presupuesto) y busco otra cosa, "
-                                        "o te paso con un asesor."
+                                        repeat_guard.filtro_sugerido(contact)
                                     ),
                                     buttons=[
                                         {"id": "human", "title": "Asesor"},

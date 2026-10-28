@@ -110,7 +110,7 @@ def main() -> int:
         "--turnos",
         str(turnos),
         "--repeticiones",
-        "1" if exploracion else "3",
+        "1" if exploracion else "5",
     ]
     if not exploracion:
         comando.append("--escenarios")

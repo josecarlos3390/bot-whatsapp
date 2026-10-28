@@ -152,3 +152,31 @@ def repite_el_mismo_listado(
     if not actuales or not anteriores:
         return False
     return set(actuales) == set(anteriores)
+
+
+def repite_parcial(
+    anteriores: list[str] | None, actuales: list[str], umbral: float = 0.6
+) -> bool:
+    """¿La mayoría de los productos ya se mostraron antes?
+
+    El caso exacto ya se cubre aparte; esto atrapa el listado que cambia un
+    producto y repite el resto.
+    """
+    if not anteriores or not actuales:
+        return False
+    if len(anteriores) < 2 or len(actuales) < 2:
+        return False
+    previos = set(anteriores)
+    repetidos = sum(1 for sku in actuales if sku in previos)
+    return repetidos / len(actuales) >= umbral
+
+
+def filtro_sugerido(contact: Contact) -> str:
+    """Pregunta que destraba cuando el listado se repite."""
+    nombre = (contact.name or "").split(" ")[0]
+    saludo = f"{nombre}, " if nombre else ""
+    return (
+        f"{saludo}ya te mostré varias de esas opciones. Para no repetirte el "
+        "mismo listado: ¿querés que filtre por medida, marca o precio, o te "
+        "paso con un asesor?"
+    )
