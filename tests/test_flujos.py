@@ -1,4 +1,4 @@
-"""Flujos extraídos: la ficha y los atributos viven fuera de agent.py."""
+﻿"""Flujos extraídos: la ficha y los atributos viven fuera de agent.py."""
 
 from __future__ import annotations
 
@@ -31,3 +31,13 @@ def test_la_descripcion_corta_se_comparte():
 
     assert Agent._card_description("  Hola   mundo  ") == "Hola mundo"
     assert card_description("<p>Hola <b>mundo</b></p>") == "Hola mundo"
+
+
+def test_los_flujos_de_menu_y_media_existen():
+    from app.flows import media as media_flow
+    from app.flows import menu as menu_flow
+
+    assert callable(menu_flow.categories)
+    assert callable(menu_flow.product_list)
+    assert callable(menu_flow.idea)
+    assert callable(media_flow.reply)

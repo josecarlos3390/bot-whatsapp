@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 import html
@@ -25,6 +25,8 @@ from .models import (
     Message,
     ProductPromotion,
 )
+from .flows import media as media_flow
+from .flows import menu as menu_flow
 from .flows import product as product_flow
 from .flows import text as text_flow
 from .services import (
@@ -2670,29 +2672,11 @@ class Agent:
                 cut = candidate
         return cut + "…"
 
-    async def _category_list(self, session: AsyncSession, contact: Contact) -> AgentReply:
-        return AgentReply(
-            [
-                Outbound(
-                    kind="list",
-                    text=persona.categories_intro(),
-                    button_text="Ver categorías",
-                    sections=[
-                        {
-                            "title": "Ambientes y proyectos",
-                            "rows": [
-                                {
-                                    "id": f"cat:{row['key']}",
-                                    "title": self._truncate(row["label"], 24),
-                                    "description": row["label"],
-                                }
-                                for row in FRIENDLY_CATEGORIES
-                            ],
-                        }
-                    ],
-                )
-            ]
-        )
+    async def _category_list(
+        self, session: AsyncSession, contact: Contact
+    ) -> AgentReply:
+        """Menú de ambientes (flows/menu.py)."""
+        return await menu_flow.categories(self, session, contact)
 
     @staticmethod
     def _search_buttons() -> list[dict]:
@@ -2953,154 +2937,8 @@ class Agent:
         media: dict,
         texto: str = "",
     ) -> AgentReply | None:
-        """Interpreta la imagen y ofrece productos parecidos del catálogo."""
-        contenido = await media_service.download(media.get("media_id") or "")
-        if contenido is None:
-            return AgentReply(
-                [
-                    Outbound(
-                        kind="buttons",
-                        text=(
-                            "Recibí tu imagen pero no pude abrirla. ¿Me contás "
-                            "qué producto es y qué querés saber?"
-                        ),
-                        buttons=[
-                            {"id": "catalog", "title": "Ver productos"},
-                            {"id": "human", "title": "Asesor"},
-                        ],
-                    )
-                ]
-            )
-        archivo, mime = contenido
-        descripcion = await vision.describe(archivo, mime)
-        if descripcion is None:
-            self._trace("Imagen sin visión configurada")
-            return AgentReply(
-                [
-                    Outbound(
-                        kind="buttons",
-                        text=(
-                            "Recibí tu imagen. Para buscarte algo igual o "
-                            "parecido necesito que me digas qué producto es "
-                            "(por ejemplo: taladro, licuadora, colchón).\n\n"
-                            "¿Me lo escribís y te muestro opciones?"
-                        ),
-                        buttons=[
-                            {"id": "catalog", "title": "Ver categorías"},
-                            {"id": "human", "title": "Asesor"},
-                        ],
-                    )
-                ]
-            )
-
-        objeto = descripcion.get("objeto") or ""
-        categoria = descripcion.get("categoria") or ""
-        marca = descripcion.get("marca") or ""
-        atributos = descripcion.get("atributos") or ""
-        if not objeto:
-            self._trace("Imagen sin producto reconocible")
-            return AgentReply(
-                [
-                    Outbound(
-                        kind="buttons",
-                        text=(
-                            "Miré la imagen pero no reconozco un producto en "
-                            "ella. ¿Me contás qué estás buscando?"
-                        ),
-                        buttons=[
-                            {"id": "catalog", "title": "Ver categorías"},
-                            {"id": "human", "title": "Asesor"},
-                        ],
-                    )
-                ]
-            )
-
-        # Lo que el cliente escribió junto a la foto ("quiero comprar algo
-        # así") aporta intención y, si nombra un producto, manda la búsqueda.
-        acompanante = _caption_util(texto)
-        intencion = _caption_intencion(texto)
-        consulta = " ".join(
-            parte
-            for parte in (acompanante, objeto, marca, atributos)
-            if parte
-        )
-        caja = Toolbox(session, contact, self.wa)
-        resultado = await caja.tool_search_products(
-            query=consulta, limit=8, ignore_state=True
-        )
-        productos = self._ordenar_por_imagen(
-            resultado.get("products") or [], descripcion
-        )[:3]
-        if productos:
-            self._trace(f"Imagen: {objeto} con opciones")
-            lead = (
-                _frase_imagen(acompanante, objeto, marca, intencion)
-                + " En la tienda tenemos opciones parecidas:"
-            )
-            return AgentReply(
-                [
-                    Outbound(text=lead),
-                    *self._search_cards(productos[:3]),
-                    Outbound(
-                        kind="buttons",
-                        text="¿Te muestro el detalle de alguno o buscamos otra cosa?",
-                        buttons=[
-                            {"id": "catalog", "title": "Ver categorías"},
-                            {"id": "human", "title": "Asesor"},
-                        ],
-                    ),
-                ]
-            )
-
-        # Sin coincidencia: se prueba por el rubro que detectó la visión.
-        if categoria:
-            rubro = await caja.tool_search_products(
-                query=categoria, limit=6, ignore_state=True
-            )
-            productos = self._ordenar_por_imagen(
-                rubro.get("products") or [], descripcion
-            )[:3]
-        if productos:
-            self._trace(f"Imagen: {objeto} sin igual, rubro {categoria}")
-            return AgentReply(
-                [
-                    Outbound(
-                        text=(
-                            _frase_imagen(acompanante, objeto, marca, intencion)
-                            + f" No tengo ese modelo exacto, pero en "
-                            f"*{categoria or objeto}* tengo esto:"
-                        )
-                    ),
-                    *self._search_cards(productos[:3]),
-                    Outbound(
-                        kind="buttons",
-                        text="¿Te interesa alguna o hablamos con un asesor?",
-                        buttons=[
-                            {"id": "catalog", "title": "Ver categorías"},
-                            {"id": "human", "title": "Asesor"},
-                        ],
-                    ),
-                ]
-            )
-
-        self._trace(f"Imagen: {objeto} sin coincidencias")
-        return AgentReply(
-            [
-                Outbound(
-                    kind="buttons",
-                    text=(
-                        _frase_imagen(acompanante, objeto, marca, intencion)
-                        + " No encontré algo igual en el catálogo ahora. "
-                        "¿Querés que lo busque un asesor o te muestro otras "
-                        "categorías?"
-                    ),
-                    buttons=[
-                        {"id": "human", "title": "Asesor"},
-                        {"id": "catalog", "title": "Ver categorías"},
-                    ],
-                )
-            ]
-        )
+        """Imagen: interpretación y parecidos (flows/media.py)."""
+        return await media_flow.reply(self, session, contact, media, texto)
 
     async def _attribute_reply(
         self,
@@ -3120,64 +2958,8 @@ class Agent:
         contact: Contact,
         intent: dict,
     ) -> AgentReply:
-        """Responde una idea ("distraer a las visitas") con opciones reales."""
-        toolbox = Toolbox(session, contact, self.wa)
-        encontrados: list[dict] = []
-        vistos: set[str] = set()
-        frases: list[str] = []
-        for idea in intent["ideas"]:
-            for termino in idea["terminos"]:
-                resultado = await toolbox.tool_search_products(
-                    query=termino, limit=2, ignore_state=True
-                )
-                productos = [
-                    item
-                    for item in (resultado.get("products") or [])
-                    if _idea_producto_valido(item, termino, idea)
-                ]
-                if not productos:
-                    continue
-                producto = productos[0]
-                if producto["sku"] in vistos:
-                    break
-                vistos.add(producto["sku"])
-                encontrados.append(producto)
-                frases.append(idea["frase"])
-                break
-            if len(encontrados) >= 3:
-                break
-        if not encontrados:
-            return AgentReply(
-                [
-                    Outbound(
-                        kind="buttons",
-                        text=(
-                            f"Para {intent['label']} no tengo algo puntual en "
-                            "el catálogo ahora. Puedo mostrarte otras líneas o "
-                            "pasarte con un asesor que te oriente."
-                        ),
-                        buttons=[
-                            {"id": "catalog", "title": "Ver categorías"},
-                            {"id": "human", "title": "Asesor"},
-                        ],
-                    )
-                ]
-            )
-        encabezado = f"Para {intent['label']} te propongo:"
-        detalle = "\n".join(f"• {frase}" for frase in frases)
-        mensajes = [
-            Outbound(text=f"{encabezado}\n\n{detalle}"),
-            *self._search_cards(encontrados[:3]),
-            Outbound(
-                kind="buttons",
-                text="¿Te muestro el detalle de alguno o buscamos otra cosa?",
-                buttons=[
-                    {"id": "catalog", "title": "Ver categorías"},
-                    {"id": "human", "title": "Asesor"},
-                ],
-            ),
-        ]
-        return AgentReply(mensajes)
+        """Idea por intención (flows/menu.py)."""
+        return await menu_flow.idea(self, session, contact, intent)
 
     async def _occasion_reply(
         self,
@@ -3787,87 +3569,10 @@ class Agent:
         )
 
     async def _product_list(
-        self,
-        session: AsyncSession,
-        contact: Contact,
-        category: str,
+        self, session: AsyncSession, contact: Contact, category: str
     ) -> AgentReply:
-        key = category.strip().lower()
-        friendly = next(
-            (row for row in FRIENDLY_CATEGORIES if row["key"] == key),
-            None,
-        )
-        canonical = friendly["category"] if friendly else category
-        label = friendly["label"] if friendly else category
-        toolbox = Toolbox(session, contact, self.wa)
-        products: list[dict] = []
-        # Para un ambiente se busca por lo que se espera ver (sofá, mesa...) y
-        # no por la categoría entera, que traía espejos primero.
-        for termino in CATEGORY_ORDER.get(key, ())[:5]:
-            encontrados = await toolbox.tool_search_products(
-                category=canonical, query=termino, limit=2
-            )
-            for producto in encontrados.get("products") or []:
-                if all(
-                    producto["sku"] != previo["sku"] for previo in products
-                ):
-                    products.append(producto)
-            if len(products) >= 9:
-                break
-        if not products:
-            result = await toolbox.tool_search_products(
-                category=canonical, limit=12
-            )
-            products = _ordenar_por_ambiente(
-                result.get("products") or [], key
-            )
-        products = products[:9]
-        if not products:
-            return AgentReply(
-                [
-                    Outbound(
-                        kind="buttons",
-                        text=(
-                            f"No encontré disponibilidad en {label}. "
-                            "¿Querés ver otra categoría?"
-                        ),
-                        buttons=[
-                            {"id": "catalog", "title": "Ver categorías"},
-                            {"id": "human", "title": "Asesor"},
-                        ],
-                    )
-                ]
-            )
-        sections = [
-            {
-                "title": self._truncate(label, 24),
-                "rows": [
-                    {
-                        "id": f"product:{product['sku']}",
-                        "title": self._truncate(product["name"], 24),
-                        "description": (
-                            f"Bs {product.get('promo_price') or product['price']}"
-                            + (
-                                f" · {product['brand']}"
-                                if product.get("brand")
-                                else ""
-                            )
-                        )[:72],
-                    }
-                    for product in products[:9]
-                ],
-            }
-        ]
-        return AgentReply(
-            [
-                Outbound(
-                    kind="list",
-                    text=f"Opciones en {label}:",
-                    button_text="Ver productos",
-                    sections=sections,
-                )
-            ]
-        )
+        """Productos de un ambiente (flows/menu.py)."""
+        return await menu_flow.product_list(self, session, contact, category)
 
     async def _product_detail(
         self, session: AsyncSession, contact: Contact, sku: str
