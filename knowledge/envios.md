@@ -1,7 +1,7 @@
 ---
 title: Envíos, entrega a domicilio y recogida en tienda
 status: published
-tags: envio, envios, delivery, entrega, domicilio, recogida, retiro, pickup, plazo, horario, cobertura
+tags: envio, envios, delivery, entrega, domicilio, recogida, retiro, pickup, plazo, horario, cobertura, costo, precio, flete
 ---
 
 # Envíos y entregas
@@ -15,6 +15,24 @@ tags: envio, envios, delivery, entrega, domicilio, recogida, retiro, pickup, pla
 - No incluye armado ni instalación.
 - Antes de firmar, revisar el producto en presencia del transportista. Si es un TV, conectarlo en el punto de corriente más cercano.
 - Si no hay nadie para recibir, el transportista espera 15 minutos y devuelve el pedido; luego hay que coordinar una nueva entrega.
+
+## Costo de envío
+
+> Valores de ejemplo para pruebas. Actualizar con la tarifa oficial.
+
+- Santa Cruz capital: Bs 30.
+- Santa Cruz provincias (hasta 50 km): Bs 50.
+- La Paz y Cochabamba (ciudad): Bs 45.
+- Resto del país: Bs 70.
+- Envío sin costo en compras mayores a Bs 1.500.
+- Retiro en tienda: sin costo.
+- El costo se confirma al cerrar el pedido, antes de pagar.
+
+## Cobertura
+
+- Entregamos en todo el país por transportista.
+- El plazo fuera de la ciudad de origen es de 3 a 5 días hábiles.
+- Si la zona no aparece en la lista, un asesor confirma la cobertura.
 
 ## Recogida en tienda
 - Horario: lunes a domingo de 08:00 a 19:00.

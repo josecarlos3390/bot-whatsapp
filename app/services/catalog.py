@@ -736,7 +736,13 @@ async def facets(
     return {
         "sizes": [size for size, _ in sizes.most_common(limit)],
         "brands": [brand for brand, _ in brands.most_common(limit)],
-        "types": [tipo for tipo, _ in types.most_common(limit)],
+        # Solo los tipos que se relacionan con lo que se pidió: en "brocha"
+        # aparecía "Accesorio para parrilla" por ruido de datos.
+        "types": [
+            tipo
+            for tipo, _ in types.most_common()
+            if _fold(term) in _fold(tipo) or _fold(tipo) in _fold(term)
+        ][:limit],
         "total": len(rows),
     }
 

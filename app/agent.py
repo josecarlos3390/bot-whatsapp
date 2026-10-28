@@ -4190,6 +4190,29 @@ class Agent:
         # haga creer que el cliente ya está identificado.
         await session.refresh(contact)
 
+        # Si el caso ya está con un asesor, no se sigue vendiendo: ofrecer
+        # productos mientras alguien espera atención humana genera rechazo.
+        conversacion_actual = await session.scalar(
+            select(Conversation).where(Conversation.contact_id == contact.id)
+        )
+        if conversacion_actual is not None and conversacion_actual.bot_paused:
+            self._trace("Caso con asesor: no se ofrece catálogo")
+            return AgentReply(
+                [
+                    Outbound(
+                        kind="buttons",
+                        text=(
+                            "Tu caso ya está con una persona del equipo. Para no "
+                            "demorarte, no te ofrezco productos: seguimos cuando "
+                            "te responda el asesor."
+                        ),
+                        buttons=[
+                            {"id": "human", "title": "Ver mi caso"},
+                        ],
+                    )
+                ]
+            )
+
         # Imagen: se interpreta y se buscan productos parecidos en el catálogo.
         if media and (media.get("kind") == "image"):
             respuesta = await self._image_reply(

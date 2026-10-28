@@ -121,3 +121,21 @@ def test_el_cambio_de_enfoque_ofrece_salida(session):
 
     assert "Ana" in texto
     assert "asesor" in texto.lower()
+
+async def test_con_asesor_asignado_no_ofrece_catalogo(session):
+    from app.agent import Agent
+
+    contacto, conversacion = await _contacto(session, "59170024006")
+    conversacion.bot_paused = True
+    await session.commit()
+
+    respuesta = await Agent().handle(session, contacto, "mostrame televisores")
+    texto = " ".join(m.text or "" for m in respuesta.messages).lower()
+    botones = [
+        boton["id"]
+        for mensaje in respuesta.messages
+        for boton in (mensaje.buttons or [])
+    ]
+
+    assert "asesor" in texto
+    assert "catalog" not in botones
