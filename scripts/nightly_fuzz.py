@@ -109,6 +109,8 @@ def main() -> int:
         str(conversaciones),
         "--turnos",
         str(turnos),
+        "--repeticiones",
+        "1" if exploracion else "3",
     ]
     if not exploracion:
         comando.append("--escenarios")
@@ -132,6 +134,8 @@ def main() -> int:
             if (
                 entrada.get("escenarios") == actual.get("escenarios")
                 and entrada.get("casos") == actual.get("casos")
+                and entrada.get("repeticiones", 1)
+                == actual.get("repeticiones", 1)
             ):
                 anterior = entrada
                 break

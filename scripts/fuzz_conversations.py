@@ -118,7 +118,7 @@ async def _cliente_habla(cliente: AsyncOpenAI, persona: str, historial: list[str
     respuesta = await cliente.chat.completions.create(
         model=settings.deepseek_model,
         messages=mensajes,
-        temperature=0.7,
+        temperature=0.3,
         max_tokens=80,
         extra_body={"thinking": {"type": "disabled"}},
     )
@@ -175,6 +175,12 @@ async def main() -> None:
         help="Usa los casos fijos de regresión (recomendado para comparar meses).",
     )
     parser.add_argument(
+        "--repeticiones",
+        type=int,
+        default=1,
+        help="Cuántas veces se corre cada escenario (se usa la mediana).",
+    )
+    parser.add_argument(
         "--comparar",
         action="store_true",
         help="Compara con la última corrida guardada en el historial.",
@@ -188,7 +194,7 @@ async def main() -> None:
     resultados: list[dict] = []
 
     async with SessionLocal() as session:
-        casos = (
+        base = (
             ESCENARIOS[: args.conversaciones]
             if args.escenarios
             else [
@@ -196,6 +202,12 @@ async def main() -> None:
                 for i in range(args.conversaciones)
             ]
         )
+        # Cada escenario se repite: se compara la mediana, no una pasada.
+        casos = [
+            caso
+            for caso in base
+            for _ in range(max(1, args.repeticiones))
+        ]
         for indice, caso in enumerate(casos):
             persona = caso["persona"]
             sufijo = uuid.uuid4().hex[:10]
@@ -281,14 +293,17 @@ async def main() -> None:
     notas = [r["nota"] for r in resultados if isinstance(r["nota"], (int, float))]
     from scripts import fuzz_scores
 
+    agregado = fuzz_scores.agregar(resultados)
     resumen = {
         "fecha": __import__("datetime").datetime.now(
             __import__("datetime").timezone.utc
         ).isoformat(),
         "escenarios": args.escenarios,
-        "casos": len(resultados),
-        "promedio": fuzz_scores.promedio(resultados),
-        "criterios": fuzz_scores.por_criterio(resultados),
+        "casos": agregado.get("escenarios_evaluados"),
+        "repeticiones": max(1, args.repeticiones),
+        "promedio": agregado["promedio"],
+        "criterios": agregado["criterios"],
+        "por_escenario": agregado["por_escenario"],
     }
     historial_path = Path("logs/fuzz-history.json")
     historial_path.parent.mkdir(parents=True, exist_ok=True)
@@ -310,6 +325,8 @@ async def main() -> None:
     for linea in fuzz_scores.comparar(anterior if args.comparar else None, resumen):
         print(linea)
     print(f"criterios: {resumen['criterios']}")
+    for escenario, datos in resumen.get("por_escenario", {}).items():
+        print(f"  {escenario}: {datos['nota']} ({datos['repeticiones']} corridas)")
     if notas:
         print(f"nota promedio: {sum(notas) / len(notas):.2f}")
     print(f"informe: {salida}")

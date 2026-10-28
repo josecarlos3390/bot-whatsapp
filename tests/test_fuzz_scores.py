@@ -1,4 +1,4 @@
-"""El fuzzing mide por criterios y compara corridas."""
+﻿"""El fuzzing mide por criterios y compara corridas."""
 
 from __future__ import annotations
 
@@ -41,3 +41,25 @@ def test_sin_historial_es_linea_base():
     lineas = fuzz_scores.comparar(None, {"promedio": 2.0})
 
     assert "línea base" in lineas[0]
+
+
+def test_mediana_por_escenario_aguanta_una_corrida_rara():
+    resultados = [
+        {"escenario": "stock", "nota": 4, "criterios": {"responde": 2}},
+        {"escenario": "stock", "nota": 4, "criterios": {"responde": 2}},
+        {"escenario": "stock", "nota": 0, "criterios": {"responde": 0}},
+        {"escenario": "precio", "nota": 3, "criterios": {"responde": 1}},
+    ]
+
+    agregado = fuzz_scores.agregar(resultados)
+
+    assert agregado["por_escenario"]["stock"]["nota"] == 4
+    assert agregado["promedio"] == 3.5
+    assert agregado["escenarios_evaluados"] == 2
+
+
+def test_agregar_sin_resultados():
+    agregado = fuzz_scores.agregar([])
+
+    assert agregado["promedio"] == 0.0
+    assert agregado["escenarios_evaluados"] == 0

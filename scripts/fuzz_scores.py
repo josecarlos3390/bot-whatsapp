@@ -63,3 +63,48 @@ def comparar(anterior: dict | None, actual: dict) -> list[str]:
             signo = "+" if delta >= 0 else ""
             lineas.append(f"  {clave}: {previo} → {valor} ({signo}{delta})")
     return lineas
+
+
+def _mediana(valores: list[float]) -> float:
+    import statistics
+
+    if not valores:
+        return 0.0
+    return round(float(statistics.median(valores)), 2)
+
+
+def agregar(resultados: list[dict]) -> dict:
+    """Agrupa por escenario y usa la mediana de las repeticiones.
+
+    Una sola pasada varía demasiado: con tres repeticiones y mediana, una
+    conversación rara no mueve el número.
+    """
+    grupos: dict[str, list[dict]] = {}
+    for item in resultados:
+        clave = str(item.get("escenario") or "libre")
+        grupos.setdefault(clave, []).append(item)
+
+    por_escenario: dict[str, dict] = {}
+    notas: list[float] = []
+    criterios: dict[str, list[float]] = {clave: [] for clave in CRITERIOS}
+    for clave, items in grupos.items():
+        nota = _mediana(
+            [float(i["nota"]) for i in items if isinstance(i.get("nota"), (int, float))]
+        )
+        por_escenario[clave] = {"nota": nota, "repeticiones": len(items)}
+        if nota:
+            notas.append(nota)
+        promedios = por_criterio(items)
+        for nombre, valor in promedios.items():
+            criterios[nombre].append(float(valor))
+
+    return {
+        "promedio": round(sum(notas) / len(notas), 2) if notas else 0.0,
+        "criterios": {
+            nombre: _mediana(valores)
+            for nombre, valores in criterios.items()
+            if valores
+        },
+        "por_escenario": por_escenario,
+        "escenarios_evaluados": len(grupos),
+    }
