@@ -1,8 +1,13 @@
-"""Fuzzing nocturno: mide la calidad del bot y avisa si empeora.
+"""Fuzzing automático: regresión diaria y exploración mensual.
 
-Corre un puñado de conversaciones simuladas, guarda el promedio en un
-historial y, si la nota baja respecto de la corrida anterior, deja un aviso
-en logs/fuzz-alert.txt (y lo publica en el webhook si está configurado).
+Dos ritmos, los dos sin intervención:
+
+- **Diario (regresión)**: corre los escenarios fijos y avisa si alguno
+  empeora. Detecta que un cambio rompió algo que ya funcionaba.
+- **Mensual (exploración)**: corre casos aleatorios para descubrir problemas
+  nuevos que los escenarios fijos no cubren.
+
+El historial y la comparación quedan en `logs/fuzz-history.json`.
 """
 
 from __future__ import annotations
@@ -12,7 +17,6 @@ import json
 import logging
 import subprocess
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
@@ -22,8 +26,9 @@ REPORTE = ROOT / ".tools" / "fuzz-report.json"
 HISTORIAL = ROOT / "logs" / "fuzz-history.json"
 AVISO = ROOT / "logs" / "fuzz-alert.txt"
 UMBRAL = 0.7
+UMBRAL_CRITERIO = 0.5
 
-logger = logging.getLogger("fuzz_nocturno")
+logger = logging.getLogger("fuzz_automatico")
 
 
 def evaluar(anterior: float | None, actual: float, umbral: float = UMBRAL) -> dict:
@@ -38,6 +43,20 @@ def evaluar(anterior: float | None, actual: float, umbral: float = UMBRAL) -> di
     }
 
 
+def criterios_en_baja(anterior: dict, actual: dict) -> list[str]:
+    """Criterios que empeoraron más de lo tolerable."""
+    previos = anterior.get("criterios") or {}
+    actuales = actual.get("criterios") or {}
+    en_baja = []
+    for clave, valor in actuales.items():
+        previo = previos.get(clave)
+        if previo is None:
+            continue
+        if float(previo) - float(valor) >= UMBRAL_CRITERIO:
+            en_baja.append(f"{clave}: {previo} → {valor}")
+    return en_baja
+
+
 def _historial() -> list[dict]:
     if not HISTORIAL.exists():
         return []
@@ -47,42 +66,54 @@ def _historial() -> list[dict]:
         return []
 
 
-def _guardar(entrada: dict) -> None:
-    HISTORIAL.parent.mkdir(parents=True, exist_ok=True)
-    datos = _historial()
-    datos.append(entrada)
-    HISTORIAL.write_text(
-        json.dumps(datos[-90:], ensure_ascii=False, indent=2), encoding="utf-8"
-    )
-
-
 def _avisar(texto: str, webhook: str | None) -> None:
     AVISO.parent.mkdir(parents=True, exist_ok=True)
     AVISO.write_text(texto, encoding="utf-8")
     logger.warning(texto)
     if webhook:
         try:
-            httpx.post(webhook, json={"event": "fuzz.alert", "detail": texto}, timeout=10)
+            httpx.post(
+                webhook, json={"event": "fuzz.alert", "detail": texto}, timeout=10
+            )
         except Exception:  # noqa: BLE001 - el aviso no debe romper la corrida
             logger.exception("No se pudo publicar el aviso")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--conversaciones", type=int, default=6)
-    parser.add_argument("--turnos", type=int, default=5)
+    parser.add_argument(
+        "--modo",
+        choices=("regresion", "exploracion"),
+        default="regresion",
+        help=(
+            "regresion: escenarios fijos (diario). "
+            "exploracion: casos nuevos (mensual)."
+        ),
+    )
+    parser.add_argument("--conversaciones", type=int, default=0)
+    parser.add_argument("--turnos", type=int, default=0)
     args = parser.parse_args()
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
+    )
+
+    exploracion = args.modo == "exploracion"
+    conversaciones = args.conversaciones or (5 if exploracion else 6)
+    turnos = args.turnos or (6 if exploracion else 4)
 
     comando = [
         sys.executable,
         "-m",
         "scripts.fuzz_conversations",
         "--conversaciones",
-        str(args.conversaciones),
+        str(conversaciones),
         "--turnos",
-        str(args.turnos),
+        str(turnos),
     ]
+    if not exploracion:
+        comando.append("--escenarios")
+
+    logger.info("Corrida %s (%s conversaciones)", args.modo, conversaciones)
     resultado = subprocess.run(comando, cwd=ROOT, capture_output=True, text=True)
     if resultado.returncode != 0:
         logger.error("La corrida falló: %s", (resultado.stderr or "")[-500:])
@@ -91,38 +122,41 @@ def main() -> int:
         logger.error("No se generó el informe")
         return 1
 
-    datos = json.loads(REPORTE.read_text(encoding="utf-8"))
-    notas = [c.get("nota") for c in datos if isinstance(c.get("nota"), (int, float))]
-    if not notas:
-        logger.warning("Sin notas en el informe")
-        return 0
-    promedio = round(sum(notas) / len(notas), 2)
-
     historial = _historial()
-    anterior = historial[-1].get("promedio") if historial else None
-    decision = evaluar(anterior, promedio)
+    anterior = historial[-2] if len(historial) >= 2 else None
+    actual = historial[-1] if historial else None
+    if not actual:
+        logger.warning("El fuzzing no dejó resumen en el historial")
+        return 1
 
-    entrada = {
-        "fecha": datetime.now(timezone.utc).isoformat(),
-        "promedio": promedio,
-        "conversaciones": len(notas),
-        "alerta": decision["alerta"],
-    }
-    _guardar(entrada)
+    decision = evaluar(
+        float(anterior.get("promedio") or 0) if anterior else None,
+        float(actual.get("promedio") or 0),
+    )
+    bajas = criterios_en_baja(anterior or {}, actual)
 
-    if decision["alerta"]:
+    if decision["alerta"] or bajas:
         from app.config import settings
 
+        detalle = [f"Promedio: {actual.get('promedio')}"]
+        if bajas:
+            detalle.append("Criterios en baja: " + "; ".join(bajas))
+        if decision["alerta"]:
+            detalle.append(decision["motivo"])
         _avisar(
             (
-                f"Calidad del bot en baja: promedio {promedio} "
-                f"(antes {anterior}). {decision['motivo']}.\n"
-                f"Revisá el informe en .tools/fuzz-report.json"
+                f"Fuzzing ({args.modo}): la calidad bajó.\n"
+                + "\n".join(detalle)
+                + "\nRevisá .tools/fuzz-report.json"
             ),
             settings.handoff_webhook_url or None,
         )
     else:
-        logger.info("Calidad estable: %s (antes %s)", promedio, anterior)
+        logger.info(
+            "Calidad estable: %s (antes %s)",
+            actual.get("promedio"),
+            anterior.get("promedio") if anterior else None,
+        )
     return 0
 
 

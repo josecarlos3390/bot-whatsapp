@@ -37,6 +37,7 @@ $tunnelLog = Join-Path $logDir "cloudflared.log"
 $tunnelErrLog = Join-Path $logDir "cloudflared.err.log"
 $urlFile = Join-Path $logDir "tunnel-url.txt"
 $fuzzStamp = Join-Path $logDir "fuzz.stamp"
+$fuzzMesStamp = Join-Path $logDir "fuzz-mes.stamp"
 $botOut = Join-Path $logDir "bot.out.log"
 $botErr = Join-Path $logDir "bot.err.log"
 $envFile = Join-Path $root ".env"
@@ -157,7 +158,25 @@ function Start-Fuzz {
     Write-Host "[serve] fuzzing nocturno"
     Write-TextNoBom -Path $fuzzStamp -Text (Get-Date -Format o)
     Start-Process -FilePath $python `
-        -ArgumentList @("-m", "scripts.nightly_fuzz") `
+        -ArgumentList @("-m", "scripts.nightly_fuzz", "--modo", "regresion") `
+        -WorkingDirectory $root `
+        -WindowStyle Hidden
+}
+
+function FuzzMensual-Due {
+    # Exploración: casos aleatorios una vez al mes para descubrir problemas
+    # nuevos (los escenarios fijos solo detectan regresiones).
+    if ($env:FUZZ_MONTHLY -eq "false") { return $false }
+    if (-not (Test-Path $fuzzMesStamp)) { return $true }
+    $last = (Get-Item $fuzzMesStamp).LastWriteTime
+    return ((Get-Date) - $last).TotalDays -ge 28
+}
+
+function Start-FuzzMensual {
+    Write-Host "[serve] fuzzing exploratorio mensual"
+    Write-TextNoBom -Path $fuzzMesStamp -Text (Get-Date -Format o)
+    Start-Process -FilePath $python `
+        -ArgumentList @("-m", "scripts.nightly_fuzz", "--modo", "exploracion") `
         -WorkingDirectory $root `
         -WindowStyle Hidden
 }
@@ -286,6 +305,7 @@ while ($true) {
         if (Sync-Due) { Start-CatalogSync }
         if (Backup-Due) { Start-Backup }
         if (Fuzz-Due) { Start-Fuzz }
+        if (FuzzMensual-Due) { Start-FuzzMensual }
 
         if ($webhook -and $webhook.HasExited) {
             Log "el vigilante del webhook se detuvo; reiniciando"
