@@ -1,4 +1,4 @@
-"""Saludo principal: formato, nombre y tres botones funcionales."""
+﻿"""Saludo principal: formato, nombre y tres botones funcionales."""
 
 from __future__ import annotations
 
@@ -96,3 +96,27 @@ async def test_el_boton_asesor_funciona_dentro_de_un_flujo(session):
     texto = (respuesta.messages[0].text or "").lower()
     assert "asesor" in texto or "equipo" in texto
     assert "id del pedido" not in texto
+
+
+@pytest.mark.parametrize(
+    "texto",
+    ["Holaaaaaa", "holaa", "buenasaaa", "HOLAAAA", "hola que tal!!", "buenas tardes!!"],
+)
+async def test_los_saludos_estirados_tambien_saludan(session, texto):
+    contacto = Contact(wa_id=f"5917{abs(hash(texto)) % 100000:05d}", phone_e164="+59170000000")
+    session.add(contacto)
+    await session.flush()
+    session.add(Conversation(contact_id=contacto.id))
+    await session.commit()
+
+    respuesta = await Agent().handle(session, contacto, texto)
+
+    assert respuesta.messages[0].kind == "buttons"
+    assert "ROHO Homecenter" in (respuesta.messages[0].text or "")
+
+
+def test_el_colapso_quita_repeticiones():
+    from app.agent import _sin_repeticiones
+
+    assert _sin_repeticiones("Holaaaaaa") == "hola"
+    assert _sin_repeticiones("HOLAAAA") == "hola"

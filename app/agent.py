@@ -2548,6 +2548,15 @@ def _etiqueta_busqueda(query: str) -> str:
         return ""
     return limpio
 
+def _sin_repeticiones(texto: str) -> str:
+    """Colapsa letras repetidas: "Holaaaaaa" -> "hola".
+
+    La gente escribe los saludos estirando vocales; sin esto el saludo
+    caía en la búsqueda y respondía con productos.
+    """
+    return re.sub(r"(.)\1{2,}", r"\1", (texto or "").strip().lower())
+
+
 def _pide_producto(text: str) -> bool:
     """¿El mensaje pide productos de forma explícita?"""
     return bool(PRODUCT_REQUEST_RE.search(text or ""))
@@ -4673,7 +4682,7 @@ class Agent:
                 session, contact, raw, policy=policy
             )
 
-        if simple in {
+        saludables = {
             "hola",
             "buenas",
             "buenos dias",
@@ -4685,7 +4694,13 @@ class Agent:
             "hola que tal",
             "hola como estas",
             "hola todo bien",
-        }:
+        }
+        compacto = _sin_repeticiones(simple)
+        if (
+            simple in saludables
+            or compacto in saludables
+            or compacto[:-1] in saludables
+        ):
             return AgentReply(
                 [
                     Outbound(
