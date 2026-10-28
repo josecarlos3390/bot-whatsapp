@@ -78,10 +78,10 @@ async def start(session: AsyncSession, contact: Contact) -> str:
     flow.status = "active"
     await session.commit()
     return (
-        "Para consultar el seguimiento, pasame el *ID del pedido* que te "
-        "llegó por correo. Tiene un formato similar a "
-        "*1670220500193-01*.\n\n"
-        "Si no lo encontrás, escribí *asesor* y lo revisamos."
+        "Para consultar el seguimiento pasame el *ID del pedido* "
+        "(por ejemplo *1670220500193-01*).\n\n"
+        "Si no lo tenés a mano, pasame tu *CI o NIT* y busco tus compras a "
+        "tu nombre. También podés escribir *asesor*."
     )
 
 
@@ -162,7 +162,16 @@ def format_order(order: dict) -> str:
         for item in items[:6]:
             name = item.get("name") or item.get("skuName") or "Producto"
             quantity = item.get("quantity") or 1
-            lines.append(f"• {quantity} × {name}")
+            # Código VTEX del artículo: es lo que figura en la caja y en la
+            # factura, y ayuda al cliente a identificar qué le llegó.
+            codigo = str(
+                item.get("skuCode")
+                or item.get("refId")
+                or item.get("id")
+                or ""
+            ).strip()
+            sufijo = f" ({codigo})" if codigo and codigo != name else ""
+            lines.append(f"• {quantity} × {name}{sufijo}")
         if len(items) > 6:
             lines.append(f"• y {len(items) - 6} más")
     place, tracking, _ = _shipping(order)
@@ -180,8 +189,20 @@ def format_order(order: dict) -> str:
 async def lookup(
     session: AsyncSession, flow: ConversationFlow, text: str
 ) -> dict:
+    from .order_by_document import extract_documento, lookup_by_document
+
     order_id = extract_order_id(text)
     answers = dict(flow.answers or {})
+    # Si el cliente ofrece su documento (o no recuerda el número), se busca
+    # por CI/NIT. Antes el bot insistía con el ID y no avanzaba.
+    documento = extract_documento(text)
+    es_id_largo = bool(order_id) and (
+        "-" in (order_id or "") or len(order_id or "") >= 13
+    )
+    if documento and not es_id_largo:
+        flow.status = "completed"
+        await session.commit()
+        return await lookup_by_document(session, contact, documento)
     if not order_id:
         answers["attempts"] = int(answers.get("attempts") or 0) + 1
         flow.answers = answers
