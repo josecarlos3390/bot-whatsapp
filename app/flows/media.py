@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..config import settings
 from ..models import Contact
 from ..replies import AgentReply
 from ..services import ideas, media as media_service, vision
@@ -152,6 +153,30 @@ async def reply(
                 ),
             ]
         )
+
+    # Sin nada parecido: se ofrece un puente a lo relacionado, como con los
+    # productos que no existen por texto (una impresora → oficina/tecnología).
+    if settings.deepseek_api_key:
+        from ..services import related
+
+        try:
+            puente = await related.reply(
+                agent, session, contact, objeto or categoria or ""
+            )
+        except Exception:  # noqa: BLE001 - nunca dejar sin respuesta
+            puente = None
+        if puente is not None:
+            agent._trace(f"Imagen: {objeto} con puente a lo relacionado")
+            return AgentReply(
+                [
+                    Outbound(
+                        text=_frase_imagen(
+                            acompanante, objeto, marca, intencion
+                        )
+                    ),
+                    *puente.messages,
+                ]
+            )
 
     agent._trace(f"Imagen: {objeto} sin coincidencias")
     return AgentReply(

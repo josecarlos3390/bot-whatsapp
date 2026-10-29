@@ -119,14 +119,32 @@ async def product_list(
             ],
         }
     ]
+    # Primero el texto con nombre y precio; después el menú para elegir.
+    # Antes llegaba solo el menú y el cliente no veía qué había.
+    lineas = []
+    for index, producto in enumerate(products[:9], start=1):
+        precio = producto.get("promo_price") or producto.get("price")
+        linea = f"{index}. {agent._truncate(producto['name'], 52)} — Bs {precio}"
+        if producto.get("brand"):
+            linea += f" · {producto['brand']}"
+        lineas.append(linea)
+    from ..services import emoji
+
+    icono = emoji.para(label)
+    texto = (
+        f"En *{label}* tengo estas opciones {icono}:\n\n"
+        + "\n".join(lineas)
+        + "\n\nElegí una y te muestro la foto y la ficha completa 👇"
+    )
     return AgentReply(
         [
+            Outbound(text=texto[:4096]),
             Outbound(
                 kind="list",
-                text=f"Opciones en {label}:",
+                text=f"¿Cuál de {label} te interesa? 👀",
                 button_text="Ver productos",
                 sections=sections,
-            )
+            ),
         ]
     )
 
