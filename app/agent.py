@@ -52,6 +52,7 @@ from .services import (
     knowledge,
     memory as memory_service,
     metrics,
+    most_chosen,
     session_flow,
     native_commerce,
     orders,
@@ -4554,6 +4555,14 @@ class Agent:
         if decision.get("frustrated"):
             self._trace("Enojo: disculpa y derivación")
             return await self._frustration_reply(session, contact)
+        # "Mostrame las más elegidas": es una respuesta a la pregunta del bot,
+        # no una búsqueda de producto. Se resuelve con ventas, descuentos y
+        # stock (antes contestaba "no tengo eso exacto").
+        if most_chosen.is_most_chosen(raw):
+            elegidas = await most_chosen.reply(self, session, contact, raw)
+            if elegidas is not None:
+                return elegidas
+
         # "¿Tienen juguetes?": si el catálogo no lo tiene, se dice de entrada
         # (el modelo inventaba disponibilidad).
         termino = _availability_term(raw)
