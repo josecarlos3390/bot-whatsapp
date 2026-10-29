@@ -82,13 +82,20 @@ CASOS: list[dict] = [
 ]
 
 
+def _sin_acentos(texto: str) -> str:
+    import unicodedata
+
+    base = unicodedata.normalize("NFKD", texto or "")
+    return "".join(c for c in base if not unicodedata.combining(c)).lower()
+
+
 def evaluar(salidas: list[str], espera: list[str]) -> tuple[bool, str]:
-    """Decide si el caso pasó."""
-    texto = " ".join(salidas).lower()
+    """Decide si el caso pasó (sin distinguir acentos)."""
+    texto = _sin_acentos(" ".join(salidas))
     for prohibida in PROHIBIDAS:
-        if prohibida in texto:
+        if _sin_acentos(prohibida) in texto:
             return False, f"respondió «{prohibida}»"
-    if not any(clave.lower() in texto for clave in espera):
+    if not any(_sin_acentos(clave) in texto for clave in espera):
         return False, "no menciona lo esperado"
     return True, "ok"
 
@@ -123,9 +130,24 @@ async def correr(caso: dict) -> tuple[bool, str, list[str]]:
 async def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--caso", default="")
+    parser.add_argument(
+        "--generados",
+        action="store_true",
+        help="Suma los guiones generados con IA (scripts/guiones_generados.json).",
+    )
     args = parser.parse_args()
 
-    casos = [c for c in CASOS if not args.caso or c["id"] == args.caso]
+    todos = list(CASOS)
+    if args.generados:
+        from pathlib import Path as _Path
+
+        ruta = _Path("scripts") / "guiones_generados.json"
+        if ruta.exists():
+            import json as _json
+
+            datos = _json.loads(ruta.read_text(encoding="utf-8"))
+            todos.extend(datos.get("casos") or [])
+    casos = [c for c in todos if not args.caso or c["id"] == args.caso]
     fallos = 0
     for caso in casos:
         ok, motivo, salidas = await correr(caso)

@@ -124,6 +124,29 @@ def main() -> int:
         logger.error("No se generó el informe")
         return 1
 
+    # Auditoría de guiones: barata y determinista, corre siempre.
+    auditoria = subprocess.run(
+        [sys.executable, "-m", "scripts.auditoria_dialogos", "--generados"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    fallos_auditoria = 0
+    for linea in (auditoria.stdout or "").splitlines():
+        if linea.startswith("[FALLA]"):
+            logger.warning("Auditoría: %s", linea)
+            fallos_auditoria += 1
+    if fallos_auditoria:
+        from app.config import settings as _settings
+
+        _avisar(
+            f"Auditoría de diálogos: {fallos_auditoria} caso(s) fallando. "
+            "Revisar scripts/auditoria_dialogos.py",
+            _settings.handoff_webhook_url or None,
+        )
+
     historial = _historial()
     actual = historial[-1] if historial else None
     # Solo se compara con una corrida del mismo tipo: 4 casos no se comparan

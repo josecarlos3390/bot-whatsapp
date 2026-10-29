@@ -1,0 +1,172 @@
+{
+  "casos": [
+    {
+      "id": "marca-1",
+      "mensajes": [
+        "busco un colchón",
+        "Mostrame las más elegidas"
+      ],
+      "espera": [
+        "colchón",
+        "colchon",
+        "opciones",
+        "marca",
+        "Bs"
+      ]
+    },
+    {
+      "id": "marca-2",
+      "mensajes": [
+        "busco un colchón",
+        "Mostrame las más elegidas, gracias"
+      ],
+      "espera": [
+        "colchón",
+        "colchon",
+        "opciones",
+        "marca",
+        "Bs"
+      ]
+    },
+    {
+      "id": "marca-3",
+      "mensajes": [
+        "busco un colchón",
+        "Mostrame las más elegidas, porfa"
+      ],
+      "espera": [
+        "colchón",
+        "colchon",
+        "opciones",
+        "marca",
+        "Bs"
+      ]
+    },
+    {
+      "id": "marca-4",
+      "mensajes": [
+        "busco un colchón",
+        "Mostrame las más elegidas, no conozco marcas"
+      ],
+      "espera": [
+        "colchón",
+        "colchon",
+        "opciones",
+        "marca",
+        "Bs"
+      ]
+    },
+    {
+      "id": "medida-5",
+      "mensajes": [
+        "busco un colchón",
+        "De 2 plazas, busco algo así"
+      ],
+      "espera": [
+        "colchón",
+        "colchon",
+        "plazas",
+        "medida",
+        "Bs"
+      ]
+    },
+    {
+      "id": "medida-6",
+      "mensajes": [
+        "busco un colchón",
+        "De 2 plazas, pero que no sea muy blando"
+      ],
+      "espera": [
+        "colchón",
+        "colchon",
+        "plazas",
+        "medida",
+        "Bs"
+      ]
+    },
+    {
+      "id": "medida-7",
+      "mensajes": [
+        "busco un colchón",
+        "De dos plazas, medida estándar"
+      ],
+      "espera": [
+        "colchón",
+        "colchon",
+        "plazas",
+        "medida",
+        "Bs"
+      ]
+    },
+    {
+      "id": "medida-8",
+      "mensajes": [
+        "busco un colchón",
+        "De una plaza y media, ¿tenés?"
+      ],
+      "espera": [
+        "colchón",
+        "colchon",
+        "plazas",
+        "medida",
+        "Bs"
+      ]
+    },
+    {
+      "id": "seguir-9",
+      "mensajes": [
+        "busco un taladro",
+        "Mostrame más opciones por favor"
+      ],
+      "espera": [
+        "opción",
+        "opcion",
+        "taladro",
+        "asesor",
+        "Bs"
+      ]
+    },
+    {
+      "id": "seguir-10",
+      "mensajes": [
+        "busco un taladro",
+        "Mostrame más opciones porfa"
+      ],
+      "espera": [
+        "opción",
+        "opcion",
+        "taladro",
+        "asesor",
+        "Bs"
+      ]
+    },
+    {
+      "id": "seguir-11",
+      "mensajes": [
+        "busco un taladro",
+        "Mejor pasame con un asesor"
+      ],
+      "espera": [
+        "opción",
+        "opcion",
+        "taladro",
+        "asesor",
+        "Bs"
+      ]
+    },
+    {
+      "id": "seguir-12",
+      "mensajes": [
+        "busco un taladro",
+        "Mejor pasame con un asesor, así consulto bien"
+      ],
+      "espera": [
+        "opción",
+        "opcion",
+        "taladro",
+        "asesor",
+        "Bs"
+      ]
+    }
+  ]
+}

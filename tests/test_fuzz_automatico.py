@@ -1,4 +1,4 @@
-"""Fuzzing automático: diario de regresión y mensual de exploración."""
+﻿"""Fuzzing automático: diario de regresión y mensual de exploración."""
 
 from __future__ import annotations
 
@@ -39,3 +39,29 @@ def test_los_escenarios_fijos_existen():
     identificadores = {caso["id"] for caso in ESCENARIOS}
 
     assert {"pedido-id", "stock", "envio-zona", "enojo", "precio", "imagen"} <= identificadores
+
+
+def test_la_auditoria_evalua_por_prohibidas_y_esperadas():
+    from scripts import auditoria_dialogos as auditoria
+
+    ok, motivo = auditoria.evaluar(
+        ["No tengo eso exacto, pero tengo opciones"], ["colchón"]
+    )
+    assert ok is False
+    assert "no tengo" in motivo.lower()
+
+    ok2, _ = auditoria.evaluar(["Tenemos colchones de 2 plazas"], ["colchón"])
+    assert ok2 is True
+
+    ok3, motivo3 = auditoria.evaluar(["Hola, ¿qué buscás?"], ["colchón"])
+    assert ok3 is False
+
+
+def test_los_casos_fijos_cubren_las_preguntas_del_bot():
+    from scripts.auditoria_dialogos import CASOS
+
+    identificadores = {caso["id"] for caso in CASOS}
+
+    assert {"marca", "medida", "elegidas", "baratos", "asesor"} <= identificadores
+    for caso in CASOS:
+        assert caso["mensajes"] and caso["espera"]
