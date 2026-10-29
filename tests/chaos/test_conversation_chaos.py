@@ -8,8 +8,14 @@ from types import SimpleNamespace
 import pytest
 
 from app.agent import Agent, AgentReply, Outbound, Toolbox
+from app.config import settings
 from app.models import CatalogItem, Contact, Conversation
-from app.services import area_rules, conversation_guard, recommendations
+from app.services import (
+    area_rules,
+    conversation_guard,
+    order_by_document,
+    recommendations,
+)
 from sqlalchemy import select
 
 
@@ -381,6 +387,48 @@ async def test_estado_de_pedido_no_es_ambiguo(session):
     assert "ID del pedido" in text
     guard = await conversation_guard.get_for_contact(session, contact)
     assert guard is None or guard.pending_slot != "intent"
+
+
+async def test_secuencia_explicita_muestra_solo_estado(session, monkeypatch):
+    contact = await _contact(session, "59170009017")
+    monkeypatch.setattr(settings, "order_sequence_lookup_enabled", True)
+
+    async def fake_sequence(session, sequence):
+        assert sequence == "500195"
+        return {
+            "text": "Pedido *500195*\nEstado: *Listo para preparar*",
+            "finished": True,
+            "needs_handoff": False,
+        }
+
+    monkeypatch.setattr(
+        order_by_document, "lookup_by_sequence", fake_sequence
+    )
+    reply = await Agent().handle(
+        session, contact, "secuencia 500195", [], None
+    )
+    text = "\n".join(message.text or "" for message in reply.messages)
+    assert "Pedido *500195*" in text
+    assert "Listo para preparar" in text
+    assert "documento" not in text.lower()
+
+
+async def test_secuencia_inexistente_pide_identificacion(session, monkeypatch):
+    contact = await _contact(session, "59170009018")
+    monkeypatch.setattr(settings, "order_sequence_lookup_enabled", True)
+
+    async def fake_sequence(session, sequence):
+        return None
+
+    monkeypatch.setattr(
+        order_by_document, "lookup_by_sequence", fake_sequence
+    )
+    reply = await Agent().handle(
+        session, contact, "secuencia 000001", [], None
+    )
+    text = "\n".join(message.text or "" for message in reply.messages)
+    assert "No encontré un pedido" in text
+    assert "CI/NIT" in text
 
 
 async def test_si_no_infiere_pregunta_y_guarda_tema(session):

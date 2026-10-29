@@ -4517,6 +4517,48 @@ class Agent:
                     ]
                 )
 
+        # Una secuencia solo se interpreta como tal cuando el cliente la
+        # nombra explícitamente. Un número suelto puede ser CI, medida o
+        # cantidad y no debe resolver un pedido ajeno.
+        sequence_match = re.search(
+            r"\b(?:secuencia|n[uú]mero\s+de\s+pedido|pedido)\s*"
+            r"(?:n[°º.]?|#)?\s*(\d{4,7})\b",
+            raw,
+            re.IGNORECASE,
+        )
+        if sequence_match and settings.order_sequence_lookup_enabled:
+            from .services.order_by_document import lookup_by_sequence
+
+            sequence = sequence_match.group(1)
+            estado_seq = await lookup_by_sequence(session, sequence)
+            if estado_seq:
+                return AgentReply([Outbound(text=estado_seq["text"])])
+            return await self._clarify_reply(
+                session,
+                contact,
+                question=(
+                    f"No encontré un pedido con la secuencia *{sequence}*. "
+                    "¿Me pasás tu CI/NIT o el número completo del pedido?"
+                ),
+                query=raw,
+                slot="intent",
+            )
+
+        # Un número suelto no se guarda como documento: puede ser una
+        # secuencia, una medida o una cantidad. Se pide contexto.
+        if raw.isdigit() and 4 <= len(raw) <= 7:
+            return await self._clarify_reply(
+                session,
+                contact,
+                question=(
+                    "¿Ese número es tu CI/NIT o la secuencia de un pedido? "
+                    "Si es un pedido, escribí *secuencia "
+                    f"{raw}*."
+                ),
+                query=raw,
+                slot="intent",
+            )
+
         # Si el cliente ya dio su CI o NIT, se guarda y se usa en el acto:
         # no tiene sentido volver a pedirlo en el mensaje siguiente.
         documento = _document_number(raw)
@@ -4835,6 +4877,19 @@ class Agent:
         rule_policy.log_applied(
             policy, contact_id=contact.id, query=raw
         )
+        # Pedido abierto ("productos de tecnología"): preguntar el uso antes
+        # de listar, para no adivinar.
+        if SEARCH_RE.search(raw) and not normalized.startswith(
+            ("uso:", "refine:", "product:", "cat:", "type:")
+        ):
+            from .services import clarify
+
+            pregunta = await clarify.preguntar(
+                self, session, contact, raw
+            )
+            if pregunta is not None:
+                return pregunta
+
         if policy.has_product_rules and SEARCH_RE.search(raw):
             return await self._search_reply(
                 session, contact, raw, policy=policy
@@ -4972,6 +5027,16 @@ class Agent:
                     ]
                 )
             if settings.deepseek_api_key:
+                # Pedido muy abierto ("productos de tecnología"): antes de
+                # listar se pregunta el uso, para no adivinar.
+                if SEARCH_RE.search(raw):
+                    from .services import clarify
+
+                    pregunta = await clarify.preguntar(
+                        self, session, contact, raw
+                    )
+                    if pregunta is not None:
+                        return pregunta
                 self._trace("Modelo de IA")
                 return await self._llm_handle(
                     session, contact, raw, history or [], memory
@@ -5051,6 +5116,14 @@ class Agent:
                     )
                 ]
             )
+
+        # "¿Para qué lo necesitás?": el botón trae la búsqueda concreta.
+        if normalized.startswith("uso:"):
+            consulta = raw.split(":", 1)[1].strip()
+            if consulta:
+                return await self._search_reply(
+                    session, contact, consulta, limit=5
+                )
 
         # Botón de la pregunta de medida/marca: se combina con la búsqueda previa.
         if normalized.startswith("refine:"):
