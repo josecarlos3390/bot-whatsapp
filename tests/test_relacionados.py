@@ -23,8 +23,8 @@ def test_parsea_la_respuesta_de_la_ia():
     )
 
     assert datos is not None
-    assert datos["intencion"] == "jugar fútbol con amigos"
-    assert datos["relacionadas"] == ["televisor", "sillón"]
+    assert datos["intenciones"][0]["idea"] == "jugar fútbol con amigos"
+    assert datos["intenciones"][0]["categorias"] == ["televisor", "sillón"]
 
 
 def test_tolera_texto_alrededor_del_json():
@@ -34,7 +34,7 @@ def test_tolera_texto_alrededor_del_json():
     )
 
     assert datos is not None
-    assert datos["relacionadas"] == ["sombrilla"]
+    assert datos["intenciones"][0]["categorias"] == ["sombrilla"]
 
 
 def test_rechaza_respuestas_invalidas():
@@ -96,8 +96,9 @@ async def test_muestra_productos_relacionados(session, monkeypatch):
 
     async def _falsa(termino: str):
         return {
-            "intencion": "protegerse del sol",
-            "relacionadas": ["sombrilla"],
+            "intenciones": [
+                {"idea": "protegerse del sol", "categorias": ["sombrilla"]}
+            ]
         }
 
     monkeypatch.setattr(related, "_pedir_a_la_ia", _falsa, raising=True)

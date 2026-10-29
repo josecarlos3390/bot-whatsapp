@@ -1,4 +1,4 @@
-﻿"""Orden de los mensajes: las fotos primero y el cierre al final."""
+"""Orden de los mensajes: primero la lista, después la foto al elegir."""
 
 from __future__ import annotations
 
@@ -17,28 +17,39 @@ def _producto(numero: int) -> dict:
     }
 
 
-def test_las_fotos_van_antes_del_cierre():
+def test_las_tarjetas_son_lista_y_menu_sin_fotos():
     tarjetas = Agent._search_cards([_producto(1), _producto(2), _producto(3)])
 
     tipos = [mensaje.kind for mensaje in tarjetas]
-    assert tipos == ["image", "image", "image", "list"], tipos
+    assert tipos == ["text", "list"], tipos
     assert tarjetas[-1].kind == "list"
+    assert tarjetas[-1].button_text == "Ver opciones"
 
 
-def test_el_cierre_dice_cuantas_opciones():
+def test_la_lista_dice_cuantas_opciones_y_el_precio():
     tarjetas = Agent._search_cards([_producto(1), _producto(2), _producto(3)])
 
-    cierre = tarjetas[-1].text or ""
-    assert "3 opciones" in cierre
-    assert cierre.endswith(":")
+    texto = tarjetas[0].text or ""
+    assert "3 opciones" in texto
+    assert "Bs 110" in texto
+    assert "1. Espejo Modelo 1" in texto
 
 
 def test_una_sola_opcion_no_dice_opciones():
     tarjetas = Agent._search_cards([_producto(1)])
 
-    cierre = tarjetas[-1].text or ""
-    assert "1 opciones" not in cierre
-    assert "la opción" in cierre.lower()
+    texto = tarjetas[0].text or ""
+    assert "1 opciones" not in texto
+    assert "1 opción" in texto
+
+
+def test_muestra_hasta_cinco_opciones():
+    productos = [_producto(numero) for numero in range(1, 9)]
+
+    tarjetas = Agent._search_cards(productos)
+
+    assert "5 opciones" in (tarjetas[0].text or "")
+    assert len(tarjetas[-1].sections[0]["rows"]) == 5
 
 
 def test_no_agrega_seguimos_despues_de_una_pregunta():
@@ -52,20 +63,14 @@ def test_no_agrega_seguimos_despues_de_una_pregunta():
     assert salida[0].kind == "text"
 
 
-def test_no_agrega_seguimos_despues_de_una_lista():
+def test_no_agrega_seguimos_si_ya_hay_lista():
     from app.agent import Outbound
 
     salida = Agent._con_seguimiento(
-        [Outbound(kind="list", text="Son 3 opciones. Decime cuál te interesa:")]
+        [
+            Outbound(text="Encontré 1 opción:"),
+            Outbound(kind="list", text="¿Cuál te interesa?", sections=[]),
+        ]
     )
 
-    assert len(salida) == 1
-
-
-def test_agrega_seguimos_cuando_la_respuesta_es_afirmativa():
-    from app.agent import Outbound
-
-    salida = Agent._con_seguimiento([Outbound(text="Listo, te muestro las opciones.")])
-
     assert len(salida) == 2
-    assert salida[-1].kind == "buttons"

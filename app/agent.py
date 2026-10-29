@@ -3048,6 +3048,38 @@ class Agent:
                     bridge_seen.add(product["sku"])
                     bridge_products.append(product)
             if bridge_products:
+                # Además del puente guardado, la IA propone otras ideas para
+                # la ocasión (Halloween: película, parrilla, decoración).
+                ideas_extra: list[str] = []
+                extra: list[dict] = []
+                if settings.deepseek_api_key:
+                    try:
+                        ideas_extra, extra_items = await related.relacionadas(
+                            session, str(event.get("label") or "")
+                        )
+                        extra = [
+                            Toolbox._product(item) for item in extra_items
+                        ]
+                    except Exception:  # noqa: BLE001
+                        ideas_extra, extra = [], []
+                if ideas_extra:
+                    vistos = {p["sku"] for p in bridge_products}
+                    combinados = list(bridge_products[:1]) + [
+                        p for p in extra if p["sku"] not in vistos
+                    ]
+                    ideas_txt = ", ".join(ideas_extra[:3])
+                    return AgentReply(
+                        [
+                            Outbound(
+                                text=(
+                                    f"*{event['label']}* como tal no tengo, "
+                                    "pero se me ocurren varias ideas: "
+                                    f"{ideas_txt}. Mirá lo que sí tengo:"
+                                )
+                            ),
+                            *self._search_cards(combinados[:3]),
+                        ]
+                    )
                 return AgentReply(
                     [
                         Outbound(
@@ -3071,6 +3103,18 @@ class Agent:
                         ),
                     ]
                 )
+        # Sin productos para la ocasión: la IA propone ideas creativas y
+        # productos que sí existen, en vez de cerrar en "no tengo".
+        if settings.deepseek_api_key:
+            try:
+                puente = await related.reply(
+                    self, session, contact, str(event.get("label") or "")
+                )
+            except Exception:  # noqa: BLE001 - nunca romper la respuesta
+                puente = None
+            if puente is not None:
+                return puente
+
         return AgentReply(
             [
                 Outbound(

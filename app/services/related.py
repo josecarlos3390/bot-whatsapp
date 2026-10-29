@@ -1,8 +1,8 @@
 """Puente a lo relacionado: el cliente pide algo que no hay y se lo guía.
 
-Ejemplo: pide «pelotas», no hay, y en vez de cerrar con «no tengo», la IA
-propone la intención (jugar, ver fútbol con amigos) y el bot muestra
-productos que sí existen y encajan con esa intención.
+Ejemplo: pide «halloween», no hay, y en vez de cerrar con «no tengo», la IA
+propone varias ideas (noche de películas, parrilla con amigos, decorar) y el
+bot muestra productos que sí existen para cada idea.
 """
 
 from __future__ import annotations
@@ -17,20 +17,28 @@ from ..config import settings
 from ..models import Contact
 from ..replies import AgentReply
 from ..whatsapp import Outbound
-from . import catalog
+from . import catalog, emoji
 
 logger = logging.getLogger(__name__)
 
 PROMPT = """Un cliente de un homecenter boliviano pidió «{termino}» y no está
 en el catálogo.
 
-Respondé SOLO un JSON con esta forma:
-{{"intencion": "qué quería hacer realmente, en menos de 12 palabras",
-  "relacionadas": ["3 a 5 categorías o productos que SÍ vende un homecenter
-y se relacionan con esa intención"]}}
+Pensá con creatividad para qué podría querer eso y qué SÍ vende un homecenter.
+Proponé 3 ideas distintas (no tres variantes de lo mismo), cada una con las
+categorías o productos que la resuelven.
 
-Ejemplo: para «pelotas» → {{"intencion": "jugar o ver fútbol con amigos",
-  "relacionadas": ["televisor", "sillón", "parrilla"]}}
+Respondé SOLO un JSON con esta forma:
+{{"intenciones": [
+  {{"idea": "frase corta de qué quería hacer", "categorias": ["...", "..."]}}
+]}}
+
+Ejemplo para «halloween»:
+{{"intenciones": [
+  {{"idea": "una noche de películas de terror en casa", "categorias": ["televisor", "sillón"]}},
+  {{"idea": "reunión con amigos a la parrilla", "categorias": ["parrilla", "carbón"]}},
+  {{"idea": "ambientar con luces y velas", "categorias": ["vela", "lámpara"]}}
+]}}
 No inventes marcas ni precios."""
 
 
@@ -51,18 +59,44 @@ def parsear(respuesta: str) -> dict | None:
         return None
     if not isinstance(datos, dict):
         return None
+
+    intenciones = datos.get("intenciones")
+    if isinstance(intenciones, list):
+        limpias: list[dict] = []
+        for item in intenciones[:4]:
+            if not isinstance(item, dict):
+                continue
+            idea = str(item.get("idea") or "").strip()[:120]
+            categorias = item.get("categorias")
+            if not isinstance(categorias, list):
+                continue
+            claves = [
+                str(clave).strip()
+                for clave in categorias
+                if isinstance(clave, str)
+                and 2 <= len(str(clave).strip()) <= 40
+            ]
+            if idea and claves:
+                limpias.append({"idea": idea, "categorias": claves[:4]})
+        if limpias:
+            return {"intenciones": limpias}
+
+    # Formato anterior: una sola intención y una lista de relacionadas.
     intencion = str(datos.get("intencion") or "").strip()
     relativas = datos.get("relacionadas")
-    if not isinstance(relativas, list):
-        return None
-    limpio = [
-        str(item).strip()
-        for item in relativas
-        if isinstance(item, str) and 2 <= len(str(item).strip()) <= 40
-    ]
-    if not limpio:
-        return None
-    return {"intencion": intencion[:120], "relacionadas": limpio[:5]}
+    if isinstance(relativas, list):
+        claves = [
+            str(item).strip()
+            for item in relativas
+            if isinstance(item, str) and 2 <= len(str(item).strip()) <= 40
+        ]
+        if claves:
+            return {
+                "intenciones": [
+                    {"idea": intencion[:120], "categorias": claves[:5]}
+                ]
+            }
+    return None
 
 
 async def _pedir_a_la_ia(termino: str) -> dict | None:
@@ -78,8 +112,8 @@ async def _pedir_a_la_ia(termino: str) -> dict | None:
             messages=[
                 {"role": "user", "content": PROMPT.format(termino=termino)}
             ],
-            temperature=0.4,
-            max_tokens=220,
+            temperature=0.7,
+            max_tokens=320,
             extra_body={"thinking": {"type": "disabled"}},
         )
         contenido = completado.choices[0].message.content or ""
@@ -93,40 +127,52 @@ async def _pedir_a_la_ia(termino: str) -> dict | None:
 
 async def relacionadas(
     session: AsyncSession, termino: str, limite: int = 3
-) -> tuple[str, list]:
-    """Intención y productos que sí existen para esa intención."""
+) -> tuple[list[str], list]:
+    """Ideas y un producto existente por idea."""
     lectura = await _pedir_a_la_ia(termino)
     if not lectura:
-        return "", []
+        return [], []
 
-    vistos: set[str] = set()
+    ideas: list[str] = []
     productos: list = []
-    for clave in lectura["relacionadas"]:
-        filas = await catalog.search_items(session, clave, limit=3)
-        for item in filas:
-            if item.sku in vistos:
-                continue
-            vistos.add(item.sku)
-            productos.append(item)
-            if len(productos) >= limite:
+    vistos: set[str] = set()
+    for intencion in lectura["intenciones"]:
+        elegido = None
+        for clave in intencion["categorias"]:
+            filas = await catalog.search_items(session, clave, limit=3)
+            for item in filas:
+                if item.sku in vistos:
+                    continue
+                elegido = item
                 break
+            if elegido is not None:
+                break
+        if elegido is None:
+            continue
+        vistos.add(elegido.sku)
+        productos.append(elegido)
+        ideas.append(intencion["idea"])
         if len(productos) >= limite:
             break
-    return lectura["intencion"], productos
+    return ideas, productos
 
 
 async def reply(
     agent, session: AsyncSession, contact: Contact, termino: str
 ) -> AgentReply | None:
-    """Respuesta que reconoce el faltante y guía a lo relacionado."""
+    """Respuesta que reconoce el faltante y propone varias ideas."""
     from ..agent import Toolbox
+    from . import missing
 
-    termino = re.sub(r"^(hola|buenas|buen día|buenas tardes)\s+", "", termino.strip().lower())
-    termino = re.sub(r"^(vendes|vende|tienen|tiene|hay)\s+", "", termino).strip(" ?!.")
+    termino = re.sub(
+        r"^(hola|buenas|buen día|buenas tardes)\s+", "", termino.strip().lower()
+    )
+    termino = re.sub(r"^(vendes|vende|tienen|tiene|hay)\s+", "", termino)
+    termino = termino.strip(" ?!.")
     if not termino:
         return None
 
-    intencion, productos = await relacionadas(session, termino)
+    ideas, productos = await relacionadas(session, termino)
     if not productos:
         return None
 
@@ -134,22 +180,29 @@ async def reply(
     tarjetas = [Toolbox._product(item) for item in productos]
     await toolbox._attach_promotions(tarjetas)
 
-    puente = (
-        f"*{termino.capitalize()}* no tengo 😕"
-        if not intencion
-        else f"*{termino.capitalize()}* no tengo 😕 Pero si la idea es "
-        f"{intencion}, mirá esto:"
-    )
-    from . import missing
+    icono = emoji.para(termino)
+    if len(ideas) >= 2:
+        lista = ", ".join(ideas[:-1]) + f" o {ideas[-1]}"
+        puente = (
+            f"*{termino.capitalize()}* no tengo {icono} Pero para algo así se "
+            f"me ocurren varias ideas: {lista}. Mirá lo que sí tengo:"
+        )
+    elif ideas:
+        puente = (
+            f"*{termino.capitalize()}* no tengo {icono} Pero si la idea es "
+            f"{ideas[0]}, mirá esto:"
+        )
+    else:
+        puente = f"*{termino.capitalize()}* no tengo {icono} Mirá esto:"
 
     await missing.record(
         session,
         termino,
-        intent=intencion,
+        intent="; ".join(ideas)[:200],
         related=[item.name for item in productos],
         answered=True,
     )
-    agent._trace(f"Relacionado con {termino}: {intencion or 'sin intención'}")
+    agent._trace(f"Relacionado con {termino}: {'; '.join(ideas)}")
     return AgentReply(
         [
             Outbound(text=puente),

@@ -128,4 +128,4 @@ async def test_boton_de_tipo_lista_productos(session):
 
     texto = " ".join(m.text or "" for m in respuesta.messages)
     assert "Disco de desbaste" in texto
-    assert any(m.kind == "image" for m in respuesta.messages)
+    assert any(m.kind == "list" for m in respuesta.messages)

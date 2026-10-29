@@ -20,93 +20,91 @@ def _truncate(texto: str, limit: int) -> str:
     return clean[: limit - 1].rstrip() + "…"
 
 
-def cards(products: list[dict]) -> list[Outbound]:
-    """Tarjetas visuales: hasta 3 fotos y una lista con las opciones."""
-    from ..agent import _fold_word
+def _precio(product: dict) -> str:
+    price = product.get("promo_price") or product.get("price")
+    try:
+        return f"{Decimal(str(price)):,.2f}"
+    except Exception:  # noqa: BLE001 - precio ya formateado
+        return str(price)
 
-    selected: list[dict] = []
+
+def cards(products: list[dict], maximo: int = 5) -> list[Outbound]:
+    """Lista de opciones (texto + menú), sin fotos.
+
+    El cliente ve nombre y precio, elige una opción y recién ahí se muestra la
+    foto con la ficha completa. Antes llegaban tres fotos y además el menú con
+    los mismos productos: información duplicada.
+    """
+    from ..agent import _fold_word
+    from ..services import emoji
+
+    seleccionados: list[dict] = []
     vistas: set[str] = set()
     for producto in products:
         clave = _fold_word(producto.get("name") or "")
         if clave in vistas:
             continue
         vistas.add(clave)
-        selected.append(producto)
-        if len(selected) == 3:
+        seleccionados.append(producto)
+        if len(seleccionados) >= maximo:
             break
-    if not selected:
+    if not seleccionados:
         return []
-    messages: list[Outbound] = []
-    for index, product in enumerate(selected, start=1):
-        price = product.get("promo_price") or product.get("price")
-        try:
-            price_text = f"{Decimal(str(price)):,.2f}"
-        except Exception:  # noqa: BLE001 - precio ya formateado
-            price_text = str(price)
-        caption = (
-            f"*{index}. {product['name']}*\n"
-            f"Precio: Bs {price_text}"
-        )
-        brand = (product.get("brand") or "").strip()
-        if brand:
-            caption += f"\nMarca: {brand}"
-        category = (product.get("category") or "").strip()
-        if category:
-            caption += f"\nCategoría: {category}"
-        description = card_description(
-            product.get("description") or ""
-        )
-        if description:
-            caption += f"\nDescripción: {description}"
-        image_url = (product.get("image_url") or "").strip()
-        if image_url.startswith(("http://", "https://")):
-            messages.append(
-                Outbound(
-                    kind="image",
-                    url=image_url,
-                    text=caption[:1024],
-                )
-            )
-        else:
-            messages.append(Outbound(text=caption[:4096]))
-    # En vez de botones "Agregar 1/2/3" (que no dicen a qué producto
-    # corresponden), una lista con el nombre y el precio de cada opción.
-    rows = []
-    for index, product in enumerate(selected, start=1):
-        price = product.get("promo_price") or product.get("price")
-        try:
-            price_text = f"{Decimal(str(price)):,.2f}"
-        except Exception:  # noqa: BLE001
-            price_text = str(price)
-        detail = f"Bs {price_text}"
-        brand = (product.get("brand") or "").strip()
-        if brand:
-            detail += f" · {brand}"
-        rows.append(
-            {
-                "id": f"product:{product['sku']}",
-                "title": _truncate(
-                    f"{index}. {product['name']}", 24
-                ),
-                "description": detail[:72],
-            }
-        )
-    total = len(selected)
-    encabezado = (
-        "Te muestro la opción. Decime si te sirve y te paso el detalle:"
-        if total == 1
-        else f"Son {total} opciones. Decime cuál te interesa y te muestro el detalle:"
+
+    primero = seleccionados[0]
+    tema = " ".join(
+        [
+            str(primero.get("category") or ""),
+            str(primero.get("name") or ""),
+        ]
     )
-    messages.append(
+    icono = emoji.para(tema)
+
+    lineas: list[str] = []
+    for index, product in enumerate(seleccionados, start=1):
+        nombre = _truncate(product.get("name") or "Producto", 58)
+        linea = f"{index}. {nombre} — Bs {_precio(product)}"
+        marca = (product.get("brand") or "").strip()
+        if marca:
+            linea += f" · {marca}"
+        lineas.append(linea)
+
+    total = len(seleccionados)
+    encabezado = (
+        f"Encontré *1 opción* {icono}:"
+        if total == 1
+        else f"Encontré *{total} opciones* {icono}:"
+    )
+    mensaje = (
+        f"{encabezado}\n\n"
+        + "\n".join(lineas)
+        + "\n\nElegí una y te muestro la foto y la ficha completa 👇"
+    )
+
+    rows = [
+        {
+            "id": f"product:{product['sku']}",
+            "title": _truncate(f"{index}. {product.get('name') or ''}", 24),
+            "description": (
+                f"Bs {_precio(product)}"
+                + (
+                    f" · {product.get('brand')}"
+                    if (product.get("brand") or "").strip()
+                    else ""
+                )
+            )[:72],
+        }
+        for index, product in enumerate(seleccionados, start=1)
+    ]
+    return [
+        Outbound(text=mensaje[:4096]),
         Outbound(
             kind="list",
-            text=encabezado,
+            text="¿Cuál te interesa? 👀",
             button_text="Ver opciones",
             sections=[{"title": "Opciones", "rows": rows}],
-        )
-    )
-    return messages
-
+        ),
+    ]
 
 
 async def price_reply(

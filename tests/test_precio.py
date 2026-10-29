@@ -78,11 +78,13 @@ async def test_los_mas_baratos_listan_precios(taladros):
 
     texto = " ".join(mensaje.text or "" for mensaje in respuesta.messages).lower()
     assert "baratos" in texto or "económicos" in texto
-    # El primero que se muestra es el de menor precio.
-    primero = next(
-        mensaje.text for mensaje in respuesta.messages if mensaje.kind == "image"
+    # El primero de la lista es el de menor precio.
+    lista = next(
+        mensaje.text
+        for mensaje in respuesta.messages
+        if mensaje.kind == "text" and "Bs " in (mensaje.text or "")
     )
-    assert "164" in primero
+    assert "164" in lista
 
 
 async def test_el_mas_barato_devuelve_uno_solo(taladros):
@@ -98,6 +100,9 @@ async def test_el_mas_barato_devuelve_uno_solo(taladros):
         taladros, contacto, "cual es el que tiene el precio mas bajo"
     )
 
-    imagenes = [m for m in respuesta.messages if m.kind == "image"]
-    assert len(imagenes) == 1
-    assert "164" in (imagenes[0].text or "")
+    lista = next(
+        m.text
+        for m in respuesta.messages
+        if m.kind == "text" and "Bs " in (m.text or "")
+    )
+    assert "164" in lista

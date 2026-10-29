@@ -76,8 +76,10 @@ def test_las_tarjetas_de_producto_se_arman():
 
     mensajes = search_flow.cards(productos)
 
-    assert any(m.kind == "image" for m in mensajes)
+    assert any(m.kind == "text" for m in mensajes)
     assert any(m.kind == "list" for m in mensajes)
+    # La foto se muestra recién al elegir el producto.
+    assert not any(m.kind == "image" for m in mensajes)
 
 
 def test_las_tarjetas_sin_imagen_van_como_texto():
