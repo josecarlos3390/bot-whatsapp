@@ -4229,6 +4229,9 @@ class Agent:
                     )
                 ]
             )
+        from .services import actions
+
+        accion = actions.es_accion(text)
         answer = "\n".join(
             message.text or "" for message in reply.messages
         ).strip()
@@ -4246,7 +4249,7 @@ class Agent:
         except Exception:  # noqa: BLE001 - el guard no debe romper
             logger.debug("No se pudo verificar coherencia", exc_info=True)
             inventados = []
-        if inventados:
+        if inventados and not accion:
             self._trace("Respuesta incoherente: se reemplaza")
             metrics.record_coherence_block()
             return AgentReply(
@@ -4280,12 +4283,12 @@ class Agent:
                         session, conversacion.id
                     )
                     anteriores = list(estado.shown_skus or [])
-                    if repeat_guard.repite_el_mismo_listado(
+                    if not accion and (repeat_guard.repite_el_mismo_listado(
                         anteriores, actuales
                     ) or (
                         settings.repeat_partial_enabled
                         and repeat_guard.repite_parcial(anteriores, actuales)
-                    ):
+                    )):
                         self._trace("Mismos productos: se cambia de enfoque")
                         return AgentReply(
                             [
@@ -4311,7 +4314,7 @@ class Agent:
         try:
             if await repeat_guard.cliente_repite(
                 session, contact, text
-            ) and await repeat_guard.respuesta_parecida(
+            ) and not accion and await repeat_guard.respuesta_parecida(
                 session, contact, answer
             ):
                 self._trace("Cliente insiste: cambio de enfoque")
@@ -4333,7 +4336,7 @@ class Agent:
         # Si es exactamente la misma respuesta que la anterior, se cambia:
         # repetirse frente a un cliente enojado empeora la situación.
         try:
-            if await repeat_guard.repetida(session, contact, answer):
+            if not accion and await repeat_guard.repetida(session, contact, answer):
                 self._trace("Respuesta repetida: se varía")
                 return AgentReply(
                     [
@@ -4353,22 +4356,8 @@ class Agent:
         # Un botón es una acción explícita: la ficha o el paso pedido se
         # muestra siempre. Antes el guard de repetición tapaba el detalle del
         # producto que el cliente acababa de elegir.
-        es_accion = text.strip().lower().startswith(
-            (
-                "product:",
-                "add:",
-                "cat:",
-                "type:",
-                "uso:",
-                "refine:",
-                "idea:",
-                "find:",
-                "more",
-                "filter",
-            )
-        )
         repeated = False
-        if not es_accion:
+        if not accion:
             repeated = await conversation_guard.record_answer(
                 session,
                 contact,
