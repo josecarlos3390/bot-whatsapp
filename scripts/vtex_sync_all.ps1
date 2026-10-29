@@ -48,10 +48,11 @@ $code = Run-Step "Catalogo VTEX" @("-m", "scripts.sync_vtex")
 $failed += $code
 $steps += [pscustomobject]@{ name = "Catalogo VTEX"; exit_code = $code }
 
-# KeyWords SEO y especificaciones del detalle del SKU. Refresco diario.
+# KeyWords SEO: ciclo de 3 días repartido en lotes diarios de 1.500.
 $code = Run-Step "Keywords VTEX" @(
     "-m", "scripts.enrich_vtex_keywords", "--all",
-    "--concurrency", "1", "--delay", "0.8", "--refresh-days", "1"
+    "--concurrency", "1", "--delay", "0.8",
+    "--refresh-days", "3", "--max-items", "1500"
 )
 $failed += $code
 $steps += [pscustomobject]@{ name = "Keywords VTEX"; exit_code = $code }

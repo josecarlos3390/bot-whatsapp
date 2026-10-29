@@ -170,6 +170,7 @@ async def run(
     concurrency: int,
     delay: float,
     refresh_days: int,
+    max_items: int,
     dry_run: bool,
 ) -> dict:
     await init_db()
@@ -183,20 +184,23 @@ async def run(
             stmt = stmt.limit(limit)
         items = list((await session.scalars(stmt)).all())
 
-    pending = [
+    pending_all = [
         item
         for item in items
         if _needs_refresh(item, refresh_days)
     ]
+    pending = pending_all[:max_items] if max_items > 0 else pending_all
     logger.info(
-        "Artículos activos: %s · pendientes de keywords: %s",
+        "Artículos activos: %s · pendientes: %s · en este lote: %s",
         len(items),
+        len(pending_all),
         len(pending),
     )
     if dry_run:
         return {
             "active": len(items),
-            "pending": len(pending),
+            "pending": len(pending_all),
+            "batch": len(pending),
             "updated": 0,
             "failed": 0,
         }
@@ -237,7 +241,8 @@ async def run(
             )
     return {
         "active": len(items),
-        "pending": len(pending),
+        "pending": len(pending_all),
+        "batch": len(pending),
         "updated": updated,
         "failed": failed,
     }
@@ -252,6 +257,12 @@ def main() -> None:
     parser.add_argument("--concurrency", type=int, default=1)
     parser.add_argument("--delay", type=float, default=0.8)
     parser.add_argument("--refresh-days", type=int, default=30)
+    parser.add_argument(
+        "--max-items",
+        type=int,
+        default=0,
+        help="Máximo de artículos a procesar en esta ejecución (0 = todos)",
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     logging.basicConfig(
@@ -265,6 +276,7 @@ def main() -> None:
             concurrency=min(max(args.concurrency, 1), 12),
             delay=max(args.delay, 0),
             refresh_days=max(args.refresh_days, 0),
+            max_items=max(args.max_items, 0),
             dry_run=args.dry_run,
         )
     )
