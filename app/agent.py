@@ -4369,6 +4369,14 @@ class Agent:
                     )
                 ]
             )
+        # Un mensaje, una pregunta: se quitan los cierres repetidos que cada
+        # flujo agrega por su cuenta.
+        from .services import closings
+
+        limpios = closings.podar(reply.messages)
+        if len(limpios) != len(reply.messages):
+            self._trace("Cierre repetido podado")
+            return AgentReply(limpios)
         return reply
 
     async def handle(
