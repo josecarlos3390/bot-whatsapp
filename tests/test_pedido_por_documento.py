@@ -135,3 +135,73 @@ async def test_busqueda_por_telefono_usa_el_documento(session, monkeypatch):
 
     assert "1672200500195-01" in resultado["text"]
     assert resultado["needs_handoff"] is False
+
+def test_variantes_del_telefono():
+    variantes = order_by_document.variantes_telefono("+591 69006969")
+
+    assert "59169006969" in variantes
+    assert "69006969" in variantes
+    assert "069006969" in variantes
+
+
+def test_numero_muy_corto_no_genera_variantes():
+    assert order_by_document.variantes_telefono("123") == []
+
+
+async def test_busca_por_el_telefono_de_la_conversacion(session, monkeypatch):
+    from app.models import Contact
+    from app.services import order_by_document as modulo
+
+    contacto = Contact(
+        wa_id="59170028001", phone_e164="+59169006969", name="Chipi"
+    )
+    session.add(contacto)
+    await session.commit()
+
+    class SapFalso:
+        async def get_customer_purchases(self, term, top=5, skip=0):
+            if term == "69006969":
+                return [
+                    {
+                        "orderId": "1672200500195-01",
+                        "status": "invoiced",
+                        "value": 220,
+                    }
+                ]
+            return []
+
+        async def get_order(self, numero):
+            return {
+                "orderId": numero,
+                "status": "invoiced",
+                "value": 220,
+                "items": [],
+            }
+
+    monkeypatch.setattr(
+        "app.sap.get_sap", lambda session: SapFalso(), raising=True
+    )
+
+    resultado = await modulo.lookup_by_phone(session, contacto)
+
+    assert resultado is not None
+    assert "1672200500195-01" in resultado["text"]
+
+
+async def test_sin_coincidencias_devuelve_none(session, monkeypatch):
+    from app.models import Contact
+    from app.services import order_by_document as modulo
+
+    contacto = Contact(wa_id="59170028002", phone_e164="+59172100717")
+    session.add(contacto)
+    await session.commit()
+
+    class SapVacio:
+        async def get_customer_purchases(self, term, top=5, skip=0):
+            return []
+
+    monkeypatch.setattr(
+        "app.sap.get_sap", lambda session: SapVacio(), raising=True
+    )
+
+    assert await modulo.lookup_by_phone(session, contacto) is None

@@ -217,8 +217,36 @@ async def _upsert_item(session, row: dict) -> bool:
         session.add(CatalogItem(sku=sku, **values))
         created = True
     else:
+        old_source = existing.keywords_source
+        old_synced = existing.keywords_synced_at
+        old_keywords = existing.keywords
+        old_attributes = dict(existing.attributes or {})
+        new_attributes = dict(values.get("attributes") or {})
+        if old_source == "vtex":
+            new_attributes["keywords_source"] = "vtex"
+            if old_synced:
+                new_attributes["keywords_synced_at"] = old_synced.isoformat()
+            elif old_attributes.get("keywords_synced_at"):
+                new_attributes["keywords_synced_at"] = old_attributes[
+                    "keywords_synced_at"
+                ]
+            for field in ("product_type", "color", "material"):
+                if not new_attributes.get(field) and old_attributes.get(field):
+                    new_attributes[field] = old_attributes[field]
+            if not new_attributes.get("specs") and old_attributes.get("specs"):
+                new_attributes["specs"] = old_attributes["specs"]
+            values["attributes"] = new_attributes
         for key, value in values.items():
+            if old_source == "vtex":
+                if key in ("keywords_source", "keywords_synced_at"):
+                    continue
+                if key == "keywords" and not row.get("keywords"):
+                    continue
+                if key in ("product_type", "color", "material") and value is None:
+                    continue
             setattr(existing, key, value)
+        if old_source == "vtex" and old_keywords and not row.get("keywords"):
+            existing.keywords = old_keywords
         created = False
 
     image_url = values.get("image_url")

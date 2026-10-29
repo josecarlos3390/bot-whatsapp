@@ -165,3 +165,49 @@ async def lookup_by_document(
         "finished": True,
         "needs_handoff": False,
     }
+
+
+def variantes_telefono(phone: str) -> list[str]:
+    """Formas en que el sistema puede tener guardado un teléfono."""
+    import re
+
+    digitos = re.sub(r"\D", "", phone or "")
+    if len(digitos) < 7:
+        return []
+    variantes = [digitos]
+    # Sin código de país (591 para Bolivia).
+    if digitos.startswith("591") and len(digitos) > 8:
+        variantes.append(digitos[3:])
+    # Con 0 inicial, como se escribe localmente.
+    variantes.append("0" + variantes[-1])
+    return list(dict.fromkeys(v for v in variantes if v))
+
+
+async def lookup_by_phone(
+    session: AsyncSession,
+    contact: Contact,
+) -> dict | None:
+    """Intenta encontrar los pedidos con el teléfono de la conversación.
+
+    Devuelve None si el sistema no resuelve por teléfono (el integrador
+    todavía no lo soporta) para que el flujo siga pidiendo CI/NIT.
+    """
+    from ..sap import SapError, get_sap
+
+    telefono = getattr(contact, "phone_e164", None) or ""
+    for variante in variantes_telefono(telefono):
+        try:
+            sap = get_sap(session)
+            pedidos = await sap.get_customer_purchases(
+                variante, top=5, skip=0
+            )
+        except SapError:
+            return None
+        except Exception:  # noqa: BLE001 - no romper el seguimiento
+            logger.debug("Fallo la búsqueda por teléfono", exc_info=True)
+            return None
+        if pedidos:
+            return await lookup_by_document(
+                session, contact, variante, "telefono"
+            )
+    return None

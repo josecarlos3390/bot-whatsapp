@@ -35,15 +35,18 @@ SPEC_KEYS = {
 
 def _needs_refresh(item: CatalogItem, refresh_days: int) -> bool:
     attributes = item.attributes if isinstance(item.attributes, dict) else {}
-    if attributes.get("keywords_source") != "vtex":
+    source = item.keywords_source or attributes.get("keywords_source")
+    if source != "vtex":
         return True
     if refresh_days <= 0:
         return True
-    raw = attributes.get("keywords_synced_at")
+    raw = item.keywords_synced_at or attributes.get("keywords_synced_at")
     if not raw:
         return True
     try:
-        synced = datetime.fromisoformat(str(raw))
+        synced = (
+            raw if isinstance(raw, datetime) else datetime.fromisoformat(str(raw))
+        )
         if synced.tzinfo is None:
             synced = synced.replace(tzinfo=timezone.utc)
     except ValueError:
