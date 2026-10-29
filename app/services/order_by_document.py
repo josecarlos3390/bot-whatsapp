@@ -72,6 +72,48 @@ def extract_documento(text: str) -> str | None:
     return match.group(1)
 
 
+def _digitos(valor: str) -> str:
+    import re
+
+    return re.sub(r"\D", "", str(valor or ""))
+
+
+async def _solo_del_cliente(
+    sap, pedidos: list[dict], dato: str, kind: str
+) -> list[dict]:
+    """Deja solo los pedidos que pertenecen al dato que dio el cliente.
+
+    El endpoint del integrador acepta documento O número de secuencia. Si un
+    cliente escribe un número que coincide con la secuencia de otro pedido,
+    devolvería un pedido ajeno: se verifica contra el perfil del pedido.
+    """
+    buscado = _digitos(dato)
+    if not buscado:
+        return pedidos
+    verificados: list[dict] = []
+    for pedido in pedidos[:5]:
+        numero = str(pedido.get("orderId") or "")
+        if not numero:
+            continue
+        try:
+            detalle = await sap.get_order(numero)
+        except Exception:  # noqa: BLE001 - sin detalle no se muestra
+            logger.debug("No se pudo verificar el pedido %s", numero)
+            continue
+        perfil = (detalle or {}).get("clientProfileData") or {}
+        documento = _digitos(perfil.get("document"))
+        telefono = _digitos(perfil.get("phone"))
+        if kind == "telefono":
+            coincide = bool(telefono) and (
+                telefono.endswith(buscado) or buscado.endswith(telefono)
+            )
+        else:
+            coincide = documento == buscado
+        if coincide:
+            verificados.append(detalle)
+    return verificados
+
+
 async def lookup_by_document(
     session: AsyncSession,
     contact: Contact,
@@ -89,13 +131,17 @@ async def lookup_by_document(
         pedidos = await sap.get_customer_purchases(documento, top=5, skip=0)
         if not pedidos and kind == "telefono":
             # El teléfono no siempre resuelve directo: se busca el cliente y
-            # después sus compras por documento.
+            # después sus compras por documento. La verificación pasa a usar
+            # el documento, que es el dato que realmente resolvió.
             cliente = await sap.get_customer(documento)
             documento_cliente = str((cliente or {}).get("document") or "")
             if documento_cliente:
                 pedidos = await sap.get_customer_purchases(
                     documento_cliente, top=5, skip=0
                 )
+                if pedidos:
+                    documento = documento_cliente
+                    kind = "carnet"
     except SapNotFound:
         pedidos = []
     except SapError:
@@ -118,6 +164,12 @@ async def lookup_by_document(
             "finished": True,
             "needs_handoff": True,
         }
+
+    # El endpoint acepta documento O número de secuencia: si alguien escribe
+    # un número que coincide con la secuencia de otro pedido, devolvería el
+    # pedido de otra persona. Se verifica el documento del pedido antes de
+    # mostrarlo.
+    pedidos = await _solo_del_cliente(sap, pedidos, documento, kind)
 
     if not pedidos:
         return {
@@ -211,3 +263,88 @@ async def lookup_by_phone(
                 session, contact, variante, "telefono"
             )
     return None
+
+
+EMAIL_RE = __import__("re").compile(
+    r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"
+)
+
+
+def extract_email(text: str) -> str | None:
+    """Email dentro del mensaje, si lo hay."""
+    match = EMAIL_RE.search(text or "")
+    return match.group(0).strip().lower() if match else None
+
+
+async def lookup_by_email(
+    session: AsyncSession, contact: Contact, email: str
+) -> dict:
+    """Busca pedidos por email y verifica que sean del cliente."""
+    from ..sap import SapError, get_sap
+
+    email = (email or "").strip().lower()
+    if not email:
+        return {
+            "text": "Pasame un email válido y busco tus compras.",
+            "finished": False,
+            "needs_handoff": False,
+        }
+    try:
+        sap = get_sap(session)
+        pedidos = await sap.get_customer_purchases(email, top=5, skip=0)
+        verificados = []
+        for pedido in pedidos[:5]:
+            numero = str(pedido.get("orderId") or "")
+            if not numero:
+                continue
+            try:
+                detalle = await sap.get_order(numero)
+            except Exception:  # noqa: BLE001
+                continue
+            perfil = (detalle or {}).get("clientProfileData") or {}
+            if str(perfil.get("email") or "").strip().lower() == email:
+                verificados.append(detalle)
+        pedidos = verificados
+    except SapError:
+        logger.exception("No se pudo consultar por email")
+        return {
+            "text": (
+                "No pude consultar el sistema ahora. "
+                "¿Querés que te pase con un asesor?"
+            ),
+            "finished": True,
+            "needs_handoff": True,
+        }
+
+    if not pedidos:
+        return {
+            "text": (
+                f"No encontré compras con el email *{email}*. "
+                "Puede ser que la compra esté con otro correo.\n\n"
+                "¿Querés probar con tu CI/NIT o que te derive con un asesor?"
+            ),
+            "finished": True,
+            "needs_handoff": True,
+        }
+
+    if len(pedidos) == 1:
+        return {
+            "text": format_order(pedidos[0]),
+            "finished": True,
+            "needs_handoff": False,
+        }
+
+    lineas = [f"Encontré *{len(pedidos)} compras* con ese email:", ""]
+    for pedido in pedidos[:5]:
+        numero = pedido.get("orderId") or "—"
+        fecha = _date(pedido.get("creationDate"))
+        total = _money(pedido.get("value") or 0)
+        estado = str(pedido.get("status") or "").strip() or "—"
+        lineas.append(f"• {numero} · {fecha} · Bs {total} · {estado}")
+    lineas.append("")
+    lineas.append("Decime cuál te interesa y te muestro el detalle.")
+    return {
+        "text": "\n".join(lineas),
+        "finished": True,
+        "needs_handoff": False,
+    }

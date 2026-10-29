@@ -283,6 +283,7 @@ async def lookup(
 ) -> dict:
     from .order_by_document import (
         extract_documento,
+        extract_email,
         lookup_by_document,
         pregunta_tipo,
         tipo_del_texto,
@@ -310,6 +311,16 @@ async def lookup(
                 "needs_handoff": False,
             }
         return await lookup_by_document(session, contact, numero, kind)
+
+    # Si el cliente pasa un email, se busca por esa llave (segunda opción
+    # después del documento según la validación de VTEX).
+    email = extract_email(text)
+    if email:
+        flow.status = "completed"
+        await session.commit()
+        from .order_by_document import lookup_by_email
+
+        return await lookup_by_email(session, contact, email)
 
     # Si el cliente ofrece su documento (o no recuerda el número), se busca
     # por carnet/NIT/teléfono. Antes el bot insistía con el ID y no avanzaba.

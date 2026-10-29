@@ -68,6 +68,12 @@ async def test_con_una_compra_muestra_el_pedido(session, monkeypatch):
         async def get_customer_purchases(self, term, top=5, skip=0):
             return [pedido]
 
+        async def get_order(self, numero):
+            return {
+                **pedido,
+                "clientProfileData": {"document": "500195"},
+            }
+
     monkeypatch.setattr(
         "app.sap.get_sap", lambda session: SapFalso(), raising=True
     )
@@ -123,6 +129,7 @@ async def test_busqueda_por_telefono_usa_el_documento(session, monkeypatch):
                 "status": "invoiced",
                 "value": 100,
                 "items": [],
+                "clientProfileData": {"document": "500195"},
             }
 
     monkeypatch.setattr(
@@ -176,6 +183,7 @@ async def test_busca_por_el_telefono_de_la_conversacion(session, monkeypatch):
                 "status": "invoiced",
                 "value": 220,
                 "items": [],
+                "clientProfileData": {"document": "500195", "phone": "+59169006969"},
             }
 
     monkeypatch.setattr(
@@ -233,6 +241,7 @@ async def test_con_documento_guardado_resuelve_sin_preguntar(session, monkeypatc
                 "status": "invoiced",
                 "value": 220,
                 "items": [],
+                "clientProfileData": {"document": "500195"},
             }
 
     monkeypatch.setattr(
@@ -260,3 +269,43 @@ async def test_sin_documento_pide_los_datos(session, monkeypatch):
     texto = respuesta.messages[0].text or ""
 
     assert "ID del pedido" in texto or "CI o NIT" in texto
+
+def test_extrae_el_email_del_texto():
+    assert (
+        order_by_document.extract_email("mi correo es Ana.Perez@Gmail.com")
+        == "ana.perez@gmail.com"
+    )
+    assert order_by_document.extract_email("no tengo correo") is None
+
+
+async def test_no_muestra_un_pedido_de_otro_cliente(session, monkeypatch):
+    """El endpoint acepta secuencia o documento: se verifica la pertenencia."""
+    from app.models import Contact
+    from app.services import order_by_document as modulo
+
+    contacto = Contact(wa_id="59170029003", phone_e164="+59170029003")
+    session.add(contacto)
+    await session.commit()
+
+    class SapAjeno:
+        async def get_customer_purchases(self, term, top=5, skip=0):
+            # Devuelve un pedido ajeno (el término coincidió con la secuencia).
+            return [{"orderId": "1672200500195-01", "status": "invoiced", "value": 220}]
+
+        async def get_order(self, numero):
+            return {
+                "orderId": numero,
+                "status": "invoiced",
+                "value": 220,
+                "items": [],
+                "clientProfileData": {"document": "5403339"},
+            }
+
+    monkeypatch.setattr(
+        "app.sap.get_sap", lambda session: SapAjeno(), raising=True
+    )
+
+    resultado = await modulo.lookup_by_document(session, contacto, "500195")
+
+    assert "1672200500195-01" not in resultado["text"]
+    assert resultado["needs_handoff"] is True
