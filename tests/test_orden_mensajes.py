@@ -74,3 +74,30 @@ def test_no_agrega_seguimos_si_ya_hay_lista():
     )
 
     assert len(salida) == 2
+
+
+def test_si_la_respuesta_ya_lista_no_se_repiten_las_tarjetas():
+    from app.agent import _ya_lista
+
+    respuesta = (
+        "En tecnología tenemos con descuento:\n"
+        "- Cargador Pared 1USB Qualcomm — Bs 70 (antes Bs 199)\n"
+        "- Cable Cargador Lightning — Bs 249"
+    )
+    productos = [
+        {"sku": "A", "name": "Cargador Pared 1USB Qualcomm"},
+        {"sku": "B", "name": "Cable Cargador Lightning"},
+    ]
+
+    assert _ya_lista(respuesta, productos) is True
+
+
+def test_si_no_lista_no_se_omiten_las_tarjetas():
+    from app.agent import _ya_lista
+
+    assert (
+        _ya_lista("¿Buscás algo para cargar el celular?", [
+            {"sku": "A", "name": "Cargador Pared"}
+        ])
+        is False
+    )

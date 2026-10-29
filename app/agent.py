@@ -408,6 +408,22 @@ def _numbered_lines(values: list[str]) -> str:
     )
 
 
+def _ya_lista(answer: str, products: list[dict]) -> bool:
+    """¿La respuesta ya enumera los productos (para no repetir la lista)?"""
+    texto = (answer or "").lower()
+    if not texto or not products:
+        return False
+    if texto.count("bs ") >= 2:
+        return True
+    nombres = 0
+    for producto in products[:5]:
+        nombre = (producto.get("name") or "").lower()
+        palabras = [p for p in nombre.split() if len(p) > 3][:4]
+        if palabras and all(p in texto for p in palabras):
+            nombres += 1
+    return nombres >= 2
+
+
 def _remove_stock_phrases(answer: str) -> str:
     """La ficha/tarjetas no muestran stock; quitamos frases sueltas del LLM."""
     answer = re.sub(r"\s+en stock\b", "", answer, flags=re.IGNORECASE)
@@ -3080,23 +3096,13 @@ class Agent:
                     [
                         Outbound(
                             text=(
-                                f"Lamentablemente no tengo productos para "
-                                f"*{event['label']}*. Si te sirve, para "
-                                f"*{bridge['label']}* tengo esto:"
+                                f"*{event['label']}* como tal no tengo 😕 "
+                                f"pero para *{bridge['label']}* tengo esto:"
                             )
                         ),
+                        # La lista ya cierra con su propio menú: no hace
+                        # falta otro mensaje de "¿te muestro más?".
                         *self._search_cards(bridge_products[:2]),
-                        Outbound(
-                            kind="buttons",
-                            text=(
-                                "¿Te muestro más opciones para esa ocasión "
-                                "o hablamos con un asesor?"
-                            ),
-                            buttons=[
-                                {"id": "catalog", "title": "Ver categorías"},
-                                {"id": "human", "title": "Asesor"},
-                            ],
-                        ),
                     ]
                 )
         # Sin productos para la ocasión: la IA propone ideas creativas y
@@ -5035,7 +5041,7 @@ class Agent:
                     Outbound(
                         kind="buttons",
                         text=(
-                            f"Ya no tengo stock de *{tipo}*. ¿Probamos con "
+                            f"En este momento no tengo stock de *{tipo}*. ¿Probamos con "
                             "otro tipo o te muestro el rubro completo?"
                         ),
                         buttons=[
@@ -5849,8 +5855,12 @@ class Agent:
                     )
                 elif toolbox.last_search:
                     products = toolbox.last_search.get("products") or []
-                    if products:
-                        outbound.extend(self._search_cards(products))
+                    # Si la respuesta ya enumera los productos (con precio),
+                    # no se repite la lista debajo: el cliente veía lo mismo
+                    # dos veces seguidas.
+                    if products and not _ya_lista(answer, products):
+                        cards = self._search_cards(products)
+                        outbound.extend(cards)
                 if toolbox.last_checkout:
                     outbound.append(
                         Outbound(
