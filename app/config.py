@@ -88,6 +88,8 @@ class Settings(BaseSettings):
     # servidor). DeepSeek no transcribe audio.
     # Agrupar mensajes seguidos (foto + texto) en un solo turno. 0 = sin
     # espera (tests).
+    # Leer el mensaje con IA antes de las reglas (se mide antes de activar).
+    nlu_first: bool = False
     batching_ms: int = 1600
     transcribe_enabled: bool = True
     transcribe_model: str = "small"

@@ -5042,6 +5042,19 @@ class Agent:
                         )
                     ]
                 )
+            if settings.nlu_first and settings.deepseek_api_key:
+                # Lectura estructurada antes de las reglas: intención,
+                # producto y atributos, en lugar de expresiones exactas.
+                from .services import nlu
+
+                lectura = await nlu.leer(self, raw)
+                if nlu.es_busqueda(lectura):
+                    consulta = nlu.consulta(lectura)
+                    if consulta:
+                        return await self._search_reply(
+                            session, contact, consulta, limit=5
+                        )
+
             if settings.deepseek_api_key:
                 # Pedido muy abierto ("productos de tecnología"): antes de
                 # listar se pregunta el uso, para no adivinar.
