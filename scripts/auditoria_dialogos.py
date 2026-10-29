@@ -110,8 +110,10 @@ async def correr(caso: dict) -> tuple[bool, str, list[str]]:
         )
         session.add(contacto)
         await session.flush()
-        session.add(Conversation(contact_id=contacto.id))
+        conversacion = Conversation(contact_id=contacto.id)
+        session.add(conversacion)
         await session.commit()
+        conversacion_id = conversacion.id
 
         salidas: list[str] = []
         for mensaje in caso["mensajes"]:
@@ -124,10 +126,47 @@ async def correr(caso: dict) -> tuple[bool, str, list[str]]:
                 " ".join(m.text or "" for m in respuesta.messages)
             )
         ok, motivo = evaluar(salidas, caso["espera"])
+        # Se borra todo lo generado: la auditoría no debe dejar contactos,
+        # casos en la bandeja ni avisos a asesores.
+        from sqlalchemy import delete
+
+        from app.models import (
+            ConversationFlow,
+            ConversationState,
+            Handoff,
+            Message,
+        )
+
+        await session.execute(
+            delete(Message).where(Message.conversation_id == conversacion_id)
+        )
+        await session.execute(
+            delete(Handoff).where(Handoff.conversation_id == conversacion_id)
+        )
+        await session.execute(
+            delete(ConversationFlow).where(
+                ConversationFlow.conversation_id == conversacion_id
+            )
+        )
+        await session.execute(
+            delete(ConversationState).where(
+                ConversationState.conversation_id == conversacion_id
+            )
+        )
+        await session.execute(
+            delete(Conversation).where(Conversation.id == conversacion_id)
+        )
+        await session.execute(delete(Contact).where(Contact.id == contacto.id))
+        await session.commit()
         return ok, motivo, salidas
 
 
 async def main() -> int:
+    # Sin envíos reales: los contactos son ficticios y Meta los rechaza.
+    from app.config import settings
+
+    settings.wa_dry_run = True
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--caso", default="")
     parser.add_argument(
