@@ -105,10 +105,37 @@ async def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--confirmar", action="store_true")
     parser.add_argument("--horas", type=int, default=24)
+    parser.add_argument(
+        "--numeros",
+        default="",
+        help="Numeros separados por coma para avisar solo a esos (ej. 59176012480).",
+    )
     args = parser.parse_args()
 
     async with SessionLocal() as session:
-        destinatarios = await contactos_recientes(session, args.horas)
+        if args.numeros:
+            destinos = [
+                n.strip().lstrip("+")
+                for n in args.numeros.split(",")
+                if n.strip()
+            ]
+            destinatarios = []
+            for destino in destinos:
+                contacto = await session.scalar(
+                    select(Contact).where(
+                        Contact.phone_e164.in_(
+                            ["+" + destino, destino]
+                        )
+                    )
+                )
+                if contacto is not None:
+                    destinatarios.append(
+                        {"contacto": contacto, "ultimo": None}
+                    )
+                else:
+                    print(f"  aviso: {destino} no está en los contactos")
+        else:
+            destinatarios = await contactos_recientes(session, args.horas)
         print("contactos que pueden recibir sin plantilla:")
         for fila in destinatarios:
             contacto = fila["contacto"]
