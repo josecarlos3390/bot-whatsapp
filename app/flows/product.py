@@ -142,7 +142,9 @@ async def detail(
         {
             "id": "catalog",
             "title": "Ver otra opción",
-            "description": "Volver a buscar",
+            "description": (
+                "Volver a buscar" if stock > 0 else "Buscar algo parecido"
+            ),
         }
     )
     rows.append(
@@ -175,11 +177,21 @@ async def detail(
                 ),
             )
         )
+    # Cierre con el siguiente paso concreto: un vendedor no termina en la
+    # ficha, propone agregarlo al carrito.
+    if stock > 0:
+        lines.append("\n¿Te lo agrego al carrito? 🛒")
+        boton = "Agregar"
+    else:
+        lines.append(
+            "\n¿Buscamos otra opción o te aviso cuando llegue? 📦"
+        )
+        boton = "Opciones"
     messages.append(
         Outbound(
             kind="list",
             text="\n".join(lines),
-            button_text="¿Qué hacemos?",
+            button_text=boton,
             sections=[{"title": "Acciones", "rows": rows}],
         )
     )

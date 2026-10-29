@@ -90,3 +90,31 @@ def test_las_tarjetas_sin_imagen_van_como_texto():
     )
 
     assert any(m.kind == "text" for m in mensajes)
+
+async def test_la_ficha_cierra_invitando_al_carrito(session):
+    from app.agent import Agent
+    from app.models import CatalogItem, Contact
+
+    session.add(
+        CatalogItem(
+            sku="FICHA-1",
+            name="Taladro de prueba 12V",
+            price=500,
+            stock=4,
+            brand="INGCO",
+            category="Taladros",
+            active=True,
+        )
+    )
+    contacto = Contact(wa_id="59170070001", phone_e164="+59170070001")
+    session.add(contacto)
+    await session.commit()
+
+    respuesta = await Agent().handle(session, contacto, "product:FICHA-1")
+    cierre = respuesta.messages[-1]
+
+    assert "carrito" in (cierre.text or "").lower()
+    assert cierre.button_text == "Agregar"
+    assert any(
+        fila["id"].startswith("add:FICHA-1") for fila in cierre.sections[0]["rows"]
+    )
