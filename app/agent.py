@@ -53,6 +53,7 @@ from .services import (
     memory as memory_service,
     metrics,
     most_chosen,
+    related,
     session_flow,
     native_commerce,
     orders,
@@ -3507,6 +3508,19 @@ class Agent:
                             result = reintento
 
         if not products:
+            # Puente a lo relacionado: la IA propone la intención y se
+            # muestran productos que sí existen. Antes se cerraba en "no
+            # tengo" y el cliente quedaba sin salida.
+            if settings.deepseek_api_key:
+                try:
+                    puente = await related.reply(
+                        self, session, contact, consulta_original
+                    )
+                except Exception:  # noqa: BLE001 - nunca romper la respuesta
+                    puente = None
+                if puente is not None:
+                    return puente
+
             await learning.record_miss(session, consulta_original)
             if result.get("quantity_shortfall"):
                 qty = result["quantity_shortfall"]

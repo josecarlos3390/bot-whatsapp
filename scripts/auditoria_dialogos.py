@@ -80,6 +80,11 @@ CASOS: list[dict] = [
         "espera": ["categoría", "categoria", "asesor"],
     },
     {
+        "id": "relacionado",
+        "mensajes": ["vendes paraguas?"],
+        "espera": ["no tengo", "sombrilla", "sol", "lluvia"],
+    },
+    {
         "id": "pelotas",
         "mensajes": ["vendes pelotas?"],
         "espera": ["pelota", "deport", "fútbol", "futbol", "Bs"],
