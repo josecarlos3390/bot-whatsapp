@@ -14,6 +14,36 @@ from ..services import ideas, media as media_service, vision
 from ..whatsapp import Outbound
 
 
+def _tokens(texto: str) -> set[str]:
+    import re
+
+    palabras = re.findall(r"[a-záéíóúñ0-9]{4,}", (texto or "").lower())
+    return {p for p in palabras if p not in {"para", "con", "sin", "como"}}
+
+
+def _coincide(descripcion, producto) -> bool:
+    """¿El producto se parece de verdad o solo comparte el sustantivo?
+
+    «Mochila pulverizadora» no es una mochila de colegio aunque comparta la
+    palabra mochila: si la foto describe atributos y el producto no coincide
+    con ninguno, no se ofrece como parecido.
+    """
+    objeto = str(descripcion.get("objeto") or "")
+    atributos = str(descripcion.get("atributos") or "")
+    buscados = _tokens(objeto) | _tokens(atributos)
+    if not buscados:
+        return True
+    nombre = (producto.get("name") or "") + " " + str(
+        producto.get("category") or ""
+    )
+    encontrados = _tokens(nombre)
+    compartidos = buscados & encontrados
+    if len(buscados) == 1:
+        return bool(compartidos)
+    # Con atributos en la foto hay que coincidir en algo más que el sustantivo.
+    return len(compartidos) >= 2
+
+
 async def reply(
     agent,
     session: AsyncSession,
@@ -101,7 +131,9 @@ async def reply(
     )
     productos = agent._ordenar_por_imagen(
         resultado.get("products") or [], descripcion
-    )[:3]
+    )
+    # Solo los que se parecen de verdad: compartir el sustantivo no alcanza.
+    productos = [p for p in productos if _coincide(descripcion, p)][:3]
     if productos:
         agent._trace(f"Imagen: {objeto} con opciones")
         lead = (

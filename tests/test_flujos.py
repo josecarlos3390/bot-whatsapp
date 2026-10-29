@@ -160,3 +160,52 @@ async def test_la_foto_con_opciones_no_pregunta_de_mas(session, monkeypatch):
     tipos = [m.kind for m in respuesta.messages]
     assert tipos.count("buttons") == 0
     assert tipos[-1] == "list"
+
+def test_la_foto_no_ofrece_algo_que_solo_comparte_el_sustantivo():
+    from app.flows.media import _coincide
+
+    foto = {"objeto": "mochila", "atributos": "escolar, azul, acolchada"}
+
+    assert not _coincide(
+        foto, {"name": "MOCHILA PULVERIZADORA 16L INGCO", "category": "Fumigación"}
+    )
+    assert _coincide(
+        foto, {"name": "Mochila Escolar Azul Acolchada", "category": "Mochilas"}
+    )
+
+
+def test_la_foto_sin_atributos_acepta_el_mismo_objeto():
+    from app.flows.media import _coincide
+
+    assert _coincide({"objeto": "taza"}, {"name": "Taza Cerámica", "category": "Tazas"})
+
+
+async def test_elegir_un_producto_muestra_la_ficha(session, monkeypatch):
+    """El guard de repetición no debe tapar el detalle que el cliente pidió."""
+    from app.agent import Agent
+    from app.models import CatalogItem, Contact
+
+    session.add(
+        CatalogItem(
+            sku="FICHA-9",
+            name="Mochila Pulverizadora 16L",
+            price=279,
+            stock=3,
+            brand="INGCO",
+            category="Fumigación",
+            active=True,
+        )
+    )
+    contacto = Contact(wa_id="59170096001", phone_e164="+59170096001")
+    session.add(contacto)
+    await session.commit()
+
+    agente = Agent()
+    for _ in range(2):
+        respuesta = await agente.handle(session, contacto, "product:FICHA-9")
+        respuesta = await agente.postprocess(
+            session, contacto, "product:FICHA-9", respuesta
+        )
+        texto = " ".join(m.text or "" for m in respuesta.messages)
+        assert "Precio" in texto or "Bs" in texto
+        assert "ya te mostré" not in texto.lower()

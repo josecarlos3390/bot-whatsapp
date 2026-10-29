@@ -4350,12 +4350,31 @@ class Agent:
         except Exception:  # noqa: BLE001 - el guard no debe romper
             logger.debug("No se pudo verificar repetición", exc_info=True)
 
-        repeated = await conversation_guard.record_answer(
-            session,
-            contact,
-            user_text=text,
-            answer=answer,
+        # Un botón es una acción explícita: la ficha o el paso pedido se
+        # muestra siempre. Antes el guard de repetición tapaba el detalle del
+        # producto que el cliente acababa de elegir.
+        es_accion = text.strip().lower().startswith(
+            (
+                "product:",
+                "add:",
+                "cat:",
+                "type:",
+                "uso:",
+                "refine:",
+                "idea:",
+                "find:",
+                "more",
+                "filter",
+            )
         )
+        repeated = False
+        if not es_accion:
+            repeated = await conversation_guard.record_answer(
+                session,
+                contact,
+                user_text=text,
+                answer=answer,
+            )
         if repeated:
             return AgentReply(
                 [
