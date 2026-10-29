@@ -118,3 +118,45 @@ async def test_la_ficha_cierra_invitando_al_carrito(session):
     assert any(
         fila["id"].startswith("add:FICHA-1") for fila in cierre.sections[0]["rows"]
     )
+
+async def test_la_foto_con_opciones_no_pregunta_de_mas(session, monkeypatch):
+    """Tras listar opciones no se pregunta otra vez antes de elegir."""
+    from app.agent import Agent
+    from app.flows import media as media_flow
+    from app.models import CatalogItem, Contact
+
+    session.add(
+        CatalogItem(
+            sku="TAZA-1",
+            name="Taza Cerámica Blanca 280ml",
+            price=40,
+            stock=6,
+            brand="ALLEANZA",
+            category="Tazas",
+            active=True,
+        )
+    )
+    contacto = Contact(wa_id="59170095001", phone_e164="+59170095001")
+    session.add(contacto)
+    await session.commit()
+
+    async def _descarga(media_id):
+        return (b"foto", "image/jpeg")
+
+    async def _describe(archivo, mime):
+        return {"objeto": "taza", "categoria": "Tazas", "marca": ""}
+
+    monkeypatch.setattr(media_flow.media_service, "download", _descarga)
+    monkeypatch.setattr(media_flow.vision, "describe", _describe)
+
+    respuesta = await media_flow.reply(
+        Agent(),
+        session,
+        contacto,
+        {"media_id": "m1", "kind": "image"},
+        "",
+    )
+
+    tipos = [m.kind for m in respuesta.messages]
+    assert tipos.count("buttons") == 0
+    assert tipos[-1] == "list"

@@ -111,15 +111,9 @@ async def reply(
         return AgentReply(
             [
                 Outbound(text=lead),
+                # La lista ya cierra con su propio menú: no se pregunta
+                # otra vez antes de que el cliente elija.
                 *agent._search_cards(productos[:3]),
-                Outbound(
-                    kind="buttons",
-                    text="¿Te muestro el detalle de alguno o buscamos otra cosa?",
-                    buttons=[
-                        {"id": "catalog", "title": "Ver categorías"},
-                        {"id": "human", "title": "Asesor"},
-                    ],
-                ),
             ]
         )
 
@@ -143,14 +137,6 @@ async def reply(
                     )
                 ),
                 *agent._search_cards(productos[:3]),
-                Outbound(
-                    kind="buttons",
-                    text="¿Te interesa alguna o hablamos con un asesor?",
-                    buttons=[
-                        {"id": "catalog", "title": "Ver categorías"},
-                        {"id": "human", "title": "Asesor"},
-                    ],
-                ),
             ]
         )
 
