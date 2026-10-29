@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import asyncio
 import html
@@ -1262,6 +1262,15 @@ class Toolbox:
             # Solo términos útiles: evita buscar frases encadenadas.
             query = catalog.clean_for_search(query) or query
             query = _normalize_tv_query(query)
+            # Recordar la consulta tambien cuando la busqueda viene de la IA:
+            # "Ver mas" y "los mas economicos" necesitan el rubro vigente.
+            conversacion = await self.session.scalar(
+                select(Conversation).where(
+                    Conversation.contact_id == self.contact.id
+                )
+            )
+            if conversacion is not None and query:
+                conversacion.last_query = query[:300]
         if category and TV_INTENT_RE.search(category):
             category = None
         state = await self._current_state()
@@ -3307,6 +3316,9 @@ class Agent:
             and max_price is None
         ):
             info = await catalog.facets(session, query, limit=4)
+            # El rubro queda fijado para el resto de la charla: sirve para
+            # "los más económicos" y "ver más" sin volver a preguntar.
+            await self._remember_query(session, contact, query)
             tipos = info.get("types") or []
             options = (
                 tipos[:3]
@@ -3688,12 +3700,23 @@ class Agent:
                 return messages
             if (ultimo.text or "").strip().endswith("?"):
                 return messages
+        # "Ver más" y "Filtrar" solo tienen sentido si se mostraron
+        # productos; si no, se ofrecen opciones que sí llevan a algo.
+        mostro_productos = any(m.kind in {"image", "list"} for m in messages)
+        botones = (
+            Agent._search_buttons()
+            if mostro_productos
+            else [
+                {"id": "catalog", "title": "Ver categorías"},
+                {"id": "human", "title": "Asesor"},
+            ]
+        )
         return [
             *messages,
             Outbound(
                 kind="buttons",
-                text="¿Seguimos?",
-                buttons=Agent._search_buttons(),
+                text=("¿Seguimos?" if mostro_productos else "¿Probamos otra cosa?"),
+                buttons=botones,
             ),
         ]
 
@@ -4588,6 +4611,13 @@ class Agent:
         # "Mostrame las más elegidas": es una respuesta a la pregunta del bot,
         # no una búsqueda de producto. Se resuelve con ventas, descuentos y
         # stock (antes contestaba "no tengo eso exacto").
+        if most_chosen.is_cheapest(raw):
+            economicos = await most_chosen.reply_cheapest(
+                self, session, contact, raw
+            )
+            if economicos is not None:
+                return economicos
+
         if most_chosen.is_most_chosen(raw):
             elegidas = await most_chosen.reply(self, session, contact, raw)
             if elegidas is not None:
@@ -5003,6 +5033,9 @@ class Agent:
                 total = int(info.get("total") or 0)
                 if len(tipos) >= 2 and total >= 4:
                     self._trace(f"Tipos disponibles: {termino}")
+                    # El rubro queda fijado: "los más económicos" y
+                    # "ver más" lo necesitan sin volver a preguntar.
+                    await self._remember_query(session, contact, termino)
                     return AgentReply(
                         [
                             Outbound(
@@ -5104,9 +5137,71 @@ class Agent:
             )
             if not last_query:
                 return AgentReply(
-                    [Outbound(text=persona.ask_need())]
+                    [
+                        Outbound(
+                            kind="buttons",
+                            text=(
+                                "Todavía no busqué nada para mostrarte más "
+                                "opciones. ¿Querés ver las categorías o "
+                                "preferís un asesor?"
+                            ),
+                            buttons=[
+                                {"id": "catalog", "title": "Ver categorías"},
+                                {"id": "human", "title": "Asesor"},
+                            ],
+                        )
+                    ]
                 )
             if normalized == "more":
+                # Si la búsqueda anterior no tenía resultados, no hay "más"
+                # que mostrar: se dice claro y se ofrecen opciones reales.
+                existe = await catalog.search_items(
+                    session, last_query, limit=1
+                )
+                if len(existe) == 1:
+                    # Una sola opción: decir "ver más" otra vez confunde.
+                    self._trace(f"Ver más con una sola opción: {last_query}")
+                    return AgentReply(
+                        [
+                            Outbound(
+                                kind="buttons",
+                                text=(
+                                    f"Tengo una sola opción de "
+                                    f"*{_clean_query(last_query)}*. ¿Querés ver "
+                                    "el detalle o preferís otra búsqueda?"
+                                ),
+                                buttons=[
+                                    {
+                                        "id": "catalog",
+                                        "title": "Ver categorías",
+                                    },
+                                    {"id": "human", "title": "Asesor"},
+                                ],
+                            )
+                        ]
+                    )
+                if not existe:
+                    self._trace(f"Ver más sin resultados: {last_query}")
+                    return AgentReply(
+                        [
+                            Outbound(
+                                kind="buttons",
+                                text=(
+                                    f"No hay más opciones de "
+                                    f"*{_clean_query(last_query)}*. ¿Probamos "
+                                    "con otra búsqueda o preferís que te pase "
+                                    "con un asesor?"
+                                ),
+                                buttons=[
+                                    {
+                                        "id": "catalog",
+                                        "title": "Ver categorías",
+                                    },
+                                    {"id": "human", "title": "Asesor"},
+                                ],
+                            )
+                        ]
+                    )
                 return await self._search_reply(
                     session, contact, last_query, limit=9
                 )

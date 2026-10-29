@@ -75,6 +75,16 @@ CASOS: list[dict] = [
         "espera": ["garantía", "garantia", "meses"],
     },
     {
+        "id": "ver-mas-sin-resultados",
+        "mensajes": ["vendes helicópteros?", "more"],
+        "espera": ["categoría", "categoria", "asesor"],
+    },
+    {
+        "id": "pelotas",
+        "mensajes": ["vendes pelotas?"],
+        "espera": ["pelota", "deport", "fútbol", "futbol", "Bs"],
+    },
+    {
         "id": "visitas",
         "mensajes": ["necesito algo para distraer a las visitas"],
         "espera": ["televisor", "juego", "opciones", "propongo"],

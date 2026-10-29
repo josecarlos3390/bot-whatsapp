@@ -77,7 +77,7 @@ async def test_los_mas_baratos_listan_precios(taladros):
     respuesta = await agente.handle(taladros, contacto, "quiero los mas baratos")
 
     texto = " ".join(mensaje.text or "" for mensaje in respuesta.messages).lower()
-    assert "más baratos" in texto
+    assert "baratos" in texto or "económicos" in texto
     # El primero que se muestra es el de menor precio.
     primero = next(
         mensaje.text for mensaje in respuesta.messages if mensaje.kind == "image"

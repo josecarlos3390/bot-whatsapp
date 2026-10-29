@@ -130,13 +130,76 @@ async def reply(
         [
             Outbound(text=lead),
             *agent._search_cards(tarjetas),
+        ]
+    )
+
+
+BARATOS_RE = re.compile(
+    r"\b(m[aá]s\s+barat[oa]s?|m[aá]s\s+econ[oó]mic[oa]s?|"
+    r"lo\s+m[aá]s\s+barato|econ[oó]micos)\b",
+    re.IGNORECASE,
+)
+
+
+def is_cheapest(text: str) -> bool:
+    return bool(BARATOS_RE.search(text or ""))
+
+
+async def reply_cheapest(
+    agent, session: AsyncSession, contact: Contact, raw: str
+) -> AgentReply | None:
+    """Los más económicos del rubro vigente, con el precio de entrada."""
+    from ..agent import Toolbox
+
+    base = await _base(session, contact)
+    if not base:
+        return AgentReply(
+            [
+                Outbound(
+                    kind="buttons",
+                    text=(
+                        "Decime de qué rubro querés ver los más económicos "
+                        "(por ejemplo colchones, televisores o taladros) y te "
+                        "muestro desde qué precio arrancan."
+                    ),
+                    buttons=[
+                        {"id": "catalog", "title": "Ver categorías"},
+                        {"id": "human", "title": "Asesor"},
+                    ],
+                )
+            ]
+        )
+
+    productos = await catalog.search_items(session, base, limit=12)
+    if not productos:
+        return None
+
+    def precio(item) -> float:
+        try:
+            return float(item.price or 0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    con_precio = [item for item in productos if precio(item) > 0]
+    ordenados = sorted(con_precio, key=precio)[:3]
+    if not ordenados:
+        return None
+
+    toolbox = Toolbox(session, contact, agent.wa)
+    tarjetas = [Toolbox._product(item) for item in ordenados]
+    await toolbox._attach_promotions(tarjetas)
+
+    desde = precio(ordenados[0])
+    agent._trace(f"Más económicos: {base}")
+    return AgentReply(
+        [
             Outbound(
-                kind="buttons",
-                text="¿Te muestro el detalle de alguna o filtramos por marca?",
-                buttons=[
-                    {"id": "catalog", "title": "Ver categorías"},
-                    {"id": "human", "title": "Asesor"},
-                ],
+                text=(
+                    f"Estos son los más económicos de *{base}*:\n\n"
+                    f"Arrancan en Bs {desde:,.0f}. Te los ordené de menor a "
+                    "mayor precio."
+                ).replace(",", ".")
             ),
+            *agent._search_cards(tarjetas),
         ]
     )
