@@ -205,3 +205,58 @@ async def test_sin_coincidencias_devuelve_none(session, monkeypatch):
     )
 
     assert await modulo.lookup_by_phone(session, contacto) is None
+
+async def test_con_documento_guardado_resuelve_sin_preguntar(session, monkeypatch):
+    from app.models import Contact, Conversation
+    from app.agent import Agent
+
+    contacto = Contact(
+        wa_id="59170029001",
+        phone_e164="+59170029001",
+        name="Chipi",
+        tax_id="500195",
+    )
+    session.add(contacto)
+    await session.flush()
+    session.add(Conversation(contact_id=contacto.id))
+    await session.commit()
+
+    class SapFalso:
+        async def get_customer_purchases(self, term, top=5, skip=0):
+            if term == "500195":
+                return [{"orderId": "1672200500195-01", "status": "invoiced", "value": 220}]
+            return []
+
+        async def get_order(self, numero):
+            return {
+                "orderId": numero,
+                "status": "invoiced",
+                "value": 220,
+                "items": [],
+            }
+
+    monkeypatch.setattr(
+        "app.sap.get_sap", lambda session: SapFalso(), raising=True
+    )
+
+    respuesta = await Agent().handle(session, contacto, "estado")
+    texto = respuesta.messages[0].text or ""
+
+    assert "1672200500195-01" in texto
+    assert "Pasame el" not in texto
+
+
+async def test_sin_documento_pide_los_datos(session, monkeypatch):
+    from app.models import Contact, Conversation
+    from app.agent import Agent
+
+    contacto = Contact(wa_id="59170029002", phone_e164="+59170029002")
+    session.add(contacto)
+    await session.flush()
+    session.add(Conversation(contact_id=contacto.id))
+    await session.commit()
+
+    respuesta = await Agent().handle(session, contacto, "estado")
+    texto = respuesta.messages[0].text or ""
+
+    assert "ID del pedido" in texto or "CI o NIT" in texto

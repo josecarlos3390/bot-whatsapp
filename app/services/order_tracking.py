@@ -9,6 +9,7 @@ from decimal import Decimal, InvalidOperation
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..config import settings
 from ..models import Contact, Conversation, ConversationFlow
 from ..sap import SapError, SapNotFound, get_sap
 
@@ -137,16 +138,32 @@ async def start(session: AsyncSession, contact: Contact) -> str:
     flow.answers = {}
     flow.status = "active"
     await session.commit()
-    from .order_by_document import lookup_by_phone
+    from .order_by_document import lookup_by_document, lookup_by_phone
 
     # Primero se intenta con el teléfono de la conversación: si el sistema
     # resuelve, el cliente no tiene que escribir nada.
-    try:
-        encontrado = await lookup_by_phone(session, contact)
-    except Exception:  # noqa: BLE001 - el intento no debe romper el flujo
-        encontrado = None
+    encontrado = None
+    if settings.order_phone_lookup_enabled:
+        try:
+            encontrado = await lookup_by_phone(session, contact)
+        except Exception:  # noqa: BLE001 - el intento no debe romper el flujo
+            encontrado = None
     if encontrado and encontrado.get("text"):
         return encontrado["text"]
+
+    # Si el cliente ya se identificó antes, el documento quedó guardado:
+    # la consulta se resuelve sola, sin volver a pedirlo.
+    if contact.tax_id:
+        try:
+            guardado = await lookup_by_document(
+                session, contact, contact.tax_id, "carnet"
+            )
+        except Exception:  # noqa: BLE001 - se sigue con el pedido normal
+            guardado = None
+        if guardado and guardado.get("text") and not guardado.get(
+            "needs_handoff"
+        ):
+            return guardado["text"]
 
     return (
         "Para consultar el seguimiento pasame el *ID del pedido* "
