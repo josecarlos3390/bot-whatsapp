@@ -2331,7 +2331,26 @@ async def receive_webhook(
                     logger.exception("No se pudo encolar; se procesa inline")
                     await ingest_inbound(session, **item)
             else:
-                await ingest_inbound(session, **item)
+                # Varios mensajes seguidos (foto + "hola") se contestan
+                # juntos: una sola respuesta, más natural.
+                from .services import batching
+
+                async def _procesar(datos: dict) -> None:
+                    if settings.batching_ms <= 0:
+                        # Sin espera se procesa en el mismo turno.
+                        await ingest_inbound(session, **datos)
+                        return
+                    from .db import SessionLocal
+
+                    async with SessionLocal() as propia:
+                        await ingest_inbound(propia, **datos)
+
+                await batching.agrupar(
+                    item.get("wa_id") or "",
+                    item,
+                    _procesar,
+                    espera_ms=settings.batching_ms,
+                )
         except Exception:  # noqa: BLE001 - Meta reintenta; no tumbar el webhook
             logger.exception("Error procesando mensaje %s", item.get("wa_message_id"))
             webhook_event.status = "error"

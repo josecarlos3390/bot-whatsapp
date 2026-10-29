@@ -17,6 +17,8 @@ def force_mock_sap(monkeypatch):
     monkeypatch.setattr(settings, "sap_live_reads", False)
     monkeypatch.setattr(settings, "sap_write_enabled", False)
     monkeypatch.setattr(settings, "memory_auto_summary", False)
+    # Sin espera de agrupado: los tests tienen que ser deterministas.
+    monkeypatch.setattr(settings, "batching_ms", 0)
 
 
 @pytest.fixture

@@ -86,6 +86,9 @@ class Settings(BaseSettings):
     # sumar latencia: se activa si el PaaS lo soporta.
     # Notas de voz: Whisper local (sin costo por minuto y sin salir del
     # servidor). DeepSeek no transcribe audio.
+    # Agrupar mensajes seguidos (foto + texto) en un solo turno. 0 = sin
+    # espera (tests).
+    batching_ms: int = 1600
     transcribe_enabled: bool = True
     transcribe_model: str = "small"
     transcribe_device: str = "cpu"
