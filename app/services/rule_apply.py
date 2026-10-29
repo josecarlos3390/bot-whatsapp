@@ -127,3 +127,48 @@ async def aplicar(
         policy.promotion_min,
     )
     return ordenados
+
+
+async def preguntas_pendientes(
+    session: AsyncSession,
+    texto: str,
+    *,
+    categoria: str | None = None,
+    limite: int = 2,
+) -> list[str]:
+    """Preguntas que el portal exige antes de cerrar la venta."""
+    try:
+        policy = await rule_policy.build(session, texto, category=categoria)
+    except Exception:  # noqa: BLE001
+        logger.debug("No se pudieron leer las preguntas", exc_info=True)
+        return []
+    return list(policy.questions)[:limite]
+
+
+async def anexar_preguntas(
+    session: AsyncSession,
+    texto: str,
+    reply,
+    *,
+    categoria: str | None = None,
+):
+    """Agrega las preguntas obligatorias al final de la respuesta."""
+    from ..whatsapp import Outbound
+
+    preguntas = await preguntas_pendientes(
+        session, texto, categoria=categoria
+    )
+    if not preguntas or reply is None or not getattr(reply, "messages", None):
+        return reply
+    ya = any(
+        pregunta.lower() in (mensaje.text or "").lower()
+        for mensaje in reply.messages
+        for pregunta in preguntas
+    )
+    if ya:
+        return reply
+    texto_preguntas = " ".join(preguntas)
+    reply.messages.append(
+        Outbound(text=f"Para asesorarte mejor: {texto_preguntas}")
+    )
+    return reply

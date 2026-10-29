@@ -155,11 +155,16 @@ async def reply(
     )
     lead = f"{titulo}\n\n{criterio}"
     agent._trace(f"Más elegidas: {base}")
-    return AgentReply(
+    from . import rule_apply
+
+    respuesta = AgentReply(
         [
             Outbound(text=lead),
             *agent._search_cards(tarjetas),
         ]
+    )
+    return await rule_apply.anexar_preguntas(
+        session, raw, respuesta, categoria=base
     )
 
 
@@ -226,7 +231,7 @@ async def reply_cheapest(
 
     desde = precio(ordenados[0])
     agent._trace(f"Más económicos: {base}")
-    return AgentReply(
+    respuesta = AgentReply(
         [
             Outbound(
                 text=(
@@ -237,4 +242,7 @@ async def reply_cheapest(
             ),
             *agent._search_cards(tarjetas),
         ]
+    )
+    return await rule_apply.anexar_preguntas(
+        session, raw, respuesta, categoria=base
     )

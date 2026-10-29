@@ -138,3 +138,70 @@ async def test_aplicar_usa_las_reglas_de_la_categoria(session):
     )
 
     assert ordenados[0].brand == "SAMSUNG"
+
+
+async def test_las_preguntas_obligatorias_se_anexan(session):
+    from app.agent import Agent
+    from app.models import Contact
+    from app.replies import AgentReply
+    from app.whatsapp import Outbound
+
+    session.add(
+        AreaRule(
+            area="ecommerce",
+            name="Preguntas antes de vender una heladera",
+            rule_type="required_questions",
+            condition={"category": "heladera"},
+            action={
+                "questions": [
+                    {"key": "litros", "text": "¿Cuántos litros necesitás?"}
+                ]
+            },
+            priority=50,
+            status="published",
+        )
+    )
+    await session.commit()
+    contacto = Contact(wa_id="59170060001", phone_e164="+59170060001")
+    session.add(contacto)
+    await session.commit()
+
+    respuesta = AgentReply([Outbound(text="Estas son las opciones:")])
+    final = await rule_apply.anexar_preguntas(
+        session, "mostrame las mas elegidas", respuesta, categoria="heladera"
+    )
+
+    assert "litros" in (final.messages[-1].text or "")
+    assert final.messages[-1].text.rstrip().endswith("?")
+
+
+async def test_no_repite_la_pregunta_si_ya_esta(session):
+    from app.agent import Agent
+    from app.replies import AgentReply
+    from app.whatsapp import Outbound
+
+    session.add(
+        AreaRule(
+            area="ecommerce",
+            name="Preguntas heladera",
+            rule_type="required_questions",
+            condition={"category": "heladera"},
+            action={
+                "questions": [
+                    {"key": "litros", "text": "¿Cuántos litros necesitás?"}
+                ]
+            },
+            priority=50,
+            status="published",
+        )
+    )
+    await session.commit()
+
+    respuesta = AgentReply(
+        [Outbound(text="¿Cuántos litros necesitás?")]
+    )
+    final = await rule_apply.anexar_preguntas(
+        session, "consulta", respuesta, categoria="heladera"
+    )
+
+    assert len(final.messages) == 1

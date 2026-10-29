@@ -208,11 +208,14 @@ async def reply(
         answered=True,
     )
     agent._trace(f"Relacionado con {termino}: {'; '.join(ideas)}")
-    return AgentReply(
+    respuesta = AgentReply(
         [
             Outbound(text=puente),
             *agent._search_cards(tarjetas),
         ]
+    )
+    return await rule_apply.anexar_preguntas(
+        session, termino, respuesta, categoria=termino
     )
 
 

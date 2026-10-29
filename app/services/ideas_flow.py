@@ -105,9 +105,14 @@ async def responder_idea(
     tarjetas = [Toolbox._product(item) for item in productos[:5]]
     await toolbox._attach_promotions(tarjetas)
     agent._trace(f"Idea elegida: {idea}")
-    return AgentReply(
+    respuesta = AgentReply(
         [
             Outbound(text=f"Para *{idea}* tengo esto {emoji.para(idea)}:"),
             *agent._search_cards(tarjetas),
         ]
+    )
+    from . import rule_apply
+
+    return await rule_apply.anexar_preguntas(
+        session, idea, respuesta, categoria=idea
     )
