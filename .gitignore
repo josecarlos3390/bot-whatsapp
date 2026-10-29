@@ -33,3 +33,4 @@ NONE
 backups/
 # Temporales de render de documentos
 .dsh-office-*
+dev-backup-*.db
