@@ -84,6 +84,20 @@ class Settings(BaseSettings):
     # Busqueda de pedidos por telefono en el integrador. VTEX no permite
     # filtrar por telefono (campo privado), asi que queda apagado para no
     # sumar latencia: se activa si el PaaS lo soporta.
+    # Notas de voz: Whisper local (sin costo por minuto y sin salir del
+    # servidor). DeepSeek no transcribe audio.
+    transcribe_enabled: bool = True
+    transcribe_model: str = "small"
+    transcribe_device: str = "cpu"
+    transcribe_compute: str = "int8"
+    transcribe_language: str = "es"
+    # OpenAI como motor principal de voz (DeepSeek no transcribe). Si no hay
+    # clave, se usa Whisper local.
+    transcribe_backend: str = "auto"
+    openai_api_key: str = ""
+    openai_base_url: str = "https://api.openai.com/v1"
+    openai_transcribe_model: str = "whisper-1"
+    openai_transcribe_prompt: str = ""
     order_phone_lookup_enabled: bool = False
     # Busqueda explicita por numero de secuencia (ruta del PaaS).
     order_sequence_lookup_enabled: bool = False

@@ -89,6 +89,18 @@ async def ingest_inbound(
     elif name and not contact.name:
         contact.name = name
 
+    # Nota de voz: se transcribe antes de guardar, así el agente recibe
+    # texto y todo el resto del flujo funciona igual.
+    if media and (media.get("kind") == "audio") and deliver:
+        from . import transcription
+
+        dicho = await transcription.desde_media(media)
+        if dicho:
+            text = dicho
+            media = {**media, "transcripcion": dicho}
+        else:
+            text = "[audio]" if not text else text
+
     conversation = await session.scalar(
         select(Conversation).where(Conversation.contact_id == contact.id)
     )

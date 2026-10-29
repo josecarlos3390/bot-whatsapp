@@ -35,3 +35,4 @@ backups/
 .dsh-office-*
 dev-backup-*.db
 logs/faltantes-*.csv
+.models/
