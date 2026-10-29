@@ -85,6 +85,8 @@ class Settings(BaseSettings):
     # filtrar por telefono (campo privado), asi que queda apagado para no
     # sumar latencia: se activa si el PaaS lo soporta.
     order_phone_lookup_enabled: bool = False
+    # Busqueda explicita por numero de secuencia (ruta del PaaS).
+    order_sequence_lookup_enabled: bool = False
     # Guard de repeticion parcial: desactivado por defecto. Las mediciones
     # no mostraron mejora (2,33 y 2,17 con guard vs 2,56 sin el) y agrega
     # complejidad; se deja el codigo para probarlo cuando haya mas muestra.

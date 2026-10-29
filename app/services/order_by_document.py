@@ -7,7 +7,13 @@ import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models import Contact
-from .order_tracking import _date, _money, format_order
+from .order_tracking import (
+    STATUS_GUIDE,
+    STATUS_LABELS,
+    _date,
+    _money,
+    format_order,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -292,6 +298,10 @@ async def lookup_by_email(
     try:
         sap = get_sap(session)
         pedidos = await sap.get_customer_purchases(email, top=5, skip=0)
+        # El email de la cuenta (CL.email) es la llave; el de la orden puede
+        # ser anónimo (@ct.vtex). Se valida por el documento de la cuenta.
+        cuenta = await sap.get_customer(email)
+        documento_cuenta = _digitos((cuenta or {}).get("document"))
         verificados = []
         for pedido in pedidos[:5]:
             numero = str(pedido.get("orderId") or "")
@@ -302,7 +312,12 @@ async def lookup_by_email(
             except Exception:  # noqa: BLE001
                 continue
             perfil = (detalle or {}).get("clientProfileData") or {}
-            if str(perfil.get("email") or "").strip().lower() == email:
+            documento = _digitos(perfil.get("document"))
+            correo = str(perfil.get("email") or "").strip().lower()
+            if documento_cuenta:
+                if documento and documento == documento_cuenta:
+                    verificados.append(detalle)
+            elif correo == email:
                 verificados.append(detalle)
         pedidos = verificados
     except SapError:
@@ -343,6 +358,57 @@ async def lookup_by_email(
         lineas.append(f"• {numero} · {fecha} · Bs {total} · {estado}")
     lineas.append("")
     lineas.append("Decime cuál te interesa y te muestro el detalle.")
+    return {
+        "text": "\n".join(lineas),
+        "finished": True,
+        "needs_handoff": False,
+    }
+
+
+async def lookup_by_sequence(session: AsyncSession, sequence: str) -> dict | None:
+    """Estado del pedido por número de secuencia, sin datos personales.
+
+    La secuencia no identifica a una persona: solo se usa cuando el cliente
+    la tiene a mano y se muestra el estado y los productos, nunca nombre,
+    dirección ni documento.
+    """
+    from ..config import settings
+    from ..sap import SapError, get_sap
+
+    if not settings.order_sequence_lookup_enabled:
+        return None
+    numero = _digitos(sequence)
+    if not numero:
+        return None
+    try:
+        sap = get_sap(session)
+        metodo = getattr(sap, "get_order_by_sequence", None)
+        if metodo is None:
+            return None
+        pedido = await metodo(numero)
+    except SapError:
+        return None
+    except Exception:  # noqa: BLE001
+        logger.debug("Fallo la búsqueda por secuencia", exc_info=True)
+        return None
+    if not pedido:
+        return None
+    estado = str(pedido.get("status") or "")
+    etiqueta = STATUS_LABELS.get(estado, pedido.get("statusDescription") or estado)
+    lineas = [
+        f"Pedido *{numero}*",
+        f"Estado: *{etiqueta}*",
+    ]
+    guia = STATUS_GUIDE.get(estado)
+    if guia:
+        lineas.append(guia[1])
+    items = pedido.get("items") or []
+    if items:
+        lineas.append("Productos:")
+        for item in items[:5]:
+            nombre = item.get("name") or item.get("skuName") or "Producto"
+            lineas.append(f"• {item.get('quantity') or 1} × {nombre}")
+    lineas.append("\nPor seguridad no muestro datos personales de este pedido.")
     return {
         "text": "\n".join(lineas),
         "finished": True,

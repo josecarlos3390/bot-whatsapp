@@ -1218,6 +1218,16 @@ class VtexPaas(PaasSap):
         )
         return data if isinstance(data, dict) else {}
 
+    async def get_order_by_sequence(self, sequence: str) -> dict | None:
+        """Pedido por número de secuencia (ruta explícita, no identidad)."""
+        try:
+            data = await self.get(
+                f"{self._base_path}/orders/by-sequence/{quote(sequence, safe='')}"
+            )
+        except SapNotFound:
+            return None
+        return data if isinstance(data, dict) else None
+
     async def get_orders_page(
         self,
         page: int = 1,

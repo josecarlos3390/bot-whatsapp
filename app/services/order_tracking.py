@@ -312,6 +312,17 @@ async def lookup(
             }
         return await lookup_by_document(session, contact, numero, kind)
 
+    # Si el cliente nombra un número de pedido corto (secuencia), se usa la
+    # ruta explícita y se muestran solo estado y productos.
+    if (text or '').strip().isdigit() and len(order_id or '') <= 7:
+        from .order_by_document import lookup_by_sequence
+
+        estado_seq = await lookup_by_sequence(session, order_id)
+        if estado_seq:
+            flow.status = "completed"
+            await session.commit()
+            return estado_seq
+
     # Si el cliente pasa un email, se busca por esa llave (segunda opción
     # después del documento según la validación de VTEX).
     email = extract_email(text)

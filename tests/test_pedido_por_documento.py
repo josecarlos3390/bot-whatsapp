@@ -309,3 +309,48 @@ async def test_no_muestra_un_pedido_de_otro_cliente(session, monkeypatch):
 
     assert "1672200500195-01" not in resultado["text"]
     assert resultado["needs_handoff"] is True
+
+async def test_secuencia_solo_muestra_estado_sin_datos_personales(
+    session, monkeypatch
+):
+    from app.config import settings
+    from app.services import order_by_document as modulo
+
+    monkeypatch.setattr(settings, "order_sequence_lookup_enabled", True)
+
+    class SapSecuencia:
+        async def get_order_by_sequence(self, numero):
+            return {
+                "orderId": "1672200500195-01",
+                "status": "shipped",
+                "items": [{"name": "Set de brocas", "quantity": 1}],
+                "clientProfileData": {
+                    "document": "5403339",
+                    "email": "privado@correo.com",
+                    "firstName": "Juan",
+                },
+                "shippingData": {"address": {"street": "Av. Siempre Viva"}},
+            }
+
+    monkeypatch.setattr(
+        "app.sap.get_sap", lambda session: SapSecuencia(), raising=True
+    )
+
+    resultado = await modulo.lookup_by_sequence(session, "500195")
+    texto = resultado["text"]
+
+    assert "En camino" in texto
+    assert "Set de brocas" in texto
+    assert "5403339" not in texto
+    assert "privado@correo.com" not in texto
+    assert "Siempre Viva" not in texto
+    assert "datos personales" in texto
+
+
+async def test_secuencia_apagada_no_responde(session, monkeypatch):
+    from app.config import settings
+    from app.services import order_by_document as modulo
+
+    monkeypatch.setattr(settings, "order_sequence_lookup_enabled", False)
+
+    assert await modulo.lookup_by_sequence(session, "500195") is None
