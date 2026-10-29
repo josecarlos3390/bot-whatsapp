@@ -1272,6 +1272,18 @@ class Toolbox:
             )
             if conversacion is not None and query:
                 conversacion.last_query = query[:300]
+            # Si la búsqueda de la IA no encuentra nada, también es un
+            # faltante para el informe de compras.
+            if query:
+                filas_probe = await catalog.search_items(
+                    self.session, query, limit=1
+                )
+                if not filas_probe:
+                    from .services import missing as missing_service
+
+                    await missing_service.record(
+                        self.session, query, answered=False
+                    )
         if category and TV_INTENT_RE.search(category):
             category = None
         state = await self._current_state()
@@ -3522,6 +3534,11 @@ class Agent:
                     return puente
 
             await learning.record_miss(session, consulta_original)
+            from .services import missing as missing_service
+
+            await missing_service.record(
+                session, consulta_original, answered=False
+            )
             if result.get("quantity_shortfall"):
                 qty = result["quantity_shortfall"]
                 return AgentReply(

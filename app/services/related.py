@@ -140,6 +140,15 @@ async def reply(
         else f"*{termino.capitalize()}* no tengo 😕 Pero si la idea es "
         f"{intencion}, mirá esto:"
     )
+    from . import missing
+
+    await missing.record(
+        session,
+        termino,
+        intent=intencion,
+        related=[item.name for item in productos],
+        answered=True,
+    )
     agent._trace(f"Relacionado con {termino}: {intencion or 'sin intención'}")
     return AgentReply(
         [

@@ -746,6 +746,25 @@ class SapEventInbox(Base):
 
 
 
+
+class MissingRequest(Base):
+    """Producto pedido que no está en el catálogo.
+
+    Guarda el término, la intención que detectó la IA y si se pudo responder
+    con algo relacionado. Sirve para el informe de compras.
+    """
+
+    __tablename__ = "missing_requests"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    term: Mapped[str] = mapped_column(String(200), index=True)
+    intent: Mapped[str | None] = mapped_column(String(200))
+    related: Mapped[str | None] = mapped_column(Text)
+    answered: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, index=True
+    )
+
 class QueryLearning(Base):
     """Búsquedas que no encontraban nada y cómo se resolvieron.
 
