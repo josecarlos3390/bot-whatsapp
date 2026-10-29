@@ -38,6 +38,7 @@ $tunnelErrLog = Join-Path $logDir "cloudflared.err.log"
 $urlFile = Join-Path $logDir "tunnel-url.txt"
 $fuzzStamp = Join-Path $logDir "fuzz.stamp"
 $fuzzMesStamp = Join-Path $logDir "fuzz-mes.stamp"
+$faltantesStamp = Join-Path $logDir "faltantes.stamp"
 $botOut = Join-Path $logDir "bot.out.log"
 $botErr = Join-Path $logDir "bot.err.log"
 $envFile = Join-Path $root ".env"
@@ -181,6 +182,31 @@ function Start-FuzzMensual {
         -WindowStyle Hidden
 }
 
+function Faltantes-Due {
+    if (-not (Test-Path $faltantesStamp)) { return $true }
+    $last = (Get-Item $faltantesStamp).LastWriteTime
+    # Los lunes, y como mucho una vez cada 20 horas.
+    return (((Get-Date).DayOfWeek -eq 'Monday') -and
+        (((Get-Date) - $last).TotalHours -ge 20))
+}
+
+function Start-Faltantes {
+    Write-Host "[serve] informe semanal de faltantes"
+    $fecha = Get-Date -Format 'yyyyMMdd'
+    $csv = Join-Path $root "logs\faltantes-$fecha.csv"
+    Write-TextNoBom -Path $faltantesStamp -Text (Get-Date -Format o)
+    Start-Process -FilePath $python `
+        -ArgumentList @(
+            "-m", "scripts.informe_faltantes",
+            "--dias", "7",
+            "--csv", $csv
+        ) `
+        -WorkingDirectory $root `
+        -RedirectStandardOutput (Join-Path $logDir "faltantes.out.log") `
+        -RedirectStandardError (Join-Path $logDir "faltantes.err.log") `
+        -WindowStyle Hidden | Out-Null
+}
+
 function Backup-Due {
     if (-not (Test-Path $backupStamp)) { return $true }
     $last = (Get-Item $backupStamp).LastWriteTime
@@ -306,6 +332,7 @@ while ($true) {
         if (Backup-Due) { Start-Backup }
         if (Fuzz-Due) { Start-Fuzz }
         if (FuzzMensual-Due) { Start-FuzzMensual }
+        if (Faltantes-Due) { Start-Faltantes }
 
         if ($webhook -and $webhook.HasExited) {
             Log "el vigilante del webhook se detuvo; reiniciando"
