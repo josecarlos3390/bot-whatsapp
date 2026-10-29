@@ -2,57 +2,49 @@
 
 ---
 
-Hola, gracias por la respuesta. Confirmo que el teléfono **ya lo tenemos** de
-nuestro lado: el bot lo toma de `contacts.phone_e164` y arma las variantes
-(`59169006969`, `69006969`, `069006969`). Ese punto está resuelto.
+Hola, gracias por la validación. Confirmamos el mismo resultado de nuestro
+lado: `email` y `document` son filtrables; `phone`, `homePhone` y
+`businessPhone` devuelven 403. **No hace falta crear la ruta por teléfono.**
 
-Lo que nos falta es la **otra mitad**: que el PaaS resuelva pedidos por
-teléfono, igual que ya resuelve por documento.
+Usamos el email como segunda llave, con la salvedad que ustedes marcaron: no
+es identificador único, así que solo se usa después de que el cliente se
+identifica y siempre verificando la coincidencia.
 
-**Hoy funciona:**
+**Pero encontramos un problema que conviene revisar:**
 
-```
-GET /api/sap/customers/500195/purchases   → 1 pedido
-```
+`GET /api/sap/customers/{term}/purchases` no resuelve solo por documento:
+también acepta el **número de secuencia** del pedido.
 
-**Hoy no funciona (devuelve vacío):**
-
-```
-GET /api/sap/customers/59169006969/purchases   → vacío
-GET /api/sap/customers/69006969/purchases      → vacío
-GET /api/sap/customers/069006969/purchases     → vacío
-GET /api/sap/customers/59169006969            → vacío
-```
-
-**Lo que necesitamos:**
+Ejemplo real:
 
 ```
-GET /api/sap/customers/{telefono}/purchases
-GET /api/sap/customers/{telefono}
+GET /api/sap/customers/500195/purchases
+→ devuelve el pedido 1672200500195-01
 ```
 
-o bien un parámetro en el endpoint que ya existe:
+Pero ese pedido **no pertenece al documento 500195**: su
+`clientProfileData.document` es **5403339**, y `500195` es únicamente la
+secuencia del pedido.
 
-```
-GET /api/sap/customers/by-phone?phone=59169006969
-```
+Riesgo: un cliente que escribe un número de 6 dígitos que coincide con la
+secuencia de otro pedido recibe **un pedido ajeno**.
 
-**Para poder avanzar necesitamos saber:**
+**Qué hicimos de nuestro lado:** antes de mostrar cualquier pedido comparamos
+el `clientProfileData.document` (o el `phone`/`email` según la llave usada)
+con el dato que dio el cliente. Si no coincide, no se muestra y se ofrece un
+asesor. Ya está en producción.
 
-1. ¿Dónde está guardado el teléfono en VTEX/SAP? (Master Data CL:
-   `homePhone`, `phone`, `businessPhone`; SAP: `Cellular`, `Phone1`, o dentro
-   de la dirección.)
-2. ¿Ese campo es consultable? ¿Con qué formato lo espera: `59169006969`,
-   `69006969` o `069006969`?
-3. Si el teléfono no es consultable, ¿podemos resolver por **email** o
-   solamente por documento?
-4. ¿Se puede agregar el parámetro `?phone=` al endpoint de compras actual, en
-   lugar de crear una ruta nueva?
+**Lo que queremos saber:**
 
-**Por qué importa:** el cliente escribe por WhatsApp, así que el teléfono es el
-único dato que ya tenemos sin pedirle nada. Si el PaaS lo resuelve, puede ver
-su pedido sin escribir el número de orden ni el CI.
+1. ¿El endpoint puede restringirse a **documento y email**, sin resolver por
+   secuencia? Es la opción más segura.
+2. Si la búsqueda por secuencia se usa para algo, ¿se puede separar en otra
+   ruta explícita, por ejemplo `/orders/by-sequence/{numero}`?
+3. ¿Nos pueden confirmar qué prioridad usa hoy? (¿prueba documento y, si no
+   encuentra, secuencia?)
+4. ¿El `email` filtrable es el de la cuenta o el de la orden? Vimos pedidos
+   con correos anónimos `...@ct.vtex`, que no sirven como llave.
 
-Si no es viable, decinos y el bot sigue pidiendo CI/NIT (ya funciona así).
+Con eso cerramos el tema de identificación de pedidos.
 
 Gracias.
