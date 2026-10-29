@@ -96,6 +96,11 @@ async def responder_idea(
             productos.append(item)
     if not productos:
         return None
+    from . import rule_apply
+
+    productos = await rule_apply.aplicar(
+        session, " ".join(ideas_categorias), productos, categoria=idea
+    )
     toolbox = Toolbox(session, contacto, agent.wa)
     tarjetas = [Toolbox._product(item) for item in productos[:5]]
     await toolbox._attach_promotions(tarjetas)

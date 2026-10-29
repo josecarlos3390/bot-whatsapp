@@ -176,6 +176,11 @@ async def reply(
     if not productos:
         return None
 
+    from . import rule_apply
+
+    productos = await rule_apply.aplicar(
+        session, termino, productos, categoria=termino
+    )
     toolbox = Toolbox(session, contact, agent.wa)
     tarjetas = [Toolbox._product(item) for item in productos]
     await toolbox._attach_promotions(tarjetas)

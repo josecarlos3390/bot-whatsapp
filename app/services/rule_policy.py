@@ -101,7 +101,13 @@ async def build(
     policy = RulePolicy(areas=area_router.detect(text))
     category_hint = category or catalog.primary_term(text) or text
     seen: set[str] = set()
-    for area in policy.areas:
+    # Si el mensaje no nombra un área, igual se buscan las reglas que dependen
+    # solo de la categoría («Priorizar Samsung en heladeras»): antes, un atajo
+    # como «las más elegidas» no aplicaba ninguna regla.
+    # "general" es el área por defecto: se consulta sin filtro de área para
+    # que apliquen las reglas que solo dependen de la categoría.
+    areas = [area for area in policy.areas if area != "general"]
+    for area in areas or [None]:
         rows = await rules_engine.rules_for(
             session, area=area, category=category_hint, intent=intent
         )

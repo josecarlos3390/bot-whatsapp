@@ -62,6 +62,29 @@ async def _ventas(session: AsyncSession, skus: list[str]) -> dict[str, int]:
     }
 
 
+def _con_marca(ordenados: list, productos: list, policy) -> list:
+    """Asegura que la marca prioritaria del portal esté entre las elegidas."""
+    marca = (getattr(policy, "brand", None) or "").strip().lower()
+    if not marca:
+        return ordenados
+    if ordenados and (
+        str(getattr(ordenados[0], "brand", "") or "").strip().lower()
+        == marca
+    ):
+        return ordenados
+    candidato = next(
+        (
+            item
+            for item in productos
+            if str(getattr(item, "brand", "") or "").strip().lower() == marca
+        ),
+        None,
+    )
+    if candidato is None:
+        return ordenados
+    return [candidato, *ordenados[:-1]]
+
+
 async def reply(
     agent, session: AsyncSession, contact: Contact, raw: str
 ) -> AgentReply | None:
@@ -91,6 +114,10 @@ async def reply(
     if not productos:
         return None
 
+    from . import rule_apply, rule_policy
+
+    policy = await rule_policy.build(session, raw, category=base)
+    productos = rule_apply.ordenar(productos, policy)
     ventas = await _ventas(session, [p.sku for p in productos])
     con_ventas = [p for p in productos if ventas.get(p.sku, 0) > 0]
 
@@ -98,6 +125,7 @@ async def reply(
         ordenados = sorted(
             con_ventas, key=lambda p: ventas.get(p.sku, 0), reverse=True
         )[:3]
+        ordenados = _con_marca(ordenados, productos, policy)
         criterio = "Fueron las más vendidas de los últimos 30 días."
     else:
         # Sin historial de ventas: descuento y stock, y se dice tal cual.
@@ -107,6 +135,7 @@ async def reply(
             return (con_descuento, item.stock or 0)
 
         ordenados = sorted(productos, key=puntaje, reverse=True)[:3]
+        ordenados = _con_marca(ordenados, productos, policy)
         criterio = (
             "No tengo el ranking de ventas de este rubro, así que te muestro "
             "las que tienen descuento y más disponibilidad."
@@ -174,6 +203,11 @@ async def reply_cheapest(
     if not productos:
         return None
 
+    from . import rule_apply, rule_policy
+
+    policy = await rule_policy.build(session, raw, category=base)
+    productos = rule_apply.ordenar(productos, policy)
+
     def precio(item) -> float:
         try:
             return float(item.price or 0)
@@ -182,6 +216,7 @@ async def reply_cheapest(
 
     con_precio = [item for item in productos if precio(item) > 0]
     ordenados = sorted(con_precio, key=precio)[:3]
+    ordenados = _con_marca(ordenados, productos, policy)
     if not ordenados:
         return None
 
