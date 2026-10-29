@@ -13,6 +13,7 @@ from ..agent import AgentReply, Outbound
 from ..config import settings
 from ..models import Contact, Conversation, Message, utcnow
 from ..runtime import agent, whatsapp
+from . import outbox_health
 from . import handoffs as handoff_service, metrics, output_guard
 from . import memory as memory_service, native_commerce
 
@@ -271,7 +272,9 @@ async def ingest_inbound(
         if deliver:
             try:
                 outbound_id = await whatsapp.send(wa_id, outbound)
-            except Exception:  # noqa: BLE001 - no perder el mensaje entrante
+                outbox_health.record_success()
+            except Exception as exc:  # noqa: BLE001 - no perder el entrante
+                outbox_health.record_failure(str(exc))
                 logger.exception("No se pudo enviar la respuesta a %s", wa_id)
                 continue
         else:
