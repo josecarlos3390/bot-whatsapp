@@ -46,8 +46,8 @@ _TEMAS: list[tuple[str, str]] = [
     ("planta", "🌿"),
     ("piscina", "🏊"),
     ("vela", "🕯️"),
-    ("decoración", "🏡"),
-    ("decoracion", "🏡"),
+    ("decor", "🏡"),
+
     ("plancha", "💇"),
     ("secador", "💇"),
     ("bicicleta", "🚲"),

@@ -3063,23 +3063,19 @@ class Agent:
                     except Exception:  # noqa: BLE001
                         ideas_extra, extra = [], []
                 if ideas_extra:
-                    vistos = {p["sku"] for p in bridge_products}
-                    combinados = list(bridge_products[:1]) + [
-                        p for p in extra if p["sku"] not in vistos
-                    ]
-                    ideas_txt = ", ".join(ideas_extra[:3])
-                    return AgentReply(
-                        [
-                            Outbound(
-                                text=(
-                                    f"*{event['label']}* como tal no tengo, "
-                                    "pero se me ocurren varias ideas: "
-                                    f"{ideas_txt}. Mirá lo que sí tengo:"
-                                )
-                            ),
-                            *self._search_cards(combinados[:3]),
-                        ]
+                    from .services import ideas_flow
+
+                    leidas = await related.leer_intenciones(
+                        session, str(event.get("label") or "")
                     )
+                    if leidas:
+                        pregunta = await ideas_flow.preguntar(
+                            session,
+                            str(event.get("label") or ""),
+                            leidas,
+                        )
+                        if pregunta is not None:
+                            return pregunta
                 return AgentReply(
                     [
                         Outbound(
@@ -4975,6 +4971,32 @@ class Agent:
                     session, contact, raw, history or [], memory
                 )
             return await self._purchase_history_reply(session, contact)
+
+        # Elegir una idea propuesta ("¿armamos la noche, la comida o la
+        # decoración?"): se buscan las categorías de esa idea.
+        if normalized.startswith("idea:"):
+            from .services import ideas_flow
+
+            elegida = await ideas_flow.responder_idea(
+                session, contact, raw, self
+            )
+            if elegida is not None:
+                return elegida
+            return AgentReply(
+                [
+                    Outbound(
+                        kind="buttons",
+                        text=(
+                            "No tengo opciones de esa idea. ¿Probamos con "
+                            "otra o te muestro las categorías?"
+                        ),
+                        buttons=[
+                            {"id": "catalog", "title": "Ver categorías"},
+                            {"id": "human", "title": "Asesor"},
+                        ],
+                    )
+                ]
+            )
 
         if normalized.startswith("cat:"):
             category = raw.split(":", 1)[1].strip()

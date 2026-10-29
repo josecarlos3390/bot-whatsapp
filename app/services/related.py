@@ -209,3 +209,11 @@ async def reply(
             *agent._search_cards(tarjetas),
         ]
     )
+
+
+async def leer_intenciones(
+    session: AsyncSession, termino: str
+) -> list[dict]:
+    """Ideas para una ocasión, con sus categorías (sin buscar productos)."""
+    lectura = await _pedir_a_la_ia(termino)
+    return list((lectura or {}).get("intenciones") or [])
