@@ -354,3 +354,31 @@ async def test_secuencia_apagada_no_responde(session, monkeypatch):
     monkeypatch.setattr(settings, "order_sequence_lookup_enabled", False)
 
     assert await modulo.lookup_by_sequence(session, "500195") is None
+
+async def test_secuencia_desenvuelve_la_respuesta_del_paas(session, monkeypatch):
+    """El PaaS devuelve {"value": [pedido]}: hay que tomar el pedido."""
+    from app.sap import VtexPaas
+
+    async def _get_falso(self, path, params=None):
+        return await _respuesta_envuelta()
+
+    monkeypatch.setattr(VtexPaas, "get", _get_falso, raising=True)
+
+    sap = VtexPaas.__new__(VtexPaas)
+    sap._base_path = "api/vtex"
+    pedido = await sap.get_order_by_sequence("500195")
+
+    assert pedido is not None
+    assert pedido["status"] == "ready-for-handling"
+
+
+async def _respuesta_envuelta():
+    return {
+        "value": [
+            {
+                "orderId": "1672200500195-01",
+                "status": "ready-for-handling",
+            }
+        ],
+        "total": 1,
+    }

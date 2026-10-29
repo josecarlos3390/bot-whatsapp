@@ -402,7 +402,18 @@ async def lookup_by_sequence(session: AsyncSession, sequence: str) -> dict | Non
     guia = STATUS_GUIDE.get(estado)
     if guia:
         lineas.append(guia[1])
+    # El resumen de secuencia no trae artículos: se piden al detalle, pero
+    # solo se usan estado, productos y fecha (nunca datos personales).
     items = pedido.get("items") or []
+    if not items and pedido.get("orderId"):
+        try:
+            detalle = await get_sap(session).get_order(str(pedido.get("orderId")))
+            items = (detalle or {}).get("items") or []
+        except Exception:  # noqa: BLE001
+            items = []
+    fecha = pedido.get("ShippingEstimatedDate") or pedido.get("shippingEstimatedDate")
+    if fecha:
+        lineas.append(f"Entrega estimada: {_date(str(fecha))}")
     if items:
         lineas.append("Productos:")
         for item in items[:5]:

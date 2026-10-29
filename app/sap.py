@@ -1198,7 +1198,17 @@ class VtexPaas(PaasSap):
             )
         except SapNotFound:
             return None
-        return data if isinstance(data, dict) else None
+        if isinstance(data, dict):
+            # El PaaS envuelve la respuesta: {"value": [pedido], ...}
+            valor = data.get("value")
+            if isinstance(valor, list):
+                return valor[0] if valor else None
+            if isinstance(valor, dict):
+                return valor
+            return data
+        if isinstance(data, list):
+            return data[0] if data else None
+        return None
 
     async def get_customer_purchases(
         self, term: str, top: int = 100, skip: int = 0
@@ -1226,7 +1236,17 @@ class VtexPaas(PaasSap):
             )
         except SapNotFound:
             return None
-        return data if isinstance(data, dict) else None
+        # El PaaS envuelve la respuesta: {"value": [pedido], "total": 1}
+        if isinstance(data, dict):
+            valor = data.get("value")
+            if isinstance(valor, list):
+                return valor[0] if valor else None
+            if isinstance(valor, dict):
+                return valor
+            return data
+        if isinstance(data, list):
+            return data[0] if data else None
+        return None
 
     async def get_orders_page(
         self,
