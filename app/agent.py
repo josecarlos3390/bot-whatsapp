@@ -3465,6 +3465,36 @@ class Agent:
                     )
 
         if not products:
+            # Antes de decir "no tengo": si el mensaje no nombra un producto,
+            # puede ser una respuesta a la pregunta anterior. Se pide a la IA
+            # que lo interprete con el contexto y se intenta de nuevo.
+            if (
+                settings.deepseek_api_key
+                and not catalog._relevance_terms(consulta_original)
+            ):
+                try:
+                    lectura = await understanding.parse(consulta_original)
+                except Exception:  # noqa: BLE001 - el fallback no debe romper
+                    lectura = None
+                if lectura:
+                    nuevo = " ".join(
+                        parte
+                        for parte in (
+                            lectura.get("producto"),
+                            lectura.get("atributos"),
+                        )
+                        if parte
+                    ).strip()
+                    if nuevo and nuevo.lower() != consulta_original.lower():
+                        self._trace(f"IA reinterpreta: {nuevo}")
+                        reintento = await toolbox.tool_search_products(
+                            query=nuevo, limit=limit
+                        )
+                        if reintento.get("products"):
+                            products = reintento["products"]
+                            result = reintento
+
+        if not products:
             await learning.record_miss(session, consulta_original)
             if result.get("quantity_shortfall"):
                 qty = result["quantity_shortfall"]
