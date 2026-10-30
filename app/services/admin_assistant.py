@@ -47,7 +47,7 @@ TIPOS: dict[str, dict] = {
             "priority": "prioridad 0-100",
             "status": "published o draft",
         },
-        "obligatorios": ("name", "slug", "direct", "priority"),
+        "obligatorios": ("name", "direct", "priority"),
         "ejemplo": "Para halloween: direct [\"vela\", \"guirnalda\"].",
     },
     "conocimiento": {

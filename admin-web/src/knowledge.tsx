@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { BookOpen, CheckCircle2, FilePlus2, RefreshCw, Save, Trash2 } from "lucide-react";
 import { api } from "./api";
+import { AssistantPanel } from "./assistant";
 
 type Article = {
   slug: string;
@@ -163,6 +164,10 @@ export function KnowledgePage({ onLogout }: { onLogout?: () => void }) {
           )}
         </div>
       )}
+
+      <div className="mb-4">
+        <AssistantPanel onCreado={() => void cargar()} />
+      </div>
 
       <div className="grid gap-4 md:grid-cols-[260px_1fr]">
         <aside className="rounded-xl border border-slate-800 bg-slate-900/60 p-2">
