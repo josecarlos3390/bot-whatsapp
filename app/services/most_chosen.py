@@ -32,20 +32,32 @@ def is_most_chosen(text: str) -> bool:
     return bool(INTENT_RE.search(text or ""))
 
 
-async def _base(session: AsyncSession, contact: Contact) -> str:
-    """Rubro sobre el que se pregunta: estado y última consulta."""
+async def _base(
+    session: AsyncSession, contact: Contact, texto: str = ""
+) -> str:
+    """Rubro de la charla; si el mensaje trae uno nuevo, gana ese."""
     from . import conversation_state
 
+    # Si el cliente nombra otro producto ("mostrame heladeras" después de
+    # hablar de aires), se usa el nuevo: antes se mezclaban los dos.
+    # Solo si de verdad es un producto ("mostrame" no lo es).
+    candidato = (catalog.primary_term(texto) or "").strip()
+    pedido = ""
+    if candidato:
+        probar = await catalog.search_items(session, candidato, limit=1)
+        if probar:
+            pedido = candidato
     conversacion = await session.scalar(
         select(Conversation).where(Conversation.contact_id == contact.id)
     )
     if conversacion is None:
-        return ""
+        return pedido
     estado = await conversation_state.get_state(session, conversacion.id)
     base = (getattr(estado, "category", None) or "").strip()
     if not base:
         base = (conversacion.last_query or "").strip()
-    return catalog.primary_term(base) or base
+    elegido = pedido or base
+    return catalog.primary_term(elegido) or elegido
 
 
 async def _ventas(session: AsyncSession, skus: list[str]) -> dict[str, int]:
@@ -91,7 +103,7 @@ async def reply(
     """Responde el pedido de «las más elegidas» del rubro vigente."""
     from ..agent import Toolbox, _clean_query
 
-    base = await _base(session, contact)
+    base = await _base(session, contact, raw)
     if not base:
         return AgentReply(
             [

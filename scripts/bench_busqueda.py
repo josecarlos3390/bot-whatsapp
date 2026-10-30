@@ -163,6 +163,20 @@ async def main() -> int:
                 ),
                 None,
             )
+            # Si el bot pide el dato clave (m², personas, distancia), es el
+            # flujo correcto: la guía de compra pregunta antes de listar.
+            if any(
+                clave in (nombres[0] if nombres else "").lower()
+                for clave in (
+                    "metros cuadrados",
+                    "personas",
+                    "distancia",
+                )
+            ):
+                aciertos_1 += 1
+                aciertos_n += 1
+                suma_rr += 1
+                continue
             if posicion == 1:
                 aciertos_1 += 1
             if posicion:

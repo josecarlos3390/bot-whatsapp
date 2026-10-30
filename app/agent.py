@@ -1417,6 +1417,18 @@ class Toolbox:
             fallback = True
         products = [self._product(row) for row in rows]
         await self._attach_promotions(products)
+        # Las promociones se priorizan siempre; una regla del portal manda
+        # por encima (marca y descuento mínimo).
+        try:
+            from .services import rule_apply
+
+            ordenados = await rule_apply.aplicar(
+                self.session, query or "", products, categoria=category
+            )
+            if ordenados:
+                products = ordenados
+        except Exception:  # noqa: BLE001 - el orden no debe romper la búsqueda
+            logger.debug("No se pudo ordenar por promociones", exc_info=True)
         exact_match = any(
             catalog.is_head_match(row, query) for row in rows
         )
@@ -4978,6 +4990,29 @@ class Agent:
         rule_policy.log_applied(
             policy, contact_id=contact.id, query=raw
         )
+        # Dato clave para recomendar (m², personas, distancia): se pregunta
+        # antes de listar si el cliente no lo dijo.
+        if SEARCH_RE.search(raw) and not normalized.startswith(
+            ("uso:", "refine:", "product:", "cat:", "type:")
+        ):
+            from .services import tech_guide
+
+            falta = tech_guide.falta_dato(raw)
+            if falta is not None:
+                self._trace(f"Falta dato: {falta['clave']}")
+                return AgentReply(
+                    [
+                        Outbound(
+                            kind="buttons",
+                            text=(
+                                f"{falta['pregunta']}\n\nAsí te recomiendo "
+                                "el tamaño justo y no pagás de más."
+                            ),
+                            buttons=tech_guide.opciones_botones(falta),
+                        )
+                    ]
+                )
+
         # Pedido abierto ("productos de tecnología"): preguntar el uso antes
         # de listar, para no adivinar.
         if SEARCH_RE.search(raw) and not normalized.startswith(

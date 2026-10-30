@@ -82,7 +82,7 @@ def ordenar(
     promos: dict[str, float] | None = None,
 ) -> list:
     """Prioriza la marca y las promociones que pide el portal."""
-    if not productos or not policy.has_product_rules:
+    if not productos:
         return productos
     promos = promos or {}
 
@@ -94,11 +94,12 @@ def ordenar(
             )
         descuento = promos.get(_sku(producto), 0.0)
         if policy.promotion_min is not None:
-            # Con regla de promociones: primero las que superan el mínimo y,
-            # entre esas, el mayor descuento.
+            # La regla del portal manda: primero las que superan el mínimo.
             cumple = 1 if descuento >= policy.promotion_min else 0
             return (prioridad_marca, cumple, descuento)
-        return (prioridad_marca, -_precio(producto))
+        # Sin regla: las promociones se priorizan igual, sin perder la
+        # relevancia (el orden previo se respeta entre iguales).
+        return (prioridad_marca, 1 if descuento > 0 else 0, descuento)
 
     return sorted(productos, key=puntaje, reverse=True)
 
@@ -116,9 +117,11 @@ async def aplicar(
     except Exception:  # noqa: BLE001 - una regla no debe romper la venta
         logger.debug("No se pudo evaluar las reglas", exc_info=True)
         return productos
-    if not policy.has_product_rules:
-        return productos
     promos = await descuentos(session, [_sku(p) for p in productos])
+    if not policy.has_product_rules and not any(
+        valor > 0 for valor in promos.values()
+    ):
+        return productos
     ordenados = ordenar(productos, policy, promos)
     logger.info(
         "Reglas aplicadas en %s: marca=%s promo=%s",
