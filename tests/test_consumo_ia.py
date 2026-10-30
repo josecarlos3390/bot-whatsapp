@@ -20,8 +20,10 @@ class _Uso:
 @pytest.fixture(autouse=True)
 def _archivo_temporal(tmp_path, monkeypatch):
     monkeypatch.setattr(ai_usage, "RUTA", tmp_path / "consumo-ia.jsonl")
-    monkeypatch.setattr(settings, "deepseek_precio_entrada", 0.27)
-    monkeypatch.setattr(settings, "deepseek_precio_salida", 1.10)
+    monkeypatch.setattr(settings, "deepseek_precio_entrada", 0.15)
+    monkeypatch.setattr(settings, "deepseek_precio_entrada_cache", 0.003)
+    monkeypatch.setattr(settings, "deepseek_precio_salida", 0.6)
+    monkeypatch.setattr(settings, "deepseek_peak_multiplier", 2.0)
 
 
 def test_extrae_los_tokens_del_uso():
@@ -34,9 +36,45 @@ def test_sin_uso_no_hay_tokens():
     assert ai_usage._tokens(None) == (0, 0, 0)
 
 
-def test_calcula_el_costo_por_millon():
-    # 1.000.000 de entrada a 0,27 + 1.000.000 de salida a 1,10
-    assert ai_usage.costo(1_000_000, 1_000_000) == pytest.approx(1.37)
+def test_calcula_el_costo_por_millon_offpeak():
+    from datetime import datetime, timezone
+
+    # Off-peak: 1M entrada 0,15 + 1M salida 0,60
+    cuando = datetime(2026, 10, 30, 18, tzinfo=timezone.utc)
+    assert ai_usage.costo(1_000_000, 1_000_000, momento=cuando) == pytest.approx(
+        0.75
+    )
+
+
+def test_el_cache_sale_mucho_mas_barato():
+    from datetime import datetime, timezone
+
+    cuando = datetime(2026, 10, 30, 18, tzinfo=timezone.utc)
+    con_cache = ai_usage.costo(1_000_000, 0, 1_000_000, cuando)
+    sin_cache = ai_usage.costo(1_000_000, 0, 0, cuando)
+
+    assert con_cache == pytest.approx(0.003)
+    assert sin_cache == pytest.approx(0.15)
+
+
+def test_en_horario_peak_paga_el_doble():
+    from datetime import datetime, timezone
+
+    peak = datetime(2026, 10, 30, 10, tzinfo=timezone.utc)
+    offpeak = datetime(2026, 10, 30, 18, tzinfo=timezone.utc)
+
+    assert ai_usage.costo(1_000_000, 0, 0, peak) == pytest.approx(0.30)
+    assert ai_usage.costo(1_000_000, 0, 0, offpeak) == pytest.approx(0.15)
+
+
+def test_la_ventana_offpeak_cruza_la_medianoche():
+    from datetime import datetime, timezone
+
+    assert ai_usage.es_offpeak(datetime(2026, 10, 30, 17, tzinfo=timezone.utc))
+    assert ai_usage.es_offpeak(datetime(2026, 10, 30, 0, 10, tzinfo=timezone.utc))
+    assert not ai_usage.es_offpeak(
+        datetime(2026, 10, 30, 2, tzinfo=timezone.utc)
+    )
 
 
 def test_registra_una_llamada():

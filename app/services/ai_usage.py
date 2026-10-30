@@ -46,13 +46,44 @@ def _tokens(usage) -> tuple[int, int, int]:
     return prompt, completion, cache
 
 
-def costo(prompt: int, completion: int) -> float:
-    """Costo estimado en dólares según los precios configurados."""
+def es_offpeak(momento: datetime | None = None) -> bool:
+    """¿Estamos en horario con descuento? (16:30 a 00:30 UTC)."""
+    ahora = momento or datetime.now(timezone.utc)
+    if ahora.tzinfo is None:
+        ahora = ahora.replace(tzinfo=timezone.utc)
+    hora = ahora.hour + ahora.minute / 60
+    inicio = getattr(settings, "deepseek_offpeak_inicio", 16.5)
+    fin = getattr(settings, "deepseek_offpeak_fin", 0.5)
+    if inicio > fin:  # la ventana cruza la medianoche
+        return hora >= inicio or hora < fin
+    return inicio <= hora < fin
+
+
+def costo(
+    prompt: int,
+    completion: int,
+    cache: int = 0,
+    momento: datetime | None = None,
+) -> float:
+    """Costo estimado en dólares con la tarifa real de DeepSeek.
+
+    Los tokens cacheados se cobran mucho menos; fuera del horario con
+    descuento se paga el doble.
+    """
     entrada = getattr(settings, "deepseek_precio_entrada", 0.0) or 0.0
+    cacheado = getattr(settings, "deepseek_precio_entrada_cache", 0.0) or 0.0
     salida = getattr(settings, "deepseek_precio_salida", 0.0) or 0.0
-    return round(
-        prompt / 1_000_000 * entrada + completion / 1_000_000 * salida, 6
+    factor = 1.0
+    if not es_offpeak(momento):
+        factor = getattr(settings, "deepseek_peak_multiplier", 1.0) or 1.0
+    en_cache = min(max(int(cache or 0), 0), int(prompt or 0))
+    sin_cache = max(int(prompt or 0) - en_cache, 0)
+    total = (
+        sin_cache / 1_000_000 * entrada
+        + en_cache / 1_000_000 * cacheado
+        + completion / 1_000_000 * salida
     )
+    return round(total * factor, 6)
 
 
 def registrar(
@@ -74,7 +105,8 @@ def registrar(
             "prompt": prompt,
             "completion": completion,
             "cache": cache,
-            "costo_usd": costo(prompt, completion),
+            "costo_usd": costo(prompt, completion, cache),
+            "offpeak": es_offpeak(),
             "contacto": contacto_id,
         }
         RUTA.parent.mkdir(parents=True, exist_ok=True)

@@ -91,10 +91,15 @@ class Settings(BaseSettings):
     # Leer el mensaje con IA antes de las reglas (se mide antes de activar).
     nlu_first: bool = False
     # Si la respuesta demora más que esto, se avisa al cliente.
-    # Precio por millón de tokens (USD) para estimar el consumo de la IA.
-    # Se ajustan si el proveedor cambia la tarifa.
-    deepseek_precio_entrada: float = 0.27
-    deepseek_precio_salida: float = 1.10
+    # Tarifa de DeepSeek por millón de tokens (USD), horario off-peak.
+    # En horario peak se paga el doble (ver deepseek_peak_multiplier).
+    deepseek_precio_entrada: float = 0.15      # entrada sin cachear
+    deepseek_precio_entrada_cache: float = 0.003  # entrada cacheada
+    deepseek_precio_salida: float = 0.6
+    deepseek_peak_multiplier: float = 2.0
+    # Ventana off-peak en UTC: 16:30 a 00:30.
+    deepseek_offpeak_inicio: float = 16.5
+    deepseek_offpeak_fin: float = 0.5
     slow_reply_seconds: float = 7.0
     batching_ms: int = 1600
     transcribe_enabled: bool = True

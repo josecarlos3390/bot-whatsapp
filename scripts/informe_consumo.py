@@ -23,6 +23,10 @@ async def main() -> int:
     print("=" * 52)
     print(f"llamadas: {datos['llamadas']}")
     print(f"tokens:   {datos['prompt']:,} entrada + {datos['completion']:,} salida")
+    from app.services import ai_usage as uso
+
+    tarifa = "off-peak (con descuento)" if uso.es_offpeak() else "peak (tarifa completa)"
+    print(f"tarifa:   {tarifa}")
     print(f"costo:    US$ {datos['costo_usd']:.4f} (estimado)")
 
     if datos["operaciones"]:
