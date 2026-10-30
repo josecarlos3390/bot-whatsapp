@@ -81,3 +81,34 @@ def test_quita_textos_identicos_seguidos():
     mensajes = [Outbound(text="Hola"), Outbound(text="Hola")]
 
     assert len(closings.podar(mensajes)) == 1
+
+
+def test_quita_el_encabezado_repetido_del_listado():
+    mensajes = [
+        Outbound(text="Para *limpiar casa* tengo esto que puede servirte:"),
+        Outbound(
+            text=(
+                "Encontré *3 opciones* 🛍️:\n\n"
+                "1. Aspiradora 1,5L — Bs 1.399\n"
+                "2. Aspiradora 2,8L — Bs 2.379"
+            )
+        ),
+        _lista(),
+    ]
+
+    podados = closings.podar(mensajes)
+    textos = [m.text or "" for m in podados]
+
+    assert not any("Encontré" in texto for texto in textos)
+    assert any("1. Aspiradora" in texto for texto in textos)
+
+
+def test_conserva_el_encabezado_si_no_hay_otro():
+    mensajes = [
+        Outbound(text="Encontré *2 opciones* 🛍️:\n\n1. Sofá\n2. Mesa"),
+        _lista(),
+    ]
+
+    podados = closings.podar(mensajes)
+
+    assert "Encontré" in (podados[0].text or "")

@@ -44,6 +44,32 @@ def _es_pregunta_repetida(texto: str) -> bool:
     )
 
 
+def _sin_encabezado_repetido(mensajes: list[Outbound]) -> list[Outbound]:
+    """Quita el "Encontré N opciones" cuando ya hay un encabezado antes.
+
+    Ejemplo: "Para *limpiar casa* tengo esto:" y debajo
+    "Encontré *3 opciones*: …". Dos encabezados para la misma lista.
+    """
+    salida: list[Outbound] = []
+    for mensaje in mensajes:
+        previo = salida[-1] if salida else None
+        texto = (mensaje.text or "").strip()
+        if (
+            previo is not None
+            and mensaje.kind == "text"
+            and previo.kind == "text"
+            and (previo.text or "").strip().rstrip().endswith(":")
+            and texto.lower().startswith(("encontré", "encontre"))
+        ):
+            lineas = texto.split("\n")
+            # Se descarta la primera línea (el encabezado) y las vacías.
+            resto = [linea for linea in lineas[1:] if linea.strip()]
+            if resto:
+                mensaje = Outbound(text="\n".join(resto))
+        salida.append(mensaje)
+    return salida
+
+
 def podar(mensajes: list[Outbound]) -> list[Outbound]:
     """Quita cierres de más cuando ya hay una lista o un cierre antes."""
     if len(mensajes) < 2:
@@ -58,7 +84,7 @@ def podar(mensajes: list[Outbound]) -> list[Outbound]:
         None,
     )
     if primero_cierre is None:
-        return _sin_repetidos(mensajes)
+        return _sin_repetidos(_sin_encabezado_repetido(mensajes))
 
     salida = list(mensajes[: primero_cierre + 1])
     for mensaje in mensajes[primero_cierre + 1 :]:
@@ -72,7 +98,7 @@ def podar(mensajes: list[Outbound]) -> list[Outbound]:
             if _es_pregunta_repetida(texto):
                 continue
         salida.append(mensaje)
-    return _sin_repetidos(salida)
+    return _sin_repetidos(_sin_encabezado_repetido(salida))
 
 
 def _sin_repetidos(mensajes: list[Outbound]) -> list[Outbound]:
