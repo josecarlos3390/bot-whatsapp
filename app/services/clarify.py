@@ -77,6 +77,12 @@ async def _pedir_a_la_ia(agent, texto: str) -> dict | None:
             max_tokens=220,
             extra_body={"thinking": {"type": "disabled"}},
         )
+        from . import ai_usage
+
+        ai_usage.registrar(
+            "pregunta_uso", getattr(completado, "usage", None),
+            modelo=settings.deepseek_model,
+        )
         contenido = completado.choices[0].message.content or ""
     except Exception:  # noqa: BLE001 - sin IA se responde normal
         logger.debug("No se pudo evaluar la claridad del pedido", exc_info=True)

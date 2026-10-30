@@ -116,6 +116,12 @@ async def _pedir_a_la_ia(termino: str) -> dict | None:
             max_tokens=320,
             extra_body={"thinking": {"type": "disabled"}},
         )
+        from . import ai_usage
+
+        ai_usage.registrar(
+            "relacionados", getattr(completado, "usage", None),
+            modelo=settings.deepseek_model,
+        )
         contenido = completado.choices[0].message.content or ""
     except Exception:  # noqa: BLE001 - sin IA se sigue con el mensaje normal
         logger.debug("No se pudo pedir relacionadas", exc_info=True)

@@ -91,6 +91,10 @@ class Settings(BaseSettings):
     # Leer el mensaje con IA antes de las reglas (se mide antes de activar).
     nlu_first: bool = False
     # Si la respuesta demora más que esto, se avisa al cliente.
+    # Precio por millón de tokens (USD) para estimar el consumo de la IA.
+    # Se ajustan si el proveedor cambia la tarifa.
+    deepseek_precio_entrada: float = 0.27
+    deepseek_precio_salida: float = 1.10
     slow_reply_seconds: float = 7.0
     batching_ms: int = 1600
     transcribe_enabled: bool = True

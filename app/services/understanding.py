@@ -95,6 +95,12 @@ async def parse(client, text: str) -> dict | None:
             max_tokens=150,
             extra_body={"thinking": {"type": "disabled"}},
         )
+        from . import ai_usage
+
+        ai_usage.registrar(
+            "lectura", getattr(respuesta, "usage", None),
+            modelo=settings.deepseek_model,
+        )
         contenido = respuesta.choices[0].message.content or ""
         inicio = contenido.find("{")
         datos = json.loads(contenido[inicio:]) if inicio >= 0 else None

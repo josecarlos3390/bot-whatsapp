@@ -15,6 +15,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
+from . import ai_usage
 from . import outbox_health
 from . import funnel, learning, metrics, qa
 from ..models import (
@@ -400,5 +401,6 @@ async def overview(session: AsyncSession) -> dict:
         "envios": outbox_health.status(),
         "latency": metrics.summary(200),
         "tokens": metrics.tokens_summary(500),
+        "consumo_ia": ai_usage.resumen(dias=7),
         "alerts": alerts,
     }

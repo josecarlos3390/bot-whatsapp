@@ -51,6 +51,7 @@ from .services import (
     handoffs,
     knowledge,
     memory as memory_service,
+    ai_usage,
     metrics,
     most_chosen,
     related,
@@ -6022,6 +6023,13 @@ class Agent:
                     getattr(usage, "completion_tokens", 0) or 0,
                     settings.deepseek_model,
                     cache_hit=cache_hit,
+                )
+                # Consumo por tipo de uso (conversación, imagen, etc.).
+                ai_usage.registrar(
+                    "conversacion",
+                    usage,
+                    modelo=settings.deepseek_model,
+                    contacto_id=contact.id,
                 )
             choice = completion.choices[0].message
             if not choice.tool_calls:

@@ -82,6 +82,11 @@ async def describe(contenido: bytes, mime: str = "image/jpeg") -> dict | None:
             temperature=0,
             max_tokens=300,
         )
+        from . import ai_usage
+
+        ai_usage.registrar(
+            "imagen", getattr(respuesta, "usage", None), modelo=modelo
+        )
         texto = (respuesta.choices[0].message.content or "").strip()
         return _parsear(texto)
     except Exception:  # noqa: BLE001 - la visión no debe romper la charla
