@@ -128,6 +128,10 @@ app.include_router(router)
 from .api_knowledge import router as knowledge_router  # noqa: E402
 
 app.include_router(knowledge_router)
+
+from .api_assistant import router as assistant_router  # noqa: E402
+
+app.include_router(assistant_router)
 _admin_dist = Path(__file__).resolve().parent.parent / "admin-web" / "dist"
 
 
