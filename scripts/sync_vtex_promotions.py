@@ -20,7 +20,7 @@ import logging
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, text
 
 from app.db import SessionLocal, init_db
 from app.models import CatalogItem, ProductPromotion
@@ -33,6 +33,10 @@ async def sync(dry_run: bool = False) -> None:
     candidates: list[tuple[CatalogItem, Decimal, Decimal, Decimal]] = []
 
     async with SessionLocal() as session:
+        # El job corre como SYSTEM; temp en memoria evita el fallo de SQLite
+        # al crear archivos temporales durante el INSERT masivo.
+        await session.execute(text("PRAGMA temp_store=MEMORY"))
+        await session.execute(text("PRAGMA busy_timeout=10000"))
         items = (
             await session.scalars(
                 select(CatalogItem).where(CatalogItem.active.is_(True))
@@ -69,7 +73,7 @@ async def sync(dry_run: bool = False) -> None:
         await session.commit()
 
         now = datetime.now(timezone.utc)
-        batch_size = 200
+        batch_size = 50
         for start in range(0, len(candidates), batch_size):
             batch = candidates[start : start + batch_size]
             for item, current_price, list_price, discount in batch:

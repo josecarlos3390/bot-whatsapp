@@ -129,6 +129,9 @@ async def relacionadas(
     session: AsyncSession, termino: str, limite: int = 3
 ) -> tuple[list[str], list]:
     """Ideas y un producto existente por idea."""
+    from ..agent import _liberar_transaccion
+
+    await _liberar_transaccion(session)
     lectura = await _pedir_a_la_ia(termino)
     if not lectura:
         return [], []

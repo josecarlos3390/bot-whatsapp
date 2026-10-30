@@ -128,6 +128,9 @@ async def preguntar(
     if conversacion is not None and conversacion.last_query:
         return None
 
+    from ..agent import _liberar_transaccion
+
+    await _liberar_transaccion(session)
     lectura = await _pedir_a_la_ia(agent, raw)
     if not lectura:
         return None

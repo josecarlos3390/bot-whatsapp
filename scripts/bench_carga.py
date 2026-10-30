@@ -41,7 +41,12 @@ CONSULTAS = [
 ]
 
 
-async def _cliente(numero: int, mensajes: int, resultados: list) -> None:
+async def _cliente(
+    numero: int,
+    mensajes: int,
+    resultados: list,
+    consulta_fija: str = "",
+) -> None:
     sufijo = uuid.uuid4().hex[:10]
     async with SessionLocal() as session:
         contacto = Contact(
@@ -56,7 +61,9 @@ async def _cliente(numero: int, mensajes: int, resultados: list) -> None:
         await session.commit()
 
         for indice in range(mensajes):
-            consulta = CONSULTAS[(numero + indice) % len(CONSULTAS)]
+            consulta = consulta_fija or CONSULTAS[
+                (numero + indice) % len(CONSULTAS)
+            ]
             inicio = time.perf_counter()
             error = ""
             try:
@@ -100,13 +107,18 @@ async def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--clientes", type=int, default=10)
     parser.add_argument("--mensajes", type=int, default=2)
+    parser.add_argument(
+        "--consulta",
+        default="",
+        help="Misma consulta para todos (mide concurrencia pura).",
+    )
     args = parser.parse_args()
 
     resultados: list[tuple[float, str]] = []
     inicio = time.perf_counter()
     await asyncio.gather(
         *[
-            _cliente(numero, args.mensajes, resultados)
+            _cliente(numero, args.mensajes, resultados, args.consulta)
             for numero in range(args.clientes)
         ]
     )

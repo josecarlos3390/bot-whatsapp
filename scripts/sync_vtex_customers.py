@@ -31,7 +31,7 @@ from app.models import (
     PurchaseHistory,
     PurchaseHistoryLine,
 )
-from app.sap import get_sap
+from app.sap import SapNotFound, get_sap
 
 logger = logging.getLogger("sync_vtex_customers")
 PAGE_SIZE = 500
@@ -288,11 +288,18 @@ async def _order_history(
         skip = 0
         local: list[dict] = []
         while len(local) < max_orders:
-            batch = await sap.get_customer_purchases(
-                term,
-                top=min(ORDER_PAGE_SIZE, max_orders - len(local)),
-                skip=skip,
-            )
+            try:
+                batch = await sap.get_customer_purchases(
+                    term,
+                    top=min(ORDER_PAGE_SIZE, max_orders - len(local)),
+                    skip=skip,
+                )
+            except SapNotFound:
+                logger.info(
+                    "Cliente/documento %s sin compras en VTEX; se omite",
+                    term,
+                )
+                break
             if not batch:
                 break
             local.extend(batch)

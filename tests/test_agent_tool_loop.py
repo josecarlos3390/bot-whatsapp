@@ -1,4 +1,4 @@
-"""El LLM no debe dejar al cliente sin respuesta cuando insiste con herramientas."""
+﻿"""El LLM no debe dejar al cliente sin respuesta cuando insiste con herramientas."""
 
 from __future__ import annotations
 
@@ -88,3 +88,42 @@ async def test_busqueda_se_responde_sin_segunda_llamada(session):
 
     assert completions.calls == 1
     assert reply.messages
+
+async def test_no_hay_transaccion_abierta_al_llamar_al_modelo(session):
+    """Con varios clientes, dejar la base bloqueada durante la IA encola."""
+    from types import SimpleNamespace
+
+    from app.agent import Agent
+    from app.models import Contact
+
+    contacto = Contact(wa_id="59170110001", phone_e164="+59170110001")
+    session.add(contacto)
+    await session.commit()
+
+    abiertas: list[bool] = []
+
+    class _Espia:
+        def __init__(self):
+            self.llamadas = 0
+
+        async def create(self, **kwargs):
+            abiertas.append(session.in_transaction())
+            self.llamadas += 1
+            mensaje = SimpleNamespace(
+                content="Listo, te paso las opciones.", tool_calls=None
+            )
+            return SimpleNamespace(
+                choices=[SimpleNamespace(message=mensaje)],
+                usage=None,
+            )
+
+    espia = _Espia()
+    agente = Agent()
+    agente._llm = lambda: SimpleNamespace(
+        chat=SimpleNamespace(completions=espia)
+    )
+
+    await agente.handle(session, contacto, "busco un taladro")
+
+    assert abiertas, "el modelo debería haberse llamado"
+    assert all(estado is False for estado in abiertas)

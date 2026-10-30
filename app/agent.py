@@ -424,6 +424,21 @@ def _ya_lista(answer: str, products: list[dict]) -> bool:
     return nombres >= 2
 
 
+async def _liberar_transaccion(session: AsyncSession) -> None:
+    """Confirma lo pendiente para no retener el bloqueo de escritura.
+
+    Con varios clientes a la vez, dejar una transacción abierta mientras se
+    espera a la IA hace que los demás esperen el bloqueo de SQLite.
+    """
+    try:
+        await session.commit()
+    except Exception:  # noqa: BLE001 - si falla se revierte y se sigue
+        try:
+            await session.rollback()
+        except Exception:  # noqa: BLE001
+            logger.debug("No se pudo limpiar la transacción", exc_info=True)
+
+
 def _remove_stock_phrases(answer: str) -> str:
     """La ficha/tarjetas no muestran stock; quitamos frases sueltas del LLM."""
     answer = re.sub(r"\s+en stock\b", "", answer, flags=re.IGNORECASE)
@@ -5797,6 +5812,10 @@ class Agent:
         history: list[dict],
         memory: str | None = None,
     ) -> AgentReply:
+        # Se cierra la transacción antes de esperar a la IA: si la base queda
+        # con un bloqueo de escritura durante la llamada, los demás clientes
+        # se encolan.
+        await _liberar_transaccion(session)
         toolbox = Toolbox(session, contact, self.wa)
         messages: list[dict] = [{"role": "system", "content": SYSTEM_PROMPT}]
         try:
@@ -5880,6 +5899,10 @@ class Agent:
 
         for ronda in range(4):
             try:
+                # Cada vuelta puede escribir (carrito, estado, métricas): se
+                # confirma antes de esperar al modelo para no retener el
+                # bloqueo de la base mientras se espera la respuesta.
+                await _liberar_transaccion(session)
                 completion = await self._llm().chat.completions.create(
                     model=settings.deepseek_model,
                     messages=messages,
