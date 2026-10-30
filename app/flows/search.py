@@ -75,11 +75,9 @@ def cards(products: list[dict], maximo: int = 5) -> list[Outbound]:
         if total == 1
         else f"Encontré *{total} opciones* {icono}:"
     )
-    mensaje = (
-        f"{encabezado}\n\n"
-        + "\n".join(lineas)
-        + "\n\nElegí una y te muestro la foto y la ficha completa 👇"
-    )
+    # La invitación va en el cuerpo del menú, no acá: repetirla dos veces
+    # se lee como si el bot no escuchara.
+    mensaje = f"{encabezado}\n\n" + "\n".join(lineas)
 
     rows = [
         {

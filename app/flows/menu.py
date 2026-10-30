@@ -134,7 +134,6 @@ async def product_list(
     texto = (
         f"En *{label}* tengo estas opciones {icono}:\n\n"
         + "\n".join(lineas)
-        + "\n\nElegí una y te muestro la foto y la ficha completa 👇"
     )
     return AgentReply(
         [
