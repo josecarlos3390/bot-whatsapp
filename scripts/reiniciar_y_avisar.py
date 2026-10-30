@@ -37,13 +37,13 @@ from app.whatsapp import WhatsAppClient
 DB = Path("dev.db")
 INVITACION = (
     "¡Hola! 👋 Soy *Rohi*, la asesora virtual de ROHO Homecenter 🏡\n\n"
-    "Estoy en etapa de entrenamiento: me están enseñando a atender mejor, "
-    "y tu ayuda vale muchísimo 🙌\n\n"
-    "Podés hacerme preguntas como si estuvieras comprando: precios, stock, "
-    "envíos, garantías, o pedirme algo para tu casa.\n\n"
-    "Cada consulta me ayuda a aprender 💡 y si algo no lo sé, te lo digo y "
-    "aviso a una persona del equipo.\n\n"
-    "¿Te animás a probarme? Escribime lo que quieras 👇"
+    "Estoy entrenándome para atender cada vez mejor, y tu ayuda es clave "
+    "🙌\n\n"
+    "Probame como si estuvieras comprando: preguntame por precios, stock, "
+    "envíos, garantías o pedime algo para tu casa.\n\n"
+    "Todo lo que me consultes me sirve para aprender 💡 y, si algo no lo "
+    "sé, te lo digo y aviso a una persona del equipo.\n\n"
+    "¿Te animás? Escribime lo que quieras 👇"
 )
 TELEFONO_OK = re.compile(r"^\+\d{8,15}$")
 
@@ -104,6 +104,11 @@ async def limpiar(session) -> dict:
 async def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--confirmar", action="store_true")
+    parser.add_argument(
+        "--solo-enviar",
+        action="store_true",
+        help="No borra conversaciones: solo envía el mensaje.",
+    )
     parser.add_argument("--horas", type=int, default=24)
     parser.add_argument(
         "--numeros",
@@ -146,15 +151,16 @@ async def main() -> int:
             print("Para ejecutar: --confirmar")
             return 0
 
-        if DB.exists():
+        if not args.solo_enviar and DB.exists():
             respaldo = DB.with_name(
                 f"dev-backup-{datetime.now():%Y%m%d-%H%M%S}.db"
             )
             shutil.copy2(DB, respaldo)
             print(f"\nrespaldo: {respaldo.name}")
 
-        borrado = await limpiar(session)
-        print(f"conversaciones borradas: {borrado['conversaciones']}")
+        if not args.solo_enviar:
+            borrado = await limpiar(session)
+            print(f"conversaciones borradas: {borrado['conversaciones']}")
 
     cliente = WhatsAppClient()
     enviados = 0
