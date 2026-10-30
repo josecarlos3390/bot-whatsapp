@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 import uuid
 
@@ -41,10 +42,14 @@ async def _history(
     for row in reversed(rows):
         if not row.text:
             continue
+        texto = row.text
+        if row.direction == "in" and row.type == "audio":
+            # Marcar el origen: si no, el modelo cree que no le llegó un audio.
+            texto = f"🎤 (audio transcrito) {texto}"
         history.append(
             {
                 "role": "user" if row.direction == "in" else "assistant",
-                "content": row.text,
+                "content": texto,
             }
         )
     return history
@@ -67,6 +72,7 @@ async def ingest_inbound(
     native_order = (
         native_commerce.parse_order({"order": order}) if order else None
     )
+    rubro_previo = None
     if native_order and native_order.items and not text:
         text = native_commerce.order_text(native_order)
 
@@ -201,6 +207,17 @@ async def ingest_inbound(
         memory = await memory_service.memory_text(
             session, contact, conversation_id
         )
+        # Respuesta suelta ("para casa"): no debe quedar como rubro de la
+        # charla. Se guarda y se restaura al terminar.
+        rubro_previo = None
+        if re.match(
+            r"^(para|es para|uso|lo quiero para|seria para|sería para)\b",
+            (text or "").strip().lower(),
+        ) and len((text or "").split()) <= 4:
+            conversacion = await session.get(Conversation, conversation_id)
+            if conversacion is not None:
+                rubro_previo = conversacion.last_query
+
         started = time.perf_counter()
         try:
             reply = await agent.handle(
@@ -314,6 +331,11 @@ async def ingest_inbound(
                 "sections": outbound.sections,
             }
         )
+    # Una respuesta suelta no cambia el rubro de la charla.
+    if rubro_previo is not None:
+        conversacion = await session.get(Conversation, conversation_id)
+        if conversacion is not None and conversacion.last_query != rubro_previo:
+            conversacion.last_query = rubro_previo
     conversation.last_message_at = utcnow()
     await session.commit()
     await memory_service.maybe_schedule_summary(conversation_id)

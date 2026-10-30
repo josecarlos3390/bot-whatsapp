@@ -129,3 +129,49 @@ async def test_boton_de_tipo_lista_productos(session):
     texto = " ".join(m.text or "" for m in respuesta.messages)
     assert "Disco de desbaste" in texto
     assert any(m.kind == "list" for m in respuesta.messages)
+
+
+async def test_una_respuesta_suelta_no_se_convierte_en_rubro(
+    session, monkeypatch
+):
+    """«Para casa» no debe reemplazar el rubro de la charla."""
+    from sqlalchemy import select
+
+    from app.agent import Agent
+    from app.config import settings
+    from app.models import Conversation, ConversationState, Contact
+    from app.services import ingest
+
+    monkeypatch.setattr(settings, "deepseek_api_key", "")
+
+    contacto = Contact(wa_id="59170120001", phone_e164="+59170120001")
+    session.add(contacto)
+    await session.flush()
+    conversacion = Conversation(contact_id=contacto.id, last_query="hidrolavadora")
+    session.add(conversacion)
+    await session.flush()
+    session.add(
+        ConversationState(conversation_id=conversacion.id, category="hidrolavadora")
+    )
+    await session.commit()
+
+    await ingest.ingest_inbound(
+        session,
+        wa_id="59170120001",
+        text="para casa",
+        wa_message_id="wamid.rubro.1",
+        name="Prueba",
+        deliver=False,
+    )
+
+    actualizada = await session.scalar(
+        select(Conversation).where(Conversation.contact_id == contacto.id)
+    )
+    assert actualizada.last_query == "hidrolavadora"
+
+
+def test_el_refine_usa_el_rubro_y_no_mezcla_rubros():
+    """«casa Karcher» devolvía casas de muñecas: la opción debe ser del rubro."""
+    from app.services import catalog
+
+    assert catalog.primary_term("hidrolavadora Karcher") == "hidrolavadora"

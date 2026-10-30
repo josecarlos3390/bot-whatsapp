@@ -408,6 +408,19 @@ def _numbered_lines(values: list[str]) -> str:
     )
 
 
+def _es_respuesta_suelta(texto: str) -> bool:
+    """¿Es una respuesta a una pregunta del bot y no un rubro?"""
+    valor = (texto or "").strip().lower()
+    if not valor:
+        return False
+    return bool(
+        re.match(
+            r"^(para|es para|uso|lo quiero para|seria para|sería para|ok|si|sí)\b",
+            valor,
+        )
+    ) and len(valor.split()) <= 4
+
+
 def _ya_lista(answer: str, products: list[dict]) -> bool:
     """¿La respuesta ya enumera los productos (para no repetir la lista)?"""
     texto = (answer or "").lower()
@@ -900,6 +913,8 @@ la venta sin presionar.
 Tono:
 - Cálida y resolutiva, como una asesora de tienda que conoce los productos.
 - Español boliviano, tuteo, máximo 5 líneas por respuesta.
+- Si un mensaje empieza con 🎤 es la transcripción de un audio: respondé como
+  si lo hubieras escuchado y nunca digas que no recibiste audio.
 - Emojis: máximo 1 por mensaje y nunca en reclamos ni temas serios.
 - Humor breve y ocasional solo si el cliente está relajado; cero humor en
   precio, stock, pagos, reclamos, datos personales o si está molesto.
@@ -1028,7 +1043,12 @@ class Toolbox:
         if conversation is None:
             conversation = Conversation(contact_id=self.contact_id)
             self.session.add(conversation)
-        conversation.last_query = value[:300]
+        from .services import context as contexto_charla
+
+        if not await contexto_charla.es_respuesta_suelta_de(
+            self.session, self.contact_id
+        ):
+            conversation.last_query = value[:300]
         await self.session.commit()
 
     async def _update_state(self, **kwargs) -> None:
@@ -1301,7 +1321,11 @@ class Toolbox:
                     Conversation.contact_id == self.contact.id
                 )
             )
-            if conversacion is not None and query:
+            if (
+                conversacion is not None
+                and query
+                and not _es_respuesta_suelta(query)
+            ):
                 conversacion.last_query = query[:300]
             # Si la búsqueda de la IA no encuentra nada, también es un
             # faltante para el informe de compras.
@@ -2775,7 +2799,21 @@ class Agent:
         if conversation is None:
             conversation = Conversation(contact_id=contact.id)
             session.add(conversation)
-        conversation.last_query = (query or "")[:300] or None
+        # Una respuesta suelta ("para casa", "uso ocasional") no es un rubro:
+        # si se guarda como consulta, después se busca "casa Karcher" y
+        # aparecen casas de muñecas. El rubro solo cambia con un producto.
+        nuevo = (query or "").strip()
+        # Respuestas a una pregunta del bot ("para casa", "uso ocasional"):
+        # no son un rubro y no deben reemplazar el de la charla.
+        from .services import context as contexto_charla
+
+        respuesta_corta = contexto_charla.es_respuesta_suelta(nuevo)
+        if nuevo and not respuesta_corta and (
+            catalog.primary_term(nuevo)
+            or catalog._relevance_terms(nuevo)
+            or not conversation.last_query
+        ):
+            conversation.last_query = nuevo[:300] or None
         await session.commit()
 
     async def _purchase_history_reply(
@@ -5175,7 +5213,18 @@ class Agent:
             conversation = await session.scalar(
                 select(Conversation).where(Conversation.contact_id == contact.id)
             )
-            base = (conversation.last_query if conversation else None) or ""
+            # El rubro de la charla manda: `last_query` pudo quedar con una
+            # respuesta suelta del cliente ("para casa").
+            estado = None
+            if conversation is not None:
+                estado = await conversation_state.get_state(
+                    session, conversation.id
+                )
+            base = (
+                (getattr(estado, "category", None) or "")
+                or (conversation.last_query if conversation else "")
+                or ""
+            )
             if not base:
                 # Botón viejo o conversación sin contexto: no buscamos a ciegas.
                 return AgentReply(
@@ -5194,14 +5243,23 @@ class Agent:
                     ]
                 )
             combined = f"{base} {option}".strip()
-            local = await catalog.search_items(session, combined, limit=5)
+            local = await catalog.search_items(session, combined, limit=8)
             needle = option.lower()
-            matches = [
-                row
-                for row in local
-                if needle in (row.name or "").lower()
-                or needle in (row.brand or "").lower()
-            ]
+            raiz = (catalog.primary_term(base) or base).lower()
+
+            def sirve(fila) -> bool:
+                texto_fila = " ".join(
+                    [
+                        (fila.name or "").lower(),
+                        (fila.brand or "").lower(),
+                        (fila.category or "").lower(),
+                    ]
+                )
+                # La opción tiene que aparecer y no puede ser otro rubro:
+                # "casa Karcher" devolvía casas de muñecas.
+                return needle in texto_fila and raiz in texto_fila
+
+            matches = [row for row in local if sirve(row)]
             if matches:
                 return await self._search_reply(
                     session, contact, combined, limit=3
