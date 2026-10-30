@@ -4430,6 +4430,14 @@ class Agent:
                     )
                 ]
             )
+        # En un reclamo o un tema delicado se habla sin adornos.
+        from .services import emoji_policy
+
+        if emoji_policy.es_delicado(text) or emoji_policy.es_delicado(answer):
+            for mensaje in reply.messages:
+                if mensaje.text:
+                    mensaje.text = emoji_policy.limpiar(mensaje.text)
+
         # Un mensaje, una pregunta: se quitan los cierres repetidos que cada
         # flujo agrega por su cuenta.
         from .services import closings

@@ -1,4 +1,4 @@
-"""Un mensaje, una pregunta: poda de cierres repetidos."""
+﻿"""Un mensaje, una pregunta: poda de cierres repetidos."""
 
 from __future__ import annotations
 
@@ -112,3 +112,20 @@ def test_conserva_el_encabezado_si_no_hay_otro():
     podados = closings.podar(mensajes)
 
     assert "Encontré" in (podados[0].text or "")
+
+
+def test_los_emojis_se_quitan_en_temas_delicados():
+    from app.services import emoji_policy
+
+    assert emoji_policy.es_delicado("me llegó roto el pedido")
+    assert emoji_policy.es_delicado("quiero una devolución")
+    assert not emoji_policy.es_delicado("busco un taladro")
+
+
+def test_limpiar_deja_el_texto_sin_emojis():
+    from app.services import emoji_policy
+
+    limpio = emoji_policy.limpiar("¡Hola! 👋 ¿Qué buscás? 🛍️")
+
+    assert "👋" not in limpio and "🛍️" not in limpio
+    assert "Hola" in limpio and "buscás" in limpio
