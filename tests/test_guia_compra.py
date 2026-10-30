@@ -1,6 +1,8 @@
-"""Guía de compra: preguntar el dato que falta para recomendar bien."""
+﻿"""Guía de compra: preguntar el dato que falta para recomendar bien."""
 
 from __future__ import annotations
+
+import pytest
 
 from app.services import tech_guide
 
@@ -48,3 +50,31 @@ def test_los_botones_llevan_la_medida():
 
 def test_un_rubro_sin_guia_no_pregunta():
     assert tech_guide.falta_dato("busco un taladro") is None
+
+
+@pytest.mark.parametrize(
+    "texto,clave",
+    [
+        ("busco una pintura", "m2"),
+        ("quiero un colchon", "plazas"),
+        ("necesito un ventilador", "m2"),
+        ("quiero cortinas", "ancho"),
+    ],
+)
+def test_mas_rubros_preguntan_su_dato(texto, clave):
+    falta = tech_guide.falta_dato(texto)
+
+    assert falta is not None
+    assert falta["clave"] == clave
+
+
+def test_la_parrilla_la_maneja_la_ocasion_del_portal():
+    assert tech_guide.falta_dato("busco una parrilla") is None
+
+
+def test_la_guia_del_conocimiento_tiene_todos_los_rubros():
+    from pathlib import Path
+
+    texto = Path("knowledge/guia-compra.md").read_text(encoding="utf-8").lower()
+    for rubro in ("aire", "heladera", "lavadora", "televisor", "colchón", "pintura", "ventilador", "cortina"):
+        assert rubro in texto

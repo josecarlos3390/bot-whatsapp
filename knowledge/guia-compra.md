@@ -79,6 +79,46 @@ para explicar por qué una opción le sirve mejor que otra.
 
 - **Preguntar:** "¿Lo vas a usar para cosas de la casa o para trabajo?"
 
+## Cortinas: ancho de la ventana
+
+| Ancho de la ventana | Cortina sugerida |
+|---|---|
+| Hasta 1,5 m | 150 cm de ancho |
+| 1,5 a 2 m | 200 cm |
+| Más de 2 m | 250 cm o dos paños |
+
+- **Preguntar:** "¿Cuánto mide de ancho la ventana?"
+
+## Ventilador: tamaño según el ambiente
+
+| Ambiente | Tamaño sugerido |
+|---|---|
+| Hasta 12 m² | 16 pulgadas |
+| 13 a 20 m² | 18 pulgadas |
+| Más de 20 m² | 20 pulgadas |
+
+- **Preguntar:** "¿Cuántos metros cuadrados tiene el ambiente?"
+
+## Parrilla
+
+La ocasión "parrilla" la configura el área comercial en el panel, con sus
+productos y su orden. Esta guía no la reemplaza.
+
+## Qué pregunta el bot y qué dato usa
+
+| Producto | Pregunta del bot |
+|---|---|
+| Aire acondicionado | ¿Cuántos metros cuadrados tiene el ambiente? |
+| Heladera | ¿Cuántas personas viven en la casa? |
+| Lavadora | ¿Cuántas personas lavan ropa en la casa? |
+| Televisor | ¿A qué distancia vas a mirar la tele? |
+| Colchón | ¿El colchón es para una o dos personas? |
+| Pintura | ¿Cuántos metros cuadrados de pared vas a pintar? |
+| Ventilador | ¿Cuántos metros cuadrados tiene el ambiente? |
+| Cortina | ¿Cuánto mide de ancho la ventana? |
+
+Si el cliente ya dio el dato ("un aire para 20 m²"), no se vuelve a preguntar.
+
 ## Cómo usarla al responder
 
 1. Si el cliente pide el producto sin decir la necesidad, **preguntar el dato**

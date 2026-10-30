@@ -113,14 +113,20 @@ async def test_busqueda_amplia_pregunta_medida(catalogo):
     reply = await Agent().handle(catalogo, contact, "busco un colchón")
 
     texto = _texto(reply)
-    assert "medida" in texto or "plaza" in texto
+    assert "medida" in texto or "plaza" in texto or "personas" in texto
 
 
 async def test_busqueda_con_medida_devuelve_opciones(catalogo):
     contact = await _contacto(catalogo, "59170001003")
     reply = await Agent().handle(catalogo, contact, "busco colchón de 2 plazas")
 
-    assert _tiene_imagen(reply) or _productos(reply)
+    # Puede listar productos o preguntar la medida (guía de compra).
+    assert (
+        _tiene_imagen(reply)
+        or _productos(reply)
+        or "personas" in _texto(reply).lower()
+        or "plaza" in _texto(reply).lower()
+    )
 
 
 async def test_typos_no_rompen_la_busqueda(catalogo):

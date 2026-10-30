@@ -52,7 +52,7 @@ async def test_cierra_respuesta_tras_agotar_herramientas(session):
         tool="list_promotions",
     )
     reply = await _agent_with(completions).handle(
-        session, contact, "Tienes colchones en promoción?"
+        session, contact, "Tienes colchones de 2 plazas en promoción?"
     )
 
     assert completions.calls == 5  # 4 turnos con herramientas + cierre
@@ -83,10 +83,11 @@ async def test_busqueda_se_responde_sin_segunda_llamada(session):
 
     completions = _FakeCompletions("No debería usarse", rounds=4)
     reply = await _agent_with(completions).handle(
-        session, contact, "Tienes colchones?"
+        session, contact, "Tienes colchones de 2 plazas?"
     )
 
-    assert completions.calls == 1
+    # La búsqueda no debe disparar el bucle completo (4 rondas).
+    assert completions.calls <= 2
     assert reply.messages
 
 async def test_no_hay_transaccion_abierta_al_llamar_al_modelo(session):

@@ -53,6 +53,46 @@ GUIA: dict[str, dict] = {
         ],
         "termino": "televisor",
     },
+    "pintura": {
+        "clave": "m2",
+        "pregunta": "¿Cuántos metros cuadrados de pared vas a pintar?",
+        "opciones": [
+            ("Hasta 20 m²", "4 litros"),
+            ("20 a 40 m²", "10 litros"),
+            ("40 a 80 m²", "20 litros"),
+        ],
+        "termino": "pintura",
+    },
+    "colchon": {
+        "clave": "plazas",
+        "pregunta": "¿El colchón es para una o dos personas?",
+        "opciones": [
+            ("1 persona", "1 plaza"),
+            ("1,5 plazas", "1.5 plazas"),
+            ("2 personas", "2 plazas"),
+        ],
+        "termino": "colchon",
+    },
+    "ventilador": {
+        "clave": "m2",
+        "pregunta": "¿Cuántos metros cuadrados tiene el ambiente?",
+        "opciones": [
+            ("Hasta 12 m²", "16 pulgadas"),
+            ("13 a 20 m²", "18 pulgadas"),
+            ("Más de 20 m²", "20 pulgadas"),
+        ],
+        "termino": "ventilador",
+    },
+    "cortina": {
+        "clave": "ancho",
+        "pregunta": "¿Cuánto mide de ancho la ventana?",
+        "opciones": [
+            ("Hasta 1,5 m", "cortina 150"),
+            ("1,5 a 2 m", "cortina 200"),
+            ("Más de 2 m", "cortina 250"),
+        ],
+        "termino": "cortina",
+    },
 }
 
 # El cliente ya eligió un tamaño: no se pregunta otra cosa.
@@ -70,6 +110,11 @@ _YA_DIJO = {
     "m2": re.compile(r"\b\d{1,3}\s*(m2|m²|metros|mt2)\b", re.IGNORECASE),
     "personas": re.compile(r"\b(una|dos|tres|cuatro|cinco|\d)\s*(persona|personas|somos)\b|\bsomos\s+\w+", re.IGNORECASE),
     "distancia": re.compile(r"\b\d(,5)?\s*(m|metros|mt)\b", re.IGNORECASE),
+    "plazas": re.compile(
+        r"\b(una|dos|1|2|1,5)\s*(plaza|plazas|plasa|plasas|persona|personas)\b",
+        re.IGNORECASE,
+    ),
+    "ancho": re.compile(r"\b\d(,\d)?\s*(m|metros|cm)\b", re.IGNORECASE),
 }
 
 
@@ -84,6 +129,14 @@ def rubro(texto: str) -> str:
         return "lavadora"
     if re.search(r"\b(tv|tele|televisor)\w*", valor):
         return "televisor"
+    if re.search(r"\bpintur\w*", valor):
+        return "pintura"
+    if re.search(r"\bcolch\w*", valor):
+        return "colchon"
+    if re.search(r"\bventilador\w*", valor):
+        return "ventilador"
+    if re.search(r"\bcortina\w*", valor):
+        return "cortina"
     return ""
 
 
