@@ -66,6 +66,13 @@ def cards(
     for index, product in enumerate(seleccionados, start=1):
         nombre = _truncate(product.get("name") or "Producto", 58)
         linea = f"{index}. {nombre} — Bs {_precio(product)}"
+        # El descuento se muestra: es el argumento de venta más fuerte.
+        descuento = str(product.get("promo_discount_percent") or "").strip()
+        if descuento:
+            try:
+                linea += f" (−{float(descuento):.0f}%)"
+            except ValueError:
+                pass
         marca = (product.get("brand") or "").strip()
         if marca:
             linea += f" · {marca}"

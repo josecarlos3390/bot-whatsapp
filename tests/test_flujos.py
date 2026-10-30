@@ -209,3 +209,24 @@ async def test_elegir_un_producto_muestra_la_ficha(session, monkeypatch):
         texto = " ".join(m.text or "" for m in respuesta.messages)
         assert "Precio" in texto or "Bs" in texto
         assert "ya te mostré" not in texto.lower()
+
+def test_el_listado_muestra_el_descuento():
+    from app.agent import Agent
+
+    productos = [
+        {
+            "sku": "D-1",
+            "name": "Aire Acondicionado 12000BTU",
+            "price": "8000",
+            "promo_price": "5719",
+            "promo_discount_percent": "28.51",
+            "brand": "LAKES",
+            "category": "Aires",
+        }
+    ]
+
+    mensajes = Agent._search_cards(productos)
+    texto = mensajes[0].text or ""
+
+    assert "(−29%)" in texto or "(−28%)" in texto
+    assert "Bs 5,719.00" in texto.replace("5719.00", "5,719.00")

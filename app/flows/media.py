@@ -44,6 +44,37 @@ def _coincide(descripcion, producto) -> bool:
     return len(compartidos) >= 2
 
 
+async def _con_descuento(
+    session, categoria: str, excluir: set[str], limite: int = 2
+) -> list[dict]:
+    """Alternativas del mismo rubro con mejor descuento vigente."""
+    from ..services import catalog, rule_apply
+
+    if not categoria:
+        return []
+    filas = await catalog.search_items(session, categoria, limit=12)
+    if not filas:
+        return []
+    promos = await rule_apply.descuentos(session, [f.sku for f in filas])
+    candidatos = [
+        fila
+        for fila in filas
+        if fila.sku not in excluir and promos.get(fila.sku, 0) >= 15
+    ]
+    candidatos.sort(key=lambda fila: promos.get(fila.sku, 0), reverse=True)
+    return [
+        {
+            "sku": fila.sku,
+            "name": fila.name,
+            "price": str(fila.price),
+            "brand": fila.brand,
+            "category": fila.category,
+            "promo_discount_percent": str(promos.get(fila.sku, 0)),
+        }
+        for fila in candidatos[:limite]
+    ]
+
+
 async def reply(
     agent,
     session: AsyncSession,
@@ -136,16 +167,26 @@ async def reply(
     productos = [p for p in productos if _coincide(descripcion, p)][:3]
     if productos:
         agent._trace(f"Imagen: {objeto} con opciones")
+        # Alternativas del rubro con mejor descuento: el cliente ve lo que
+        # se parece y también lo que conviene.
+        vistos = {p.get("sku") for p in productos if p.get("sku")}
+        alternativas = await _con_descuento(
+            session, categoria or objeto, vistos, limite=2
+        )
         lead = (
             _frase_imagen(acompanante, objeto, marca, intencion)
             + " En la tienda tenemos opciones parecidas:"
         )
+        if alternativas:
+            lead += (
+                "\n\nY si buscás mejor precio, estas tienen descuento:"
+            )
         return AgentReply(
             [
                 Outbound(text=lead),
                 # La lista ya cierra con su propio menú: no se pregunta
                 # otra vez antes de que el cliente elija.
-                *agent._search_cards(productos[:3]),
+                *agent._search_cards(productos[:3] + alternativas),
             ]
         )
 
