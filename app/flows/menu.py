@@ -101,7 +101,7 @@ async def product_list(
         )
     sections = [
         {
-            "title": agent._truncate(label, 24),
+            "title": "Opciones",
             "rows": [
                 {
                     "id": f"product:{product['sku']}",
@@ -141,7 +141,7 @@ async def product_list(
             Outbound(text=texto[:4096]),
             Outbound(
                 kind="list",
-                text=f"¿Cuál de {label} te interesa? 👀",
+                text="Tocá una opción para ver la foto y la ficha 👇",
                 button_text="Ver productos",
                 sections=sections,
             ),

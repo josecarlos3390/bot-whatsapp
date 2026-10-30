@@ -100,7 +100,7 @@ def cards(products: list[dict], maximo: int = 5) -> list[Outbound]:
         Outbound(text=mensaje[:4096]),
         Outbound(
             kind="list",
-            text="¿Cuál te interesa? 👀",
+            text="Tocá una opción para ver la foto y la ficha 👇",
             button_text="Ver opciones",
             sections=[{"title": "Opciones", "rows": rows}],
         ),
