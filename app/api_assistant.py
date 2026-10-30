@@ -142,9 +142,29 @@ async def assistant_crear(
             "estado": ocasion.status,
         }
 
-    # Conocimiento: se escribe el archivo y queda disponible para el bot.
+    # Pregunta y respuesta: se guarda como artículo con la pregunta de título.
     from . import api_knowledge
 
+    if payload.tipo == "faq":
+        pregunta = str(datos["pregunta"]).strip()
+        articulo = api_knowledge._escribir(
+            admin_assistant.slug(pregunta),
+            api_knowledge.KnowledgePayload(
+                title=pregunta[:120],
+                status=str(datos.get("status") or "published"),
+                tags=str(datos.get("tags") or ""),
+                content=f"**{pregunta}**\n\n{str(datos['respuesta']).strip()}",
+            ),
+        )
+        return {
+            "ok": True,
+            "tipo": "faq",
+            "slug": articulo["slug"],
+            "titulo": articulo["title"],
+            "estado": articulo["status"],
+        }
+
+    # Conocimiento: se escribe el archivo y queda disponible para el bot.
     slug = admin_assistant.slug(str(datos.get("slug") or datos["title"]))
     articulo = api_knowledge._escribir(
         slug,

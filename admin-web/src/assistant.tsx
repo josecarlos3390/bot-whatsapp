@@ -17,12 +17,14 @@ const TIPOS = [
   { valor: "regla", etiqueta: "Regla" },
   { valor: "ocasion", etiqueta: "Ocasión" },
   { valor: "conocimiento", etiqueta: "Artículo" },
+  { valor: "faq", etiqueta: "Pregunta y respuesta" },
 ];
 
 const EJEMPLOS: Record<string, string> = {
   regla: "quiero una regla que priorice la marca ELECTROLUX cuando pregunten por cocinas",
   ocasion: "creá una ocasión para el Día del Padre con taladros y sets de herramientas",
   conocimiento: "agregá un artículo que explique la garantía de los colchones",
+  faq: "¿hacen envíos a domicilio? Sí, entregamos en 24 horas",
 };
 
 export function AssistantPanel({ onCreado }: { onCreado?: () => void }) {

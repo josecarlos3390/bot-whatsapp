@@ -1,4 +1,4 @@
-"""El asistente crea la configuración de verdad (regla, ocasión, artículo)."""
+﻿"""El asistente crea la configuración de verdad (regla, ocasión, artículo)."""
 
 from __future__ import annotations
 
@@ -132,3 +132,47 @@ async def test_un_tipo_invalido_no_crea(session):
         )
 
     assert respuesta.status_code == 400
+
+
+async def test_crea_una_pregunta_y_respuesta(session, _entorno):
+    async with _cliente(session) as cliente:
+        respuesta = await cliente.post(
+            "/admin/assistant/crear",
+            json={
+                "tipo": "faq",
+                "borrador": {
+                    "pregunta": "¿Hacen envíos a domicilio?",
+                    "respuesta": "Sí, entregamos en 24 horas en ciudades capitales.",
+                    "tags": "envio, domicilio, entrega",
+                },
+            },
+        )
+
+    assert respuesta.status_code == 200
+    datos = respuesta.json()
+    assert datos["tipo"] == "faq"
+    archivo = _entorno / f"{datos['slug']}.md"
+    assert archivo.exists()
+    texto = archivo.read_text(encoding="utf-8")
+    assert "envío" in texto or "envios" in texto or "envío" in texto.lower()
+
+
+async def test_una_regla_de_promociones_necesita_descuento(session):
+    async with _cliente(session) as cliente:
+        respuesta = await cliente.post(
+            "/admin/assistant/crear",
+            json={
+                "tipo": "regla",
+                "borrador": {
+                    "name": "Promos de colchones",
+                    "area": "ecommerce",
+                    "rule_type": "promotion_priority",
+                    "condition": {"category": "colchones"},
+                    "action": {},
+                    "priority": 80,
+                },
+            },
+        )
+
+    assert respuesta.status_code == 400
+    assert "min_discount" in respuesta.json()["detail"]

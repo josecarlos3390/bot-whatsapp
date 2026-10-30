@@ -33,9 +33,28 @@ TIPOS: dict[str, dict] = {
         },
         "obligatorios": ("name", "area", "rule_type", "condition", "action", "priority"),
         "ejemplo": (
-            "Si la regla es de marca, action debe ser {\"brand\": \"ELECTROLUX\"}. "
-            "Si es de promociones, action {\"min_discount\": 20}. "
-            "condition {\"category\": \"cocinas\"}."
+            "Tipos y lo que exigen: "
+            "brand_priority -> action {\"brand\": \"ELECTROLUX\"}; "
+            "promotion_priority -> condition {\"category\": \"colchones\"} y "
+            "action {\"min_discount\": 20}; "
+            "required_questions -> action {\"questions\": [{\"text\": \"...\"}]}; "
+            "response_rule -> action {\"instruction\": \"...\"}; "
+            "return_flow -> action {\"questions\": [{\"text\": \"...\"}]}. "
+            "Áreas válidas: ecommerce, marketing, operaciones, calidad, general. "
+            "Si el usuario no dice la prioridad, va en faltantes."
+        ),
+    },
+    "faq": {
+        "campos": {
+            "pregunta": "la pregunta tal como la haría un cliente",
+            "respuesta": "la respuesta, en 1 a 3 frases",
+            "tags": "palabras clave para encontrarla",
+            "status": "published o draft",
+        },
+        "obligatorios": ("pregunta", "respuesta", "tags"),
+        "ejemplo": (
+            "¿Hacen envíos a domicilio? -> Sí, entregamos en 24 horas en "
+            "ciudades capitales y 48 en el resto."
         ),
     },
     "ocasion": {

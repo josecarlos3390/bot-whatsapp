@@ -54,6 +54,8 @@ def _validate(
             raise RuleError(
                 "promotion_priority necesita condition.category"
             )
+        if "min_discount" not in action:
+            raise RuleError("promotion_priority necesita min_discount")
         try:
             minimum = float(action.get("min_discount", 0))
         except (TypeError, ValueError) as exc:
