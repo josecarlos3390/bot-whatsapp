@@ -44,6 +44,30 @@ def _coincide(descripcion, producto) -> bool:
     return len(compartidos) >= 2
 
 
+# Categorías que no sirven para buscar: son demasiado amplias.
+_GENERICAS = {
+    "electronica",
+    "electrónica",
+    "otros",
+    "otros accesorios",
+    "otros accesorios decorativos",
+    "general",
+    "hogar",
+    "sin categoria",
+    "sin categoría",
+}
+
+
+def _productos(filas) -> list[dict]:
+    from ..services import product_view
+
+    return [product_view.payload(fila) for fila in filas]
+
+
+def _categoria_util(categoria: str) -> bool:
+    return (categoria or "").strip().lower() not in _GENERICAS
+
+
 async def _con_descuento(
     session, categoria: str, excluir: set[str], limite: int = 2
 ) -> list[dict]:
@@ -191,13 +215,15 @@ async def reply(
         )
 
     # Sin coincidencia: se prueba por el rubro que detectó la visión.
-    if categoria:
+    if categoria and _categoria_util(categoria):
         rubro = await caja.tool_search_products(
             query=categoria, limit=6, ignore_state=True
         )
         productos = agent._ordenar_por_imagen(
             rubro.get("products") or [], descripcion
-        )[:3]
+        )
+        # Aunque la categoría sea válida, el producto tiene que parecerse.
+        productos = [p for p in productos if _coincide(descripcion, p)][:3]
     if productos:
         agent._trace(f"Imagen: {objeto} sin igual, rubro {categoria}")
         return AgentReply(
@@ -210,6 +236,26 @@ async def reply(
                     )
                 ),
                 *agent._search_cards(productos[:3]),
+            ]
+        )
+
+    # Sin nada parecido: primero se busca la familia del producto (monitor ->
+    # televisores y soportes). Es coherente y no depende de la IA.
+    from ..services import familia
+
+    afin, afines = await familia.buscar(session, objeto or "")
+    if afines:
+        agent._trace(f"Imagen: {objeto} -> afines ({afin})")
+        return AgentReply(
+            [
+                Outbound(
+                    text=(
+                        _frase_imagen(acompanante, objeto, marca, intencion)
+                        + f" No tengo *{objeto}*, pero esto es lo más parecido "
+                        f"que tenemos ({afin}):"
+                    )
+                ),
+                *agent._search_cards(_productos(afines[:3])),
             ]
         )
 
