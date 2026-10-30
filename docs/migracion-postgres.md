@@ -2,9 +2,13 @@
 
 ## Estado del servidor
 
-PostgreSQL 16 está **instalado y corriendo**, escuchando en el puerto **5434**
-(no el 5432 habitual). Falta un usuario y una base para el bot: se piden a
-quien administra esa instancia.
+PostgreSQL 16 corre en el puerto **5434** (no el 5432 habitual).
+
+Estado: **migrado**. La base 
+oho_bot y su usuario existen, los datos se
+copiaron y se validaron (44.478 filas, todas las tablas coinciden). La
+conexión del bot ya apunta a Postgres; la base SQLite dev.db queda intacta
+como respaldo y para volver atrás cambiando una línea.
 
 ## Cuándo conviene migrar
 

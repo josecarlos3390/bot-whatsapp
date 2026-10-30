@@ -60,7 +60,17 @@ async def test_informe_cuenta_la_actividad(session):
 
 
 
-async def test_informe_sin_actividad(session):
+async def test_informe_sin_actividad(session, monkeypatch):
+    # El informe abre su propia sesión: en el test se le pasa la de prueba.
+    from contextlib import asynccontextmanager
+
+    @asynccontextmanager
+    async def _sesion_prueba():
+        yield session
+
+    monkeypatch.setattr(
+        pilot_report, "SessionLocal", lambda: _sesion_prueba()
+    )
     texto, datos = await pilot_report.generar(1)
 
     assert "Piloto" in texto

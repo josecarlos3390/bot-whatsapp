@@ -17,7 +17,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 
-from sqlalchemy import func, insert, select
+from sqlalchemy import func, insert, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app import models  # noqa: F401  (registra todas las tablas)
@@ -82,7 +82,23 @@ def _tablas() -> list:
     return ordenadas + resto
 
 
-async def migrar(destino: str, lote: int = 500) -> int:
+async def limpiar(sesion) -> None:
+    """Vacía el destino para poder repetir la migración."""
+    from sqlalchemy import text as _text
+
+    for tabla in reversed(_tablas()):
+        await sesion.execute(
+            _text(f'TRUNCATE TABLE "{tabla.name}" CASCADE')
+        )
+    await sesion.commit()
+
+
+async def migrar(
+    destino: str,
+    lote: int = 500,
+    sin_fks: bool = False,
+    vaciar: bool = False,
+) -> int:
     origen = create_async_engine(settings.database_url)
     destino_engine = create_async_engine(destino)
     origen_sesion = async_sessionmaker(origen, expire_on_commit=False)
@@ -91,6 +107,11 @@ async def migrar(destino: str, lote: int = 500) -> int:
     print("creando esquema en el destino…")
     async with destino_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    if vaciar:
+        print("vaciando el destino…")
+        async with destino_sesion() as limpiador:
+            await limpiar(limpiador)
 
     total = 0
     for tabla in _tablas():
@@ -101,6 +122,12 @@ async def migrar(destino: str, lote: int = 500) -> int:
             continue
         datos = [dict(fila) for fila in filas]
         async with destino_sesion() as escritor:
+            if sin_fks:
+                # La base de origen puede tener huérfanos (conversaciones
+                # borradas a mano). Se copia tal cual y se avisa al final.
+                await escritor.execute(
+                    text("SET session_replication_role = replica")
+                )
             for inicio in range(0, len(datos), lote):
                 await escritor.execute(
                     insert(tabla), datos[inicio : inicio + lote]
@@ -146,13 +173,25 @@ async def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--destino", required=True)
     parser.add_argument("--solo-validar", action="store_true")
+    parser.add_argument(
+        "--limpiar",
+        action="store_true",
+        help="Vacía el destino antes de copiar.",
+    )
+    parser.add_argument(
+        "--sin-fks",
+        action="store_true",
+        help="Copia sin verificar claves foráneas (origen con huérfanos).",
+    )
     args = parser.parse_args()
 
     print(f"origen: {settings.database_url}")
     print(f"destino: {args.destino}\n")
     if args.solo_validar:
         return 1 if await validar(args.destino) else 0
-    await migrar(args.destino)
+    await migrar(
+        args.destino, sin_fks=args.sin_fks, vaciar=args.limpiar
+    )
     print()
     return 1 if await validar(args.destino) else 0
 
