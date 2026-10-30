@@ -123,6 +123,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.include_router(router)
+
+# Editor de la base de conocimiento (consola de administración).
+from .api_knowledge import router as knowledge_router  # noqa: E402
+
+app.include_router(knowledge_router)
 _admin_dist = Path(__file__).resolve().parent.parent / "admin-web" / "dist"
 
 

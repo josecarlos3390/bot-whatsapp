@@ -10,6 +10,7 @@ import {
 import {
   Bell,
   BarChart3,
+  BookOpen,
   Check,
   Clock,
   Inbox as InboxIcon,
@@ -29,6 +30,7 @@ import { Badge, Button, Card, Dialog, Example, Input, Skeleton, Textarea, cn } f
 import type { Advisor, AdvisorMetric, AreaUser, AuthMe, Handoff, HandoffDetail } from "./types";
 import { AdminCenter, AdminRulesPage, AreaRulesPage } from "./areas";
 import { OccasionsPage } from "./occasions";
+import { KnowledgePage } from "./knowledge";
 import { ThemeProvider, ThemeToggle } from "./theme";
 import { OverviewPage } from "./overview";
 
@@ -259,6 +261,12 @@ function Header({
                 className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${location.pathname === "/rules" ? "bg-white/10 text-white" : "text-slate-300 hover:bg-white/5"}`}
               >
                 <StickyNote size={15} /> {t("Reglas")}
+              </Link>
+              <Link
+                to="/knowledge"
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${location.pathname === "/knowledge" ? "bg-white/10 text-white" : "text-slate-300 hover:bg-white/5"}`}
+              >
+                <BookOpen size={15} /> {t("Conocimiento")}
               </Link>
               <Link
                 to="/occasions"
@@ -1452,6 +1460,7 @@ export default function App() {
         <Route path="/metrics" element={me && (me.is_admin || me.role === "supervisor") ? <MetricsPage me={me} /> : <Navigate to={home} replace />} />
         <Route path="/overview" element={me?.is_admin ? <OverviewPage onLogout={logout} /> : <Navigate to={home} replace />} />
         <Route path="/admin/center" element={me?.is_admin ? <AdminCenter me={me} onLogout={logout} /> : <Navigate to={home} replace />} />
+        <Route path="/knowledge" element={me?.is_admin ? <KnowledgePage onLogout={logout} /> : <Navigate to={home} replace />} />
         <Route path="/occasions" element={me?.is_admin ? <OccasionsPage me={me} onLogout={logout} /> : areaUser ? <OccasionsPage areaUser={areaUser} onLogout={logout} /> : <Navigate to="/login" replace />} />
         <Route
           path="/rules"
