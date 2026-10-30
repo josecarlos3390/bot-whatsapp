@@ -75,6 +75,47 @@ bloqueos volverían.
 ## Lo que no cambia
 
 - Los modelos son los mismos (SQLAlchemy).
-- El respaldo diario sigue igual, apuntando a la nueva base.
 - Las migraciones manuales (`ALTER TABLE`) hay que revisarlas: en PostgreSQL
   se pueden usar `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`.
+
+## Respaldo y restauración
+
+El respaldo diario ya funciona con PostgreSQL:
+
+```powershell
+.\.venv\Scripts\python.exe -m scripts.backup_db
+```
+
+Deja `backups/<fecha>/roho_bot.dump` (formato personalizado, comprimido),
+copia `.env` y `knowledge/`, y conserva las últimas 14 copias.
+
+**Verificar una copia:**
+
+```powershell
+.\.venv\Scripts\python.exe -m scripts.backup_db --verificar backups\20261030-050000
+```
+
+**Restaurar** (en una base nueva, sin tocar la que está en uso):
+
+```powershell
+$env:PGPASSWORD = "..."
+& "C:\Program Files\PostgreSQL\16\bin\pg_restore.exe" `
+  -h 127.0.0.1 -p 5434 -U postgres -d roho_bot_nueva --no-owner `
+  backups\20261030-050000\roho_bot.dump
+```
+
+Probado: copia de 4,1 MB con 41 tablas, restaurada en una base nueva sin
+errores y con los mismos datos (139 mensajes, 384 contactos, 10 reglas).
+
+### Filas huérfanas
+
+Si se borran conversaciones a mano con SQL, quedan filas que apuntan a un
+padre inexistente. No afectan al bot pero **impiden restaurar** una copia.
+
+```powershell
+.\.venv\Scripts\python.exe -m scripts.limpiar_huerfanos            # informe
+.\.venv\Scripts\python.exe -m scripts.limpiar_huerfanos --confirmar
+```
+
+Se limpiaron 4.380 filas huérfanas que venían de las pruebas; conviene correr
+el informe antes de cada respaldo importante.

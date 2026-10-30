@@ -5,7 +5,18 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
+import pytest
+
+from app.config import settings
 from scripts import backup_db
+
+
+@pytest.fixture(autouse=True)
+def _forzar_sqlite(monkeypatch):
+    # Los tests usan una SQLite temporal, no la base real (Postgres).
+    monkeypatch.setattr(
+        settings, "database_url", "sqlite+aiosqlite:///./tests/tmp.db"
+    )
 
 
 def _make_db(path: Path, rows: int = 3) -> None:
