@@ -38,3 +38,4 @@ logs/faltantes-*.csv
 .models/
 dev.db-wal
 dev.db-shm
+tmpl*
