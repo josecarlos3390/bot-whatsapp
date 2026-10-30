@@ -28,7 +28,9 @@ def _precio(product: dict) -> str:
         return str(price)
 
 
-def cards(products: list[dict], maximo: int = 5) -> list[Outbound]:
+def cards(
+    products: list[dict], maximo: int = 5, consulta: str = ""
+) -> list[Outbound]:
     """Lista de opciones (texto + menú), sin fotos.
 
     El cliente ve nombre y precio, elige una opción y recién ahí se muestra la
@@ -70,11 +72,20 @@ def cards(products: list[dict], maximo: int = 5) -> list[Outbound]:
         lineas.append(linea)
 
     total = len(seleccionados)
-    encabezado = (
-        f"Encontré *1 opción* {icono}:"
-        if total == 1
-        else f"Encontré *{total} opciones* {icono}:"
-    )
+    if consulta:
+        # Confirmar lo que se entendió: el cliente ve que se buscó eso.
+        encabezado = f"Buscás *{consulta[:60]}* {icono}: "
+        encabezado += (
+            "esta es la opción:"
+            if total == 1
+            else f"estas son las {total}:"
+        )
+    else:
+        encabezado = (
+            f"Encontré *1 opción* {icono}:"
+            if total == 1
+            else f"Encontré *{total} opciones* {icono}:"
+        )
     # La invitación va en el cuerpo del menú, no acá: repetirla dos veces
     # se lee como si el bot no escuchara.
     mensaje = f"{encabezado}\n\n" + "\n".join(lineas)

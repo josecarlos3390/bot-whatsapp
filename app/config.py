@@ -90,6 +90,8 @@ class Settings(BaseSettings):
     # espera (tests).
     # Leer el mensaje con IA antes de las reglas (se mide antes de activar).
     nlu_first: bool = False
+    # Si la respuesta demora más que esto, se avisa al cliente.
+    slow_reply_seconds: float = 7.0
     batching_ms: int = 1600
     transcribe_enabled: bool = True
     transcribe_model: str = "small"

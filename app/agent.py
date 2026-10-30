@@ -421,6 +421,20 @@ def _es_respuesta_suelta(texto: str) -> bool:
     ) and len(valor.split()) <= 4
 
 
+def _confirmacion(consulta: str) -> str:
+    """Repite lo que se entendió antes de listar: el cliente puede corregir.
+
+    «Buscás *colchón 2 plazas*: esto es lo que tengo.»
+    """
+    from .services import emoji as emoji_mod
+
+    limpio = (consulta or "").strip()
+    if not limpio or len(limpio.split()) < 2:
+        return "Dale, mirá lo que encontré."
+    icono = emoji_mod.para(limpio)
+    return f"Buscás *{limpio[:60]}* {icono}. Esto es lo que tengo:"
+
+
 def _ya_lista(answer: str, products: list[dict]) -> bool:
     """¿La respuesta ya enumera los productos (para no repetir la lista)?"""
     texto = (answer or "").lower()
@@ -3704,13 +3718,14 @@ class Agent:
             )
         else:
             intro = (
-                persona.search_intro()
+                _confirmacion(query)
                 if result.get("exact_match", True)
                 else (
                     f"No tengo *{_clean_query(query)}* exactamente, pero tengo "
                     "estas opciones parecidas:"
                 )
             )
+        # La intro ya confirmó lo que se entendió: el listado no repite.
         return AgentReply(
             [
                 Outbound(text=intro),
@@ -3813,9 +3828,11 @@ class Agent:
         )
 
     @staticmethod
-    def _search_cards(products: list[dict]) -> list[Outbound]:
+    def _search_cards(
+        products: list[dict], consulta: str = ""
+    ) -> list[Outbound]:
         """Tarjetas de producto (flows/search.py)."""
-        return search_flow.cards(products)
+        return search_flow.cards(products, consulta=consulta)
 
     @staticmethod
     def _con_seguimiento(messages: list[Outbound]) -> list[Outbound]:
@@ -4443,7 +4460,13 @@ class Agent:
         from .services import closings
 
         limpios = closings.podar(reply.messages)
-        if len(limpios) != len(reply.messages):
+        # Comparar el contenido, no solo la cantidad: quitar una línea
+        # (encabezado repetido) no cambia el número de mensajes.
+        cambio = len(limpios) != len(reply.messages) or any(
+            (antes.text or "") != (despues.text or "")
+            for antes, despues in zip(reply.messages, limpios)
+        )
+        if cambio:
             self._trace("Cierre repetido podado")
             return AgentReply(limpios)
         return reply

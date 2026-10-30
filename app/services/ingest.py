@@ -55,6 +55,17 @@ async def _history(
     return history
 
 
+async def _avisar_si_tarda(wa_id: str, deliver: bool) -> None:
+    """Avisa que se está buscando cuando la respuesta demora."""
+    await asyncio.sleep(settings.slow_reply_seconds)
+    if not deliver:
+        return
+    try:
+        await whatsapp.send_text(wa_id, "Dame un segundo, estoy buscando 🔎")
+    except Exception:  # noqa: BLE001 - es un aviso, no debe romper
+        logger.debug("No se pudo avisar la demora", exc_info=True)
+
+
 async def ingest_inbound(
     session: AsyncSession,
     wa_id: str,
@@ -218,12 +229,18 @@ async def ingest_inbound(
             if conversacion is not None:
                 rubro_previo = conversacion.last_query
 
+        # Si la respuesta tarda, se avisa: evita los "???" del cliente.
+        aviso_tarde = asyncio.create_task(
+            _avisar_si_tarda(wa_id, deliver)
+        )
+
         started = time.perf_counter()
         try:
             reply = await agent.handle(
                 session, contact, text, history, memory=memory, media=media
             )
             metrics.record((time.perf_counter() - started) * 1000)
+            aviso_tarde.cancel()
         except Exception:  # noqa: BLE001 - nunca dejar al cliente sin respuesta
             logger.exception(
                 "Fallo el agente para el mensaje %s", wa_message_id

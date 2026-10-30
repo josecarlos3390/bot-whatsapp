@@ -129,3 +129,40 @@ def test_limpiar_deja_el_texto_sin_emojis():
 
     assert "👋" not in limpio and "🛍️" not in limpio
     assert "Hola" in limpio and "buscás" in limpio
+
+async def test_el_aviso_de_demora_llega_una_vez(session, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "slow_reply_seconds", 0.05)
+    contestados: list[str] = []
+
+    class _Wa:
+        async def send_text(self, wa_id, texto):
+            contestados.append(texto)
+            return "wamid.aviso"
+
+    from app.services import ingest
+
+    monkeypatch.setattr(ingest, "whatsapp", _Wa(), raising=False)
+    await ingest._avisar_si_tarda("59170000001", True)
+
+    assert contestados == ["Dame un segundo, estoy buscando 🔎"]
+
+
+async def test_sin_delivery_no_avisa(monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "slow_reply_seconds", 0.01)
+    contestados: list[str] = []
+
+    class _Wa:
+        async def send_text(self, wa_id, texto):
+            contestados.append(texto)
+            return "wamid.aviso"
+
+    from app.services import ingest
+
+    monkeypatch.setattr(ingest, "whatsapp", _Wa(), raising=False)
+    await ingest._avisar_si_tarda("59170000002", False)
+
+    assert contestados == []
