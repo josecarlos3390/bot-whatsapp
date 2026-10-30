@@ -105,6 +105,11 @@ async def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--confirmar", action="store_true")
     parser.add_argument(
+        "--mensaje",
+        default="",
+        help="Texto propio en lugar de la invitación.",
+    )
+    parser.add_argument(
         "--solo-enviar",
         action="store_true",
         help="No borra conversaciones: solo envía el mensaje.",
@@ -170,7 +175,9 @@ async def main() -> int:
             contacto = fila["contacto"]
             destino = (contacto.phone_e164 or "").lstrip("+")
             try:
-                await cliente.send_text(destino, INVITACION)
+                await cliente.send_text(
+                destino, args.mensaje or INVITACION
+            )
                 enviados += 1
                 print(f"  enviado a {destino}")
             except Exception as exc:  # noqa: BLE001 - se informa y se sigue
