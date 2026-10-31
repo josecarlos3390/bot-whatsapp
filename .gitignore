@@ -39,3 +39,4 @@ logs/faltantes-*.csv
 dev.db-wal
 dev.db-shm
 tmpl*
+prueba_es.*
