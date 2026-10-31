@@ -153,3 +153,42 @@ def test_entiende_hasta_cuanto_quiero_gastar():
     assert presupuesto.limite("maximo 800") == 800
     assert presupuesto.limite("busco un sofa") is None
     assert presupuesto.quiere_barato("algo economico por favor")
+
+async def test_reservar_deja_aviso_para_un_asesor(session):
+    from sqlalchemy import select
+
+    from app.models import CatalogItem, Handoff
+
+    session.add(
+        CatalogItem(
+            sku="RES-001",
+            name="Sofá Reserva",
+            price="1000",
+            stock=3,
+            brand="TEST",
+            category="Sala",
+            active=True,
+        )
+    )
+    await session.commit()
+    contacto = await _contacto(session, "59170021050")
+
+    from app.agent import Agent
+
+    respuesta = await Agent().handle(session, contacto, "reserve:RES-001")
+
+    texto = " ".join(m.text or "" for m in respuesta.messages)
+    assert "300,00" in texto  # 30 % de 1000
+    assert "48" in texto
+    avisos = (await session.scalars(select(Handoff))).all()
+    assert any("RES-001" in (aviso.reason or "") for aviso in avisos)
+
+
+async def test_reservar_un_producto_inexistente_no_rompe(session):
+    contacto = await _contacto(session, "59170021051")
+
+    from app.agent import Agent
+
+    respuesta = await Agent().handle(session, contacto, "reserve:NO-EXISTE")
+
+    assert respuesta.messages

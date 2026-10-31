@@ -5308,6 +5308,12 @@ class Agent:
                 max_precio=maximo,
             )
 
+        if normalized.startswith("reserve:"):
+            from .flows import reserve as reserve_flow
+
+            sku = raw.split(":", 1)[1].strip()
+            return await reserve_flow.reservar(self, session, contact, sku)
+
         if normalized.startswith("product:"):
             sku = raw.split(":", 1)[1].strip()
             return await self._product_detail(session, contact, sku)

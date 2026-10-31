@@ -147,6 +147,15 @@ async def detail(
             ),
         }
     )
+    # Reserva con seña: alternativa a comprar en el momento.
+    if stock > 0:
+        rows.append(
+            {
+                "id": f"reserve:{product['sku']}",
+                "title": "Reservar con seña",
+                "description": "30 % y te la guardamos 48 h",
+            }
+        )
     rows.append(
         {
             "id": "human",
@@ -180,7 +189,9 @@ async def detail(
     # Cierre con el siguiente paso concreto: un vendedor no termina en la
     # ficha, propone agregarlo al carrito.
     if stock > 0:
-        lines.append("\n¿Te lo agrego al carrito? 🛒")
+        lines.append(
+            "\n¿Te lo agrego al carrito o lo reservamos con una seña? 🛒"
+        )
         boton = "Agregar"
     else:
         lines.append(

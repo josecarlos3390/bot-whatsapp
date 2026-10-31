@@ -22,6 +22,7 @@ PREFIJOS = (
     "idea:",
     "find:",
     "price:",
+    "reserve:",
     "doc:",
     "checkout",
     "pay:",
