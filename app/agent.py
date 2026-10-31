@@ -5102,18 +5102,31 @@ class Agent:
             or compacto in saludables
             or compacto[:-1] in saludables
         ):
-            return AgentReply(
-                [
-                    Outbound(
-                        kind="buttons",
-                        text=persona.welcome(contact.name),
-                        buttons=[
-                            {"id": "catalog", "title": "Buscar productos"},
-                            {"id": "estado", "title": "Consultar mi pedido"},
-                            {"id": "human", "title": "Hablar con un asesor"},
-                        ],
-                    )
+            # Si ya nos conoce, el saludo retoma lo que estaba viendo.
+            from .services import memoria_cliente
+
+            memoria = await memoria_cliente.saludo_con_memoria(
+                self, session, contact
+            )
+            texto = persona.welcome(contact.name)
+            botones = [
+                {"id": "catalog", "title": "Buscar productos"},
+                {"id": "estado", "title": "Consultar mi pedido"},
+                {"id": "human", "title": "Hablar con un asesor"},
+            ]
+            if memoria:
+                saludo, sku = memoria
+                texto = (
+                    f"¡Hola de nuevo, {contact.name or ''}! 👋\n\n{saludo}"
+                )
+                # Retomar es un toque, no volver a buscar.
+                botones = [
+                    {"id": f"product:{sku}", "title": "Ver ese producto"},
+                    {"id": "catalog", "title": "Buscar otra cosa"},
+                    {"id": "human", "title": "Hablar con un asesor"},
                 ]
+            return AgentReply(
+                [Outbound(kind="buttons", text=texto, buttons=botones)]
             )
 
         if normalized == "cart":
