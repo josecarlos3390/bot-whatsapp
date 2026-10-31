@@ -197,6 +197,24 @@ async def ingest_inbound(
             logger.info(
                 "Bot pausado para %s; mensaje guardado para humano", wa_id
             )
+            # Si insiste, no se deja en silencio: se avisa una vez que el
+            # equipo lo tiene y se guarda el mensaje para el asesor.
+            from . import insistencia
+
+            try:
+                cuantos = await insistencia.esperando(session, contact)
+            except Exception:  # noqa: BLE001 - nunca romper por esto
+                cuantos = 0
+            # Avisos en dos momentos exactos: al segundo mensaje sin
+            # respuesta y al quinto. Así no se repite en cada mensaje.
+            if cuantos == 2:
+                return [
+                    Outbound(text=insistencia.agradecer(contact.name))
+                ]
+            if cuantos == 5:
+                return [
+                    Outbound(text=insistencia.sin_respuesta(contact.name))
+                ]
             return []
         resumed_notice = True
 

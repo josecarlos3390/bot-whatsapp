@@ -2489,7 +2489,10 @@ PURCHASE_RE = re.compile(
     re.IGNORECASE,
 )
 HANDOFF_RE = re.compile(
-    r"\b(asesor|humano|persona\s+real|agente|hablar\s+con\s+alguien)\b",
+    r"\b(asesor|humano|persona|agente|hablar\s+con\s+alguien)\b"
+    r"|no\s+quiero\s+(hablar\s+con\s+)?(un\s+)?(bot|robot|m[aá]quina)"
+    r"|atendeme\s+vos"
+    r"|persona\s+de\s+verdad",
     re.IGNORECASE,
 )
 COMPLAINT_RE = re.compile(
