@@ -60,11 +60,10 @@ async def test_categoria_devuelve_lista_de_productos(session):
 
     respuesta = await Agent().handle(session, contacto, "cat:sala")
 
-    # Texto con nombre y precio, y después el menú.
-    assert len(respuesta.messages) == 2
-    assert respuesta.messages[0].kind == "text"
-    assert "Bs" in (respuesta.messages[0].text or "")
-    mensaje = respuesta.messages[-1]
+    # Un solo mensaje: el menú con los productos y su precio.
+    assert len(respuesta.messages) == 1
+    mensaje = respuesta.messages[0]
+    assert "Bs" in (mensaje.text or "")
     assert mensaje.kind == "list"
     titulos = [row["title"].lower() for row in mensaje.sections[0]["rows"]]
     # Primero lo del ambiente, no el espejo.

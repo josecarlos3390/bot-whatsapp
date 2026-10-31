@@ -65,9 +65,9 @@ async def test_category_list_and_product_detail(session):
     assert rows and any(row["id"].startswith("cat:") for row in rows)
 
     products = await agent.handle(session, contact, "cat:Filtros")
-    # Texto con nombre y precio y, después, el menú para elegir.
-    assert products.messages[0].kind == "text"
-    lista = products.messages[-1]
+    # Una sola respuesta: el menú con nombre y precio.
+    assert len(products.messages) == 1
+    lista = products.messages[0]
     assert lista.kind == "list"
     product_rows = lista.sections[0]["rows"]
     assert any(row["id"] == "product:FILT-001" for row in product_rows)

@@ -154,4 +154,7 @@ def product_intro() -> str:
 
 
 def categories_intro() -> str:
-    return "¿Por dónde arrancamos? Elegí una categoría 👇"
+    return (
+        "Dale, ¿qué estás buscando? Podés escribirme el producto "
+        "(por ejemplo «lámpara») o elegir una categoría 👇"
+    )

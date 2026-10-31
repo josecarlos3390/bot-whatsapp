@@ -42,6 +42,10 @@ async def categories(agent, session: AsyncSession, contact: Contact) -> AgentRep
 
 
 
+def _formato_precio(valor: float) -> str:
+    return f"{valor:,.0f}".replace(",", ".")
+
+
 async def product_list(
     agent, session: AsyncSession, contact: Contact, category: str
 ) -> AgentReply:
@@ -119,28 +123,56 @@ async def product_list(
             ],
         }
     ]
-    # Primero el texto con nombre y precio; después el menú para elegir.
-    # Antes llegaba solo el menú y el cliente no veía qué había.
-    lineas = []
-    for index, producto in enumerate(products[:9], start=1):
-        precio = producto.get("promo_price") or producto.get("price")
-        linea = f"{index}. {agent._truncate(producto['name'], 52)} — Bs {precio}"
-        if producto.get("brand"):
-            linea += f" · {producto['brand']}"
-        lineas.append(linea)
     from ..services import emoji
 
+    # Una sola respuesta: los productos van en el menú, con su precio.
+    # Antes se mandaba además un texto con la misma lista y se leía doble.
+    precios = [
+        float(producto.get("promo_price") or producto.get("price") or 0)
+        for producto in products
+    ]
+    precios = [precio for precio in precios if precio > 0]
     icono = emoji.para(label)
+    cantidad = len(products)
+    if cantidad == 1:
+        resumen = "tengo *1 opción*"
+    else:
+        resumen = f"tengo *{cantidad} opciones*"
+    if precios:
+        minimo = min(precios)
+        resumen += f" desde *Bs {_formato_precio(minimo)}*"
+    # Gancho de venta: la opción con mejor descuento, si hay.
+    gancho = ""
+    con_descuento = [
+        producto
+        for producto in products
+        if str(producto.get("promo_discount_percent") or "").strip()
+    ]
+    if con_descuento:
+        mejor = max(
+            con_descuento,
+            key=lambda producto: float(
+                producto.get("promo_discount_percent") or 0
+            ),
+        )
+        try:
+            porcentaje = float(mejor["promo_discount_percent"])
+        except (TypeError, ValueError):
+            porcentaje = 0
+        if porcentaje >= 15:
+            gancho = (
+                f"\nLa de mejor descuento: *"
+                f"{agent._truncate(mejor['name'], 40)}* (−{porcentaje:.0f}%)."
+            )
     texto = (
-        f"En *{label}* tengo estas opciones {icono}:\n\n"
-        + "\n".join(lineas)
+        f"{icono} *{label}*: {resumen}.{gancho}\n"
+        "Tocá una para ver la foto y la ficha 👇"
     )
     return AgentReply(
         [
-            Outbound(text=texto[:4096]),
             Outbound(
                 kind="list",
-                text="Tocá una opción para ver la foto y la ficha 👇",
+                text=texto,
                 button_text="Ver productos",
                 sections=sections,
             ),

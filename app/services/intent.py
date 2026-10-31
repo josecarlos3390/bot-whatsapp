@@ -181,6 +181,21 @@ def rules(text: str | None) -> dict[str, Any]:
         None,
     )
 
+    # Un botón del menú ("cat:iluminacion") no es una frase: si se clasifica,
+    # "iluminación" termina como tema personal.
+    from . import actions
+
+    if actions.es_accion(normalized):
+        return {
+            "intent": "otro",
+            "sensitive": False,
+            "frustrated": False,
+            "ambiguous": False,
+            "occasion": None,
+            "buy": False,
+            "negated": False,
+        }
+
     if not normalized:
         intent = "otro"
     elif _GREETING_RE.match(folded) and len(folded.split()) <= 6 and not buys:
