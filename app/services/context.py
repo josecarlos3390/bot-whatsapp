@@ -16,10 +16,19 @@ _RESPUESTA = re.compile(
 )
 
 
+# Un sí/no suelto no completa un rubro: "licuadora" + "si" no es un
+# producto, y buscar esa mezcla termina en resultados sin sentido.
+_SOLO_SI_NO = re.compile(
+    r"^(si|s[ií]|no|ok|okay|dale|listo|gracias|perfecto|bueno|claro)$"
+)
+
+
 def es_respuesta_suelta(texto: str) -> bool:
     """¿Es una respuesta corta a una pregunta y no un rubro nuevo?"""
     valor = (texto or "").strip().lower()
     if not valor:
+        return False
+    if _SOLO_SI_NO.match(valor):
         return False
     if len(valor.split()) > 4:
         return False

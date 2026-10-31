@@ -5064,6 +5064,21 @@ class Agent:
         rule_policy.log_applied(
             policy, contact_id=contact.id, query=raw
         )
+        # Reclamo abierto: lo que escriba el cliente es un dato del caso,
+        # no una búsqueda de producto.
+        if not _es_accion(normalized):
+            from .services import reclamo as reclamo_service
+
+            conversacion = await session.scalar(
+                select(Conversation).where(
+                    Conversation.contact_id == contact.id
+                )
+            )
+            if reclamo_service.activo(conversacion):
+                return await reclamo_service.continuar(
+                    session, contact, raw, self
+                )
+
         # "Es caro": se ofrece algo más barato del mismo rubro, en vez de
         # discutir el precio o quedarse callado.
         if not _es_accion(normalized):
@@ -5251,18 +5266,11 @@ class Agent:
             return AgentReply([Outbound(text=persona.handoff())])
 
         if COMPLAINT_RE.search(raw):
-            await toolbox.tool_human_handoff("Reclamo o cambio de producto")
-            return AgentReply(
-                [
-                    Outbound(
-                        text=(
-                            "Lamento lo ocurrido. Ya avisé a alguien del equipo "
-                            "para revisar el caso. ¿Me contás qué producto es y "
-                            "qué pasó?"
-                        )
-                    )
-                ]
-            )
+            # El caso se abre y el bot sigue tomando datos: si no, la
+            # respuesta siguiente se tomaba como búsqueda de producto.
+            from .services import reclamo
+
+            return await reclamo.iniciar(session, contact, raw, self)
 
         if CLEAR_CART_RE.search(raw):
             return await self._clear_cart_reply(session, contact)
@@ -5783,6 +5791,12 @@ class Agent:
             )
 
         if normalized == "explore":
+            return await self._category_list(session, contact)
+
+        # "volver"/"atrás" devuelve al menú de categorías en vez de
+        # buscar la palabra como si fuera un producto.
+        if normalized in {"volver", "atras", "atrás", "volver al menu", "volver al menú"}:
+            self._trace("Volver al menú de categorías")
             return await self._category_list(session, contact)
 
         if normalized == "catalog" and not native_commerce.is_ready():

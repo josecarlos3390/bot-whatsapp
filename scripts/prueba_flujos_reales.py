@@ -284,6 +284,41 @@ async def flujo_asesor(session) -> Persona:
     return persona
 
 
+
+
+async def flujo_cambio_tema(session) -> Persona:
+    """El cliente cambia de idea a mitad de la charla."""
+    persona = await _contacto(session, "Lola")
+    charla = Charla(persona, session)
+    await charla.decir("busco un sofa")
+    await charla.tocar_primera()
+    await charla.decir("no, mejor quiero una heladera")
+    await charla.tocar_primera()
+    return persona
+
+
+async def flujo_no_entiende(session) -> Persona:
+    """El cliente no entiende lo que le preguntaron."""
+    persona = await _contacto(session, "Mario")
+    charla = Charla(persona, session)
+    await charla.decir("busco algo para la casa")
+    await charla.decir("no entendi")
+    await charla.decir("no se que queres decir")
+    return persona
+
+
+async def flujo_vuelve_atras(session) -> Persona:
+    """Entra a una categoría y se arrepiente."""
+    persona = await _contacto(session, "Nora")
+    charla = Charla(persona, session)
+    await charla.decir("hola")
+    await charla.tocar("buscar")
+    await charla.tocar("sala")
+    await charla.decir("volver")
+    await charla.decir("menu")
+    return persona
+
+
 FLUJOS = {
     "saludo": flujo_saludo,
     "menu": flujo_menu,
@@ -296,6 +331,9 @@ FLUJOS = {
     "ambiguo": flujo_ambiguo,
     "inexistente": flujo_inexistente,
     "asesor": flujo_asesor,
+    "cambio_tema": flujo_cambio_tema,
+    "no_entiende": flujo_no_entiende,
+    "vuelve_atras": flujo_vuelve_atras,
 }
 
 

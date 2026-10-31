@@ -41,6 +41,9 @@ EXACTOS = {
     "filter",
     "menu",
     "inicio",
+    "volver",
+    "atras",
+    "atrás",
 }
 
 
