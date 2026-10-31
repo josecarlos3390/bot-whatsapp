@@ -6134,18 +6134,52 @@ class Agent:
         if len(body) > 700:
             body = body[:700].rsplit(" ", 1)[0] + "…"
 
-        return AgentReply(
-            [
-                Outbound(
-                    kind="buttons",
-                    text=f"*{top.get('title', '')}*\n\n{body}",
-                    buttons=[
-                        {"id": "catalog", "title": "Ver catálogo"},
-                        {"id": "human", "title": "Asesor"},
-                    ],
-                )
-            ]
-        )
+        # Si además pidió un producto en el mismo mensaje, se responde
+        # también: "quiero un colchón y cuánto sale el envío" son dos cosas.
+        extra = await self._pedido_en_la_misma_frase(session, contact, text)
+        mensajes = [
+            Outbound(
+                kind="buttons",
+                text=f"*{top.get('title', '')}*\n\n{body}",
+                buttons=[
+                    {"id": "catalog", "title": "Ver catálogo"},
+                    {"id": "human", "title": "Asesor"},
+                ],
+            )
+        ]
+        if extra is not None:
+            mensajes = [Outbound(text=f"*{top.get('title', '')}*\n\n{body}")]
+            mensajes.extend(extra.messages)
+        return AgentReply(mensajes)
+
+    async def _pedido_en_la_misma_frase(
+        self, session: AsyncSession, contact: Contact, text: str
+    ) -> AgentReply | None:
+        """Producto que pidió junto con la consulta de política."""
+        from .services import catalog as catalogo
+
+        limpio = catalogo.clean_for_search(text) or ""
+        base = catalogo.primary_term(limpio) or ""
+        if not base:
+            return None
+        # Palabras de política no son productos ("envío", "garantía").
+        if re.search(
+            r"^(envio|env[ií]o|pago|garantia|garant[ií]a|devolucion|devoluci[oó]n)$",
+            base,
+            re.IGNORECASE,
+        ):
+            return None
+        if not await catalogo.search_items(session, base, limit=1):
+            return None
+        try:
+            respuesta = await self._search_reply(
+                session, contact, base, limit=3
+            )
+        except Exception:  # noqa: BLE001 - no romper la respuesta de política
+            logger.debug("No se pudo sumar el producto", exc_info=True)
+            return None
+        self._trace(f"Política + producto: {base}")
+        return respuesta
 
     async def _llm_handle(
         self,

@@ -319,6 +319,40 @@ async def flujo_vuelve_atras(session) -> Persona:
     return persona
 
 
+
+
+async def flujo_multi_pedido(session) -> Persona:
+    """El cliente escribe varias cosas en un solo mensaje."""
+    persona = await _contacto(session, "Olga")
+    charla = Charla(persona, session)
+    await charla.decir(
+        "hola, quiero un colchon de 2 plazas y cuanto sale el envio"
+    )
+    await charla.tocar_primera()
+    return persona
+
+
+async def flujo_ia_caida(session) -> Persona:
+    """Si el modelo no responde, el bot igual tiene que contestar."""
+    from app.agent import Agent
+
+    original = Agent._llm
+
+    def _roto(self):
+        raise RuntimeError("sin conexión con el modelo")
+
+    Agent._llm = _roto
+    try:
+        persona = await _contacto(session, "Paco")
+        charla = Charla(persona, session)
+        await charla.decir("busco un taladro")
+        await charla.decir("hola")
+        await charla.decir("cuanto sale el envio a La Paz?")
+    finally:
+        Agent._llm = original
+    return persona
+
+
 FLUJOS = {
     "saludo": flujo_saludo,
     "menu": flujo_menu,
@@ -334,6 +368,8 @@ FLUJOS = {
     "cambio_tema": flujo_cambio_tema,
     "no_entiende": flujo_no_entiende,
     "vuelve_atras": flujo_vuelve_atras,
+    "multi_pedido": flujo_multi_pedido,
+    "ia_caida": flujo_ia_caida,
 }
 
 

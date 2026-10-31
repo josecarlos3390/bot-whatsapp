@@ -242,3 +242,31 @@ async def test_si_el_modelo_falla_igual_responde(catalogo, monkeypatch):
     assert reply.messages
     assert "error" not in texto
     assert "traceback" not in texto
+
+async def test_un_mensaje_con_dos_pedidos_responde_los_dos(catalogo):
+    """\"quiero un colchón y cuánto sale el envío\": las dos cosas."""
+    from app.models import CatalogItem
+
+    catalogo.add(
+        CatalogItem(
+            sku="DOBLE-001",
+            name="Colchón Doble Test",
+            price="2000",
+            stock=3,
+            brand="TEST",
+            category="Colchones",
+            active=True,
+        )
+    )
+    await catalogo.commit()
+    contacto = await _contacto(catalogo, "59170024001")
+
+    respuesta = await Agent().handle(
+        catalogo,
+        contacto,
+        "hola, quiero un colchon y cuanto sale el envio",
+    )
+
+    texto = " ".join(m.text or "" for m in respuesta.messages).lower()
+    assert "env" in texto  # respondió la política
+    assert "colch" in texto  # y también el producto
