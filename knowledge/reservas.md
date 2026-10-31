@@ -7,7 +7,6 @@ tags: reserva, reservar, seña, sena, apartar, anticipo, separar
 
 # Reservas y señas
 
-> Contenido de ejemplo para pruebas. Reemplazar por la política oficial.
 
 ## Cómo reservar
 - Se puede reservar un producto con el 30 % del valor como seña.

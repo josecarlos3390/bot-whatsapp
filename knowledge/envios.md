@@ -1,6 +1,7 @@
 ---
 title: Envíos, entrega a domicilio y recogida en tienda
 status: published
+sample: true
 tags: envio, envios, delivery, entrega, domicilio, recogida, retiro, pickup, plazo, horario, cobertura, costo, precio, flete
 ---
 
@@ -18,7 +19,6 @@ tags: envio, envios, delivery, entrega, domicilio, recogida, retiro, pickup, pla
 
 ## Costo de envío
 
-> Valores de ejemplo para pruebas. Actualizar con la tarifa oficial.
 
 - Santa Cruz capital: Bs 30.
 - Santa Cruz provincias (hasta 50 km): Bs 50.

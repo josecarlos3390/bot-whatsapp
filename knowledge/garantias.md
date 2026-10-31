@@ -7,7 +7,6 @@ tags: garantia, garantias, cobertura, reclamo, defecto, falla, cambio, producto,
 
 # Garantías
 
-> Contenido de ejemplo para pruebas. Reemplazar por la política oficial antes de operar con clientes reales.
 
 ## Cobertura
 - Todos los productos nuevos tienen garantía contra fallas de fabricación.

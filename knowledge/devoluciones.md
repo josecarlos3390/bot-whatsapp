@@ -7,7 +7,6 @@ tags: devolucion, devoluciones, cambio, cambios, reembolso, arrepentimiento, dev
 
 # Devoluciones y cambios
 
-> Contenido de ejemplo para pruebas. Reemplazar por la política oficial antes de operar con clientes reales.
 
 ## Plazo
 - Cambio o devolución por arrepentimiento: hasta 7 días desde la entrega.

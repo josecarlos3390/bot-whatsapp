@@ -7,11 +7,9 @@ tags: pago, pagos, tarjeta, cuotas, transferencia, qr, efectivo, factura, factur
 
 # Medios de pago y facturación
 
-> Contenido de ejemplo para pruebas. Reemplazar por la política oficial antes de operar con clientes reales.
 
 ## Precio final e impuestos
 
-> Contenido de ejemplo para pruebas. Confirmar con administración.
 
 - Los precios publicados **incluyen IVA**.
 - El precio que muestra el bot es el precio final del producto.

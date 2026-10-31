@@ -64,9 +64,16 @@ async def revisar_conocimiento(session) -> None:
         estado = articulo.status
         muestra = articulo.sample
         cuerpo = articulo.content.strip()
+        # Solo los avisos de verdad, no cualquier frase con "todo".
         marcador = any(
-            palabra in cuerpo.lower()
-            for palabra in ("completar", "todo", "ejemplo", "lorem")
+            aviso in cuerpo.lower()
+            for aviso in (
+                "contenido de ejemplo",
+                "valores de ejemplo",
+                "reemplazar por",
+                "completar antes",
+                "lorem ipsum",
+            )
         )
         print(
             f"  {estado:<10} {'MUESTRA' if muestra else 'real':<8} "
