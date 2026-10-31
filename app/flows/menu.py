@@ -53,6 +53,7 @@ async def product_list(
     category: str,
     termino: str = "",
     directo: bool = False,
+    max_precio: float = 0,
 ) -> AgentReply:
     """Productos de un ambiente, ordenados por lo esperado."""
     from ..agent import (
@@ -136,7 +137,75 @@ async def product_list(
         products = _ordenar_por_ambiente(
             result.get("products") or [], key
         )
+    # Si eligió una opción, hay que respetarla: no mostrar lámparas cuando
+    # pidió focos (el buscador devuelve lo parecido y confunde).
+    if termino:
+        palabras = {
+            palabra
+            for palabra in termino.lower().split()
+            if len(palabra) > 3
+        }
+        exactos = [
+            producto
+            for producto in products
+            if any(
+                palabra in (producto.get("name") or "").lower()
+                for palabra in palabras
+            )
+        ]
+        if exactos:
+            products = exactos
+        elif products:
+            agent._trace(f"Sin coincidencia para {termino}")
+            return AgentReply(
+                [
+                    Outbound(
+                        kind="buttons",
+                        text=(
+                            f"No tengo *{termino}* disponible ahora. "
+                            f"¿Te muestro todo lo de {label}?"
+                        ),
+                        buttons=[
+                            {"id": f"sub:{key}|todo", "title": "Ver todo"},
+                            {"id": "human", "title": "Asesor"},
+                        ],
+                    )
+                ]
+            )
+
+    # El presupuesto que eligió el cliente se respeta.
+    if max_precio > 0:
+        filtrados = [
+            producto
+            for producto in products
+            if float(producto.get("promo_price") or producto.get("price") or 0)
+            <= max_precio
+        ]
+        if filtrados:
+            products = filtrados
     products = products[:9]
+
+    # Si hay mucha diferencia de precios, se pregunta el presupuesto: es lo
+    # que más ayuda a acertar (y lo que haría un vendedor).
+    if not max_precio:
+        from ..services import presupuesto
+
+        precios = [
+            float(producto.get("promo_price") or producto.get("price") or 0)
+            for producto in products
+        ]
+        rangos = presupuesto.bandas(precios)
+        if rangos:
+            agent._trace(f"Pregunta de presupuesto: {key}")
+            return AgentReply(
+                [
+                    Outbound(
+                        kind="buttons",
+                        text=presupuesto.texto(),
+                        buttons=presupuesto.botones(key, rangos),
+                    )
+                ]
+            )
     if not products:
         return AgentReply(
             [

@@ -422,6 +422,13 @@ def _es_respuesta_suelta(texto: str) -> bool:
     ) and len(valor.split()) <= 4
 
 
+def _es_accion(texto: str) -> bool:
+    """¿El mensaje es un botón o comando del cliente?"""
+    from .services import actions
+
+    return actions.es_accion(texto)
+
+
 def _confirmacion(consulta: str) -> str:
     """Repite lo que se entendió antes de listar: el cliente puede corregir.
 
@@ -3753,10 +3760,17 @@ class Agent:
         category: str,
         termino: str = "",
         directo: bool = False,
+        max_precio: float = 0,
     ) -> AgentReply:
         """Productos de un ambiente (flows/menu.py)."""
         return await menu_flow.product_list(
-            self, session, contact, category, termino=termino, directo=directo
+            self,
+            session,
+            contact,
+            category,
+            termino=termino,
+            directo=directo,
+            max_precio=max_precio,
         )
 
     async def _product_detail(
@@ -5001,19 +5015,7 @@ class Agent:
         # aclaró, se pregunta en vez de afirmar que tenemos algo que no hay.
         # La palabra ambigua puede aparecer sin verbo de búsqueda
         # ("consola" a secas), así que no depende de SEARCH_RE.
-        if not normalized.startswith(
-            (
-                "uso:",
-                "refine:",
-                "product:",
-                "cat:",
-                "type:",
-                "find:",
-                "add:",
-                "cart",
-                "checkout",
-            )
-        ) and len(raw.split()) <= 8:
+        if not _es_accion(normalized) and len(raw.split()) <= 8:
             from .services import homonimos
 
             ambiguo = homonimos.buscar(raw)
@@ -5042,9 +5044,7 @@ class Agent:
 
         # Dato clave para recomendar (m², personas, distancia): se pregunta
         # antes de listar si el cliente no lo dijo.
-        if SEARCH_RE.search(raw) and not normalized.startswith(
-            ("uso:", "refine:", "product:", "cat:", "type:")
-        ):
+        if SEARCH_RE.search(raw) and not _es_accion(normalized):
             from .services import tech_guide
 
             falta = tech_guide.falta_dato(raw)
@@ -5065,9 +5065,7 @@ class Agent:
 
         # Pedido abierto ("productos de tecnología"): preguntar el uso antes
         # de listar, para no adivinar.
-        if SEARCH_RE.search(raw) and not normalized.startswith(
-            ("uso:", "refine:", "product:", "cat:", "type:")
-        ):
+        if SEARCH_RE.search(raw) and not _es_accion(normalized):
             from .services import clarify
 
             pregunta = await clarify.preguntar(
@@ -5076,7 +5074,11 @@ class Agent:
             if pregunta is not None:
                 return pregunta
 
-        if policy.has_product_rules and SEARCH_RE.search(raw):
+        if (
+            policy.has_product_rules
+            and SEARCH_RE.search(raw)
+            and not _es_accion(normalized)
+        ):
             return await self._search_reply(
                 session, contact, raw, policy=policy
             )
@@ -5287,6 +5289,23 @@ class Agent:
                 category.strip(),
                 termino=termino,
                 directo=directo,
+            )
+
+        # "price:<categoría>|<máximo>": el presupuesto que eligió.
+        if normalized.startswith("price:"):
+            resto = raw.split(":", 1)[1].strip()
+            category, _, tope = resto.partition("|")
+            try:
+                maximo = float(tope or 0)
+            except ValueError:
+                maximo = 0
+            self._trace(f"Presupuesto: {category} hasta {maximo}")
+            return await self._product_list(
+                session,
+                contact,
+                category.strip(),
+                directo=True,
+                max_precio=maximo,
             )
 
         if normalized.startswith("product:"):
