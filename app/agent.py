@@ -422,6 +422,15 @@ def _es_respuesta_suelta(texto: str) -> bool:
     ) and len(valor.split()) <= 4
 
 
+def _monto(valor) -> str:
+    """Precio con separador de miles: 4290 -> 4.290."""
+    try:
+        numero = float(valor or 0)
+    except (TypeError, ValueError):
+        return str(valor or "")
+    return f"{numero:,.0f}".replace(",", ".") if numero else str(valor or "")
+
+
 def _es_accion(texto: str) -> bool:
     """¿El mensaje es un botón o comando del cliente?"""
     from .services import actions
@@ -5011,6 +5020,48 @@ class Agent:
         rule_policy.log_applied(
             policy, contact_id=contact.id, query=raw
         )
+        # "Es caro": se ofrece algo más barato del mismo rubro, en vez de
+        # discutir el precio o quedarse callado.
+        if not _es_accion(normalized):
+            from .services import objecion
+
+            if objecion.es_objecion(raw):
+                producto = await objecion.ultimo_producto(session, contact)
+                if producto is not None:
+                    baratos = await objecion.mas_baratos(session, producto, contact)
+                    nombre = (producto.name or "")[:48]
+                    if baratos:
+                        self._trace(f"Objeción de precio: {producto.sku}")
+                        return AgentReply(
+                            [
+                                Outbound(
+                                    text=(
+                                        f"Te entiendo 🙌 *{nombre}* está en "
+                                        f"Bs {_monto(getattr(producto, 'promo_price', None) or producto.price)}."
+                                        "\n\nEstas son más económicas:"
+                                    )
+                                ),
+                                *self._search_cards(baratos),
+                            ]
+                        )
+                    self._trace("Objeción sin alternativa más barata")
+                    return AgentReply(
+                        [
+                            Outbound(
+                                kind="buttons",
+                                text=(
+                                    f"Te entiendo 🙌 Lo más barato que tengo "
+                                    f"parecido es *{nombre}*. ¿Miramos otra "
+                                    "categoría o te paso el precio de contado?"
+                                ),
+                                buttons=[
+                                    {"id": "catalog", "title": "Otra categoría"},
+                                    {"id": "human", "title": "Hablar con asesor"},
+                                ],
+                            )
+                        ]
+                    )
+
         # Palabras con dos significados (consola, tinta): si el cliente no
         # aclaró, se pregunta en vez de afirmar que tenemos algo que no hay.
         # La palabra ambigua puede aparecer sin verbo de búsqueda
