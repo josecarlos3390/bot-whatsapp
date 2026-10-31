@@ -3809,6 +3809,24 @@ class Agent:
             ]
         )
 
+    async def _offers_reply(
+        self, session: AsyncSession, contact: Contact
+    ) -> AgentReply | None:
+        """Las mejores ofertas del catálogo, con precio y descuento."""
+        from .services import catalog as catalogo
+
+        filas = await catalogo.best_discounts(session, limit=5)
+        if not filas:
+            return None
+        productos = [Toolbox._product(fila) for fila in filas]
+        await Toolbox(session, contact, self.wa)._attach_promotions(productos)
+        return AgentReply(
+            [
+                Outbound(text="Estas son las que tienen más descuento ahora 🔥"),
+                *self._search_cards(productos),
+            ]
+        )
+
     async def _product_list(
         self,
         session: AsyncSession,
@@ -4954,6 +4972,44 @@ class Agent:
         # Clasificación de intención: primero reglas, y si hay duda, el modelo
         # con lista cerrada de ocasiones. Una frase personal nunca termina en
         # una lista de productos "cercanos".
+        # Cuestiona lo que se le mostró ("¿por qué me sugerís almohadas?"):
+        # se responde la pregunta, no se muestra otra ficha.
+        if not _es_accion(normalized):
+            from .services import pedido_vago
+
+            if pedido_vago.es_cuestionamiento(raw):
+                self._trace("Cuestiona una sugerencia")
+                return AgentReply(
+                    [
+                        Outbound(
+                            kind="buttons",
+                            text=pedido_vago.disculpa(),
+                            buttons=pedido_vago.botones_disculpa(),
+                        )
+                    ]
+                )
+            # "Véndeme algo": se muestran las mejores ofertas reales en vez
+            # de preguntar de nuevo.
+            if pedido_vago.quiere_ver_ofertas(raw):
+                self._trace("Pide ofertas")
+                ofertas = await self._offers_reply(session, contact)
+                if ofertas is not None:
+                    return ofertas
+
+            # Pedido vago ("algo para mí"): se pregunta para qué, en vez de
+            # buscar la palabra "mi" y mostrar cualquier cosa.
+            if pedido_vago.es_vago(raw):
+                self._trace("Pedido vago")
+                return AgentReply(
+                    [
+                        Outbound(
+                            kind="buttons",
+                            text=pedido_vago.pregunta_vago(),
+                            buttons=pedido_vago.botones_vago(),
+                        )
+                    ]
+                )
+
         decision = await intent_service.classify(raw)
         # Temas delicados (duelo, salud, tristeza): primero la persona.
         if decision.get("sensitive"):

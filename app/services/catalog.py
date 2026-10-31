@@ -972,3 +972,54 @@ async def search_by_type(
             encontrados.append(fila)
     encontrados.sort(key=lambda item: 0 if item.image_url else 1)
     return encontrados[: int(limit)]
+
+async def best_discounts(session: AsyncSession, limit: int = 5) -> list[CatalogItem]:
+    """Artículos activos con mayor descuento vigente."""
+    from datetime import date
+
+    from sqlalchemy import or_, select
+
+    from ..config import settings
+    from ..models import ProductPromotion
+
+    hoy = date.today()
+    filas = (
+        await session.execute(
+            select(CatalogItem, ProductPromotion)
+            .join(ProductPromotion, ProductPromotion.sku == CatalogItem.sku)
+            .where(
+                CatalogItem.active.is_(True),
+                CatalogItem.stock > 0,
+                ProductPromotion.price_list == settings.sap_price_list,
+                ProductPromotion.price > 0,
+                # Descuentos imposibles suelen ser errores de carga.
+                ProductPromotion.discount_percent <= 70,
+                or_(
+                    ProductPromotion.valid_from.is_(None),
+                    ProductPromotion.valid_from <= hoy,
+                ),
+                or_(
+                    ProductPromotion.valid_to.is_(None),
+                    ProductPromotion.valid_to >= hoy,
+                ),
+            )
+            .order_by(ProductPromotion.discount_percent.desc())
+            .limit(limit * 4)
+        )
+    ).all()
+    vistos: set[str] = set()
+    por_categoria: dict[str, int] = {}
+    salida: list[CatalogItem] = []
+    for item, _promo in filas:
+        if item.sku in vistos:
+            continue
+        categoria = (item.category or "otros").lower()
+        # Dos por rubro como máximo: cinco cubrecamas no son "ofertas".
+        if por_categoria.get(categoria, 0) >= 2:
+            continue
+        vistos.add(item.sku)
+        por_categoria[categoria] = por_categoria.get(categoria, 0) + 1
+        salida.append(item)
+        if len(salida) >= limit:
+            break
+    return salida
