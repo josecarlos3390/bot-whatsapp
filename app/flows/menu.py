@@ -47,7 +47,12 @@ def _formato_precio(valor: float) -> str:
 
 
 async def product_list(
-    agent, session: AsyncSession, contact: Contact, category: str
+    agent,
+    session: AsyncSession,
+    contact: Contact,
+    category: str,
+    termino: str = "",
+    directo: bool = False,
 ) -> AgentReply:
     """Productos de un ambiente, ordenados por lo esperado."""
     from ..agent import (
@@ -68,9 +73,54 @@ async def product_list(
     products: list[dict] = []
     # Para un ambiente se busca por lo que se espera ver (sofá, mesa...) y
     # no por la categoría entera, que traía espejos primero.
-    for termino in CATEGORY_ORDER.get(key, ())[:5]:
+    # Preguntar antes de listar, pero solo si el catálogo lo justifica:
+    # si las opciones devuelven lo mismo, preguntar confunde.
+    if not termino and not directo:
+        from ..services import categorias
+
+        guia = categorias.pregunta(key)
+        if guia is not None:
+            utiles = []
+            vistos: set[str] = set()
+            for etiqueta, busqueda in guia["opciones"]:
+                encontrados = await toolbox.tool_search_products(
+                    category=canonical, query=busqueda, limit=6
+                )
+                nuevos = [
+                    producto
+                    for producto in encontrados.get("products") or []
+                    if producto["sku"] not in vistos
+                ]
+                if nuevos:
+                    utiles.append((etiqueta, busqueda))
+                    vistos.update(p["sku"] for p in nuevos)
+            if len(utiles) >= 2 and len(vistos) >= 8:
+                agent._trace(f"Pregunta de categoría: {key}")
+                return AgentReply(
+                    [
+                        Outbound(
+                            kind="list",
+                            text=(
+                                f"{guia['texto']}\n"
+                                "Así te muestro justo lo que necesitás 👇"
+                            ),
+                            button_text="Elegir",
+                            sections=[
+                                {
+                                    "title": "Opciones",
+                                    "rows": categorias.opciones(
+                                        key, utiles
+                                    ),
+                                }
+                            ],
+                        )
+                    ]
+                )
+
+    terminos = (termino,) if termino else CATEGORY_ORDER.get(key, ())[:5]
+    for termino_actual in terminos:
         encontrados = await toolbox.tool_search_products(
-            category=canonical, query=termino, limit=2
+            category=canonical, query=termino_actual, limit=2 if termino else 2
         )
         for producto in encontrados.get("products") or []:
             if all(

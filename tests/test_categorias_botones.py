@@ -1,4 +1,4 @@
-"""Botones de categoría: listas deterministas y sin texto repetido."""
+﻿"""Botones de categoría: listas deterministas y sin texto repetido."""
 
 from __future__ import annotations
 
@@ -93,3 +93,27 @@ async def test_categoria_no_repite_el_texto(session):
         if mensaje.text
     ]
     assert len(textos) == len(set(textos))
+
+
+def test_las_preguntas_por_rubro_llevan_a_busquedas_distintas():
+    from app.services import categorias
+
+    for clave, datos in categorias.PREGUNTAS.items():
+        terminos = [termino for _, termino in datos["opciones"]]
+        assert len(set(terminos)) == len(terminos), clave
+        assert categorias.pregunta(clave) is not None
+
+
+def test_una_categoria_sin_pregunta_no_pregunta():
+    from app.services import categorias
+
+    assert categorias.pregunta("ofertas") is None
+
+
+def test_las_opciones_incluyen_ver_todo():
+    from app.services import categorias
+
+    filas = categorias.opciones("sala")
+    assert filas[-1]["title"] == "Ver todo"
+    assert filas[-1]["id"] == "sub:sala|todo"
+    assert all(fila["id"].startswith("sub:") for fila in filas)

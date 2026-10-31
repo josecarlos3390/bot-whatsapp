@@ -3747,10 +3747,17 @@ class Agent:
         )
 
     async def _product_list(
-        self, session: AsyncSession, contact: Contact, category: str
+        self,
+        session: AsyncSession,
+        contact: Contact,
+        category: str,
+        termino: str = "",
+        directo: bool = False,
     ) -> AgentReply:
         """Productos de un ambiente (flows/menu.py)."""
-        return await menu_flow.product_list(self, session, contact, category)
+        return await menu_flow.product_list(
+            self, session, contact, category, termino=termino, directo=directo
+        )
 
     async def _product_detail(
         self, session: AsyncSession, contact: Contact, sku: str
@@ -5264,6 +5271,23 @@ class Agent:
         if normalized.startswith("cat:"):
             category = raw.split(":", 1)[1].strip()
             return await self._product_list(session, contact, category)
+
+        # "sub:<categoría>|<término>": la opción que eligió en la pregunta.
+        if normalized.startswith("sub:"):
+            resto = raw.split(":", 1)[1].strip()
+            category, _, termino = resto.partition("|")
+            termino = termino.strip()
+            directo = termino == "todo"
+            if directo:
+                termino = ""
+            self._trace(f"Subcategoría: {category} / {termino or 'todo'}")
+            return await self._product_list(
+                session,
+                contact,
+                category.strip(),
+                termino=termino,
+                directo=directo,
+            )
 
         if normalized.startswith("product:"):
             sku = raw.split(":", 1)[1].strip()

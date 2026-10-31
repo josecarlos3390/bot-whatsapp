@@ -14,6 +14,7 @@ PREFIJOS = (
     "qty:",
     "remove:",
     "cat:",
+    "sub:",
     "type:",
     "see:",
     "uso:",
