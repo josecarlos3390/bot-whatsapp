@@ -1,4 +1,4 @@
-"""Productos afines cuando no hay lo que el cliente pide."""
+﻿"""Productos afines cuando no hay lo que el cliente pide."""
 
 from __future__ import annotations
 
@@ -43,3 +43,38 @@ def test_una_ducha_no_coincide_con_un_monitor():
     ducha = {"name": "Gran Ducha Electrónica 7000W Blanca", "category": "Duchas"}
 
     assert not _coincide(descripcion, ducha)
+
+
+def test_detecta_la_palabra_ambigua():
+    from app.services import homonimos
+
+    assert homonimos.buscar("busco una consola")["palabra"] == "consola"
+    assert homonimos.buscar("quiero tinta para la pared")["palabra"] == "tinta"
+    assert homonimos.buscar("busco un taladro") is None
+
+
+def test_no_pregunta_si_el_cliente_aclaro():
+    from app.services import homonimos
+
+    assert homonimos.ya_aclaro("una consola para jugar", "consola")
+    assert homonimos.ya_aclaro("el mueble consola para la sala", "consola")
+    assert not homonimos.ya_aclaro("busco una consola", "consola")
+
+
+async def test_solo_hay_muebles_de_consola(session):
+    from app.services import homonimos
+
+    significado = await homonimos.significado(session, "consola")
+
+    assert significado in {"a", "ninguno"}
+
+
+def test_la_aclaracion_ofrece_los_dos_significados():
+    from app.services import homonimos
+
+    aclaracion = homonimos.aclarar("consola", "a")
+
+    assert "videojuegos" in aclaracion["texto"].lower()
+    titulos = [boton["title"] for boton in aclaracion["botones"]]
+    assert "mueble" in titulos
+    assert all(boton["id"].startswith("find:") for boton in aclaracion["botones"])

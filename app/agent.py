@@ -4990,6 +4990,49 @@ class Agent:
         rule_policy.log_applied(
             policy, contact_id=contact.id, query=raw
         )
+        # Palabras con dos significados (consola, tinta): si el cliente no
+        # aclaró, se pregunta en vez de afirmar que tenemos algo que no hay.
+        # La palabra ambigua puede aparecer sin verbo de búsqueda
+        # ("consola" a secas), así que no depende de SEARCH_RE.
+        if not normalized.startswith(
+            (
+                "uso:",
+                "refine:",
+                "product:",
+                "cat:",
+                "type:",
+                "find:",
+                "add:",
+                "cart",
+                "checkout",
+            )
+        ) and len(raw.split()) <= 8:
+            from .services import homonimos
+
+            ambiguo = homonimos.buscar(raw)
+            if ambiguo is not None and not homonimos.ya_aclaro(
+                raw, ambiguo["palabra"]
+            ):
+                conocido = await homonimos.significado(
+                    session, ambiguo["palabra"]
+                )
+                if conocido in {"a", "b"}:
+                    self._trace(
+                        f"Palabra ambigua: {ambiguo['palabra']} ({conocido})"
+                    )
+                    aclaracion = homonimos.aclarar(
+                        ambiguo["palabra"], conocido
+                    )
+                    return AgentReply(
+                        [
+                            Outbound(
+                                kind="buttons",
+                                text=aclaracion["texto"],
+                                buttons=aclaracion["botones"],
+                            )
+                        ]
+                    )
+
         # Dato clave para recomendar (m², personas, distancia): se pregunta
         # antes de listar si el cliente no lo dijo.
         if SEARCH_RE.search(raw) and not normalized.startswith(
