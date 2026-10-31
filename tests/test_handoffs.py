@@ -64,7 +64,8 @@ async def test_create_take_resolve_handoff(session):
     )
     assert notification["ok"] is True
     assert handoff.status == "pending"
-    # Mientras el caso espera, el bot sigue atendiendo.
+    # El bot solo se calla cuando el cliente pidió una persona
+    # (create_handoff(pausar=True)); en un reclamo sigue atendiendo.
     assert conversation.bot_paused is False
 
     again, _ = await handoffs.create_handoff(

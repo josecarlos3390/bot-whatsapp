@@ -181,6 +181,30 @@ async def reply(
     if not termino:
         return None
 
+    # Primero la familia del producto: un monitor se parece a un televisor,
+    # no a "vigilar la casa". Las ideas libres quedan como último recurso.
+    from . import familia
+
+    afin, afines = await familia.buscar(session, termino)
+    if afines:
+        from . import product_view
+
+        tarjetas_afines = [product_view.payload(fila) for fila in afines[:3]]
+        toolbox_afin = Toolbox(session, contact, agent.wa)
+        await toolbox_afin._attach_promotions(tarjetas_afines)
+        agent._trace(f"Faltante {termino}: familia {afin}")
+        return AgentReply(
+            [
+                Outbound(
+                    text=(
+                        f"No tengo *{termino}* 🛍️ Pero esto es lo más parecido "
+                        f"que tenemos ({afin}):"
+                    )
+                ),
+                *agent._search_cards(tarjetas_afines),
+            ]
+        )
+
     ideas, productos = await relacionadas(session, termino)
     if not productos:
         return None

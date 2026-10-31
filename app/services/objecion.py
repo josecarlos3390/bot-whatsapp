@@ -85,6 +85,9 @@ async def mas_baratos(
         ignore_state=True,
     )
     filas = resultado.get("products") or []
+    # Tiene que ser el mismo tipo de producto, no un accesorio: una cabecera
+    # de cama no reemplaza a un colchón caro.
+    sustantivo = (producto.name or "").split()[0].lower() if producto.name else ""
     salida = []
     for fila in filas:
         try:
@@ -92,6 +95,9 @@ async def mas_baratos(
         except (TypeError, ValueError):
             continue
         if valor <= 0 or valor >= precio:
+            continue
+        nombre = (fila.get("name") or "").lower()
+        if sustantivo and sustantivo not in nombre:
             continue
         salida.append(fila)
     salida.sort(key=lambda fila: float(fila.get("promo_price") or fila["price"]))

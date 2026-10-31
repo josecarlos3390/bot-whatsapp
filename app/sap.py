@@ -1268,19 +1268,20 @@ class VtexPaas(PaasSap):
 
     async def create_sales_order(self, order: Order) -> SapOrderResult:
         raise SapError(
-            "El bot está en modo informativo VTEX: no se crean pedidos."
+            "En este momento los pedidos se cierran con un asesor. "
+            "Ya le paso tu carrito para que lo confirme."
         )
 
     async def create_invoice_from_order(self, order: Order) -> SapInvoiceResult:
         raise SapError(
-            "El bot está en modo informativo VTEX: no se factura."
+            "La facturación la gestiona un asesor del equipo."
         )
 
     async def create_incoming_payment(
         self, order: Order, invoice: SapInvoiceResult
     ) -> SapPaymentResult:
         raise SapError(
-            "El bot está en modo informativo VTEX: no se registran pagos."
+            "El pago se coordina con un asesor del equipo."
         )
 
 

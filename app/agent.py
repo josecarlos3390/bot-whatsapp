@@ -2335,8 +2335,27 @@ class Toolbox:
         )
         if conversation is None:
             return {"ok": False, "error": "Conversación no encontrada"}
+        # El bot se calla solo si el cliente pidió una persona. En un reclamo
+        # sigue juntando datos para que el asesor los tenga listos.
+        import re as _re
+
+        pidio_persona = bool(
+            _re.search(
+                r"(hablar con|pidi[oó]|solicit[oó]|pedir|quiere|deriv)",
+                (reason or ""),
+                _re.IGNORECASE,
+            )
+        ) and not _re.search(
+            r"(reclamo|devoluci|garant[ií]a|roto|falla)",
+            (reason or ""),
+            _re.IGNORECASE,
+        )
         handoff, notification = await handoffs.create_handoff(
-            self.session, conversation, self.contact, reason
+            self.session,
+            conversation,
+            self.contact,
+            reason,
+            pausar=pidio_persona,
         )
         return {
             "ok": True,
@@ -3726,6 +3745,31 @@ class Agent:
                 ]
             )
         products = result.get("products") or []
+        # Si no hay nada, se prueba con la familia del producto antes de
+        # inventar ideas: un monitor se parece a un televisor, no a una ducha.
+        if not products and settings.enable_family_fallback:
+            from .services import familia
+
+            afin, filas = await familia.buscar(session, _clean_query(query))
+            if filas:
+                self._trace(f"Sin resultados: familia {query} -> {afin}")
+                from .services import product_view
+
+                familiares = [
+                    product_view.payload(fila) for fila in filas[:3]
+                ]
+                await self._attach_promotions(familiares)
+                return AgentReply(
+                    [
+                        Outbound(
+                            text=(
+                                f"No tengo *{_clean_query(query)}*, pero esto "
+                                f"es lo más parecido ({afin}):"
+                            )
+                        ),
+                        *self._search_cards(familiares),
+                    ]
+                )
         # Se guarda qué producto se mostró primero: sirve para explicar luego
         # "¿por qué me recomendaste ese?".
         await funnel.track(
@@ -5386,6 +5430,10 @@ class Agent:
         if normalized.startswith("type:"):
             tipo = raw.split(":", 1)[1].strip()
             filas = await catalog.search_by_type(session, tipo, limit=3)
+            if not filas:
+                # El botón dice "Taladro percutor" pero el campo tipo del
+                # catálogo solo guarda "Taladro": se busca por nombre.
+                filas = await catalog.search_items(session, tipo, limit=3)
             if filas:
                 self._trace(f"Tipo de producto: {tipo}")
                 productos = [Toolbox._product(fila) for fila in filas]

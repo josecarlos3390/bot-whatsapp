@@ -112,6 +112,7 @@ async def create_handoff(
     conversation: Conversation,
     contact: Contact,
     reason: str = "",
+    pausar: bool = False,
 ) -> tuple[Handoff, dict]:
     existing = await session.scalar(
         select(Handoff).where(
@@ -138,6 +139,10 @@ async def create_handoff(
         assigned_to=assigned.display_name if assigned else None,
     )
     session.add(handoff)
+    # Solo se calla el bot cuando el cliente pidió una persona. En un
+    # reclamo el bot sigue juntando datos para el asesor.
+    if pausar:
+        conversation.bot_paused = True
     await session.flush()
     await _event(
         session,

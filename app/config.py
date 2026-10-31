@@ -101,6 +101,8 @@ class Settings(BaseSettings):
     deepseek_offpeak_inicio: float = 16.5
     deepseek_offpeak_fin: float = 0.5
     slow_reply_seconds: float = 7.0
+    # Si un producto no existe, probar con su familia (monitor -> televisor).
+    enable_family_fallback: bool = True
     batching_ms: int = 1600
     transcribe_enabled: bool = True
     transcribe_model: str = "small"
