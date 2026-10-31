@@ -4866,9 +4866,60 @@ class Agent:
             if pending_reply is not None:
                 return pending_reply
 
+        # Costo de envío: se pregunta la ciudad y se responde la tarifa,
+        # antes de volcar el artículo completo de envíos.
+        es_costo = bool(
+            re.search(
+                r"\b(cu[aá]nto|precio|costo|tarifa|sale)\b.{0,25}\benv[ií]o\b"
+                r"|\benv[ií]o\b.{0,25}\b(cu[aá]nto|precio|costo|sale)\b",
+                raw,
+                re.IGNORECASE,
+            )
+        )
+        # "¿hacen envíos a domicilio?" es una consulta de servicio: la
+        # responde el artículo, no una cotización.
+        es_ciudad = bool(
+            re.search(r"\benv[ií]os?\b", raw, re.IGNORECASE)
+        ) and "domicilio" not in raw.lower()
+        if not _es_accion(normalized) and (es_costo or es_ciudad):
+            from .services import envio as envio_service
+
+            zona = envio_service.buscar(raw)
+            if zona is not None and (es_costo or es_ciudad):
+                self._trace(f"Envío directo: {zona['clave']}")
+                extra = await self._pedido_en_la_misma_frase(
+                    session, contact, raw
+                )
+                mensajes = [Outbound(text=envio_service.cotizar(zona))]
+                if extra is not None:
+                    mensajes.extend(extra.messages)
+                return AgentReply(mensajes)
+            if es_costo and envio_service.zonas():
+                self._trace("Envío: falta la ciudad")
+                extra = await self._pedido_en_la_misma_frase(
+                    session, contact, raw
+                )
+                mensajes = [
+                    Outbound(
+                        kind="list",
+                        text=envio_service.pregunta(),
+                        button_text="Elegir ciudad",
+                        sections=[
+                            {
+                                "title": "Ciudades",
+                                "rows": envio_service.opciones(),
+                            }
+                        ],
+                    )
+                ]
+                if extra is not None:
+                    mensajes.extend(extra.messages)
+                return AgentReply(mensajes)
+
         # Las políticas publicadas (envíos, garantías) se responden primero:
-        # es mejor dar el dato que preguntar de vuelta.
-        if KNOWLEDGE_RE.search(raw):
+        # es mejor dar el dato que preguntar de vuelta. Un botón no es una
+        # consulta ("envio:la-paz" no debe responder el artículo).
+        if KNOWLEDGE_RE.search(raw) and not _es_accion(normalized):
             knowledge_reply = await self._knowledge_reply(session, contact, raw)
             if knowledge_reply is not None:
                 return knowledge_reply
@@ -5272,13 +5323,35 @@ class Agent:
 
             return await reclamo.iniciar(session, contact, raw, self)
 
+        # "envio:<zona>": el cliente eligió a dónde mandarlo.
+        if normalized.startswith("envio:"):
+            from .services import envio as envio_service
+
+            clave = raw.split(":", 1)[1].strip()
+            zona = envio_service.por_clave(clave) or envio_service.por_clave(
+                "resto"
+            )
+            self._trace(f"Envío: {clave}")
+            return AgentReply(
+                [
+                    Outbound(
+                        kind="buttons",
+                        text=envio_service.cotizar(zona),
+                        buttons=[
+                            {"id": "catalog", "title": "Ver productos"},
+                            {"id": "human", "title": "Asesor"},
+                        ],
+                    )
+                ]
+            )
+
         if CLEAR_CART_RE.search(raw):
             return await self._clear_cart_reply(session, contact)
 
         if STATUS_RE.search(raw):
             return await self._status_reply(session, contact)
 
-        if KNOWLEDGE_RE.search(raw):
+        if KNOWLEDGE_RE.search(raw) and not _es_accion(normalized):
             knowledge_reply = await self._knowledge_reply(session, contact, raw)
             if knowledge_reply is not None:
                 return knowledge_reply

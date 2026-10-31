@@ -1,0 +1,48 @@
+{
+  "actualizado": "2026-10-31",
+  "aviso": "Tarifas de prueba. Confirmar con el area de logistica antes de produccion.",
+  "gratis_desde": 1500,
+  "retiro": "Retiro en tienda: sin costo.",
+  "zonas": [
+    {
+      "clave": "santa-cruz",
+      "etiqueta": "Santa Cruz capital",
+      "alias": ["santa cruz", "scz", "capital", "centro"],
+      "costo": 30,
+      "plazo": "24 horas",
+      "nota": "Entregas de lunes a sabado de 08:00 a 16:00."
+    },
+    {
+      "clave": "santa-cruz-provincias",
+      "etiqueta": "Provincias de Santa Cruz",
+      "alias": ["provincia", "provincias", "montero", "warnes", "cotoca", "la guardia"],
+      "costo": 50,
+      "plazo": "24 a 48 horas",
+      "nota": "Hasta 50 km de la capital."
+    },
+    {
+      "clave": "la-paz",
+      "etiqueta": "La Paz",
+      "alias": ["la paz", "el alto"],
+      "costo": 45,
+      "plazo": "48 horas",
+      "nota": "Solo ciudad."
+    },
+    {
+      "clave": "cochabamba",
+      "etiqueta": "Cochabamba",
+      "alias": ["cochabamba", "cocha"],
+      "costo": 45,
+      "plazo": "48 horas",
+      "nota": "Solo ciudad."
+    },
+    {
+      "clave": "resto",
+      "etiqueta": "Resto del pais",
+      "alias": ["oruro", "potosi", "sucre", "tarija", "trinidad", "cobija", "resto", "otra"],
+      "costo": 70,
+      "plazo": "48 a 72 horas",
+      "nota": "Por transportista."
+    }
+  ]
+}

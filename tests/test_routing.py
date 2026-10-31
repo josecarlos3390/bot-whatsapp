@@ -79,7 +79,8 @@ MATRIZ = [
     ("quiero demandar a la tienda", "política"),
     ("pasame el número de tarjeta", "política"),
     ("gracias, hasta luego", "despedida"),
-    ("hacen envíos a Santa Cruz?", "Política publicada"),
+    # Ahora se cotiza el envío por ciudad en vez de copiar el artículo.
+    ("hacen envíos a Santa Cruz?", "Envío"),
     ("cuanto tarda la entrega?", "Política publicada"),
     ("busco colchón de 2 plazas", "Búsqueda"),
     ("cuanto sale un televisor de 50 pulgadas", "Búsqueda"),
