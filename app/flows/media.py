@@ -16,11 +16,48 @@ from ..services import ideas, media as media_service, vision
 from ..whatsapp import Outbound
 
 
+# En el catálogo el televisor se llama «TV»: sin esto, la foto de una tele
+# no coincide con ninguno.
+_SINONIMOS = {
+    "tv": "televisor",
+    "televisores": "televisor",
+    "refrigerador": "heladera",
+    "refrigeradora": "heladera",
+    "nevera": "heladera",
+    "lavarropas": "lavadora",
+    "batidora": "licuadora",
+    "calefon": "termotanque",
+    "calentador": "termotanque",
+}
+
+
 def _tokens(texto: str) -> set[str]:
     import re
+    import unicodedata
 
-    palabras = re.findall(r"[a-záéíóúñ0-9]{4,}", (texto or "").lower())
-    return {p for p in palabras if p not in {"para", "con", "sin", "como"}}
+    base = unicodedata.normalize("NFKD", (texto or "").lower())
+    simple = "".join(c for c in base if not unicodedata.combining(c))
+    palabras = re.findall(r"[a-zñ0-9]{2,}", simple)
+    return {
+        _SINONIMOS.get(palabra, palabra)
+        for palabra in palabras
+        if palabra
+        not in {
+            "para",
+            "con",
+            "sin",
+            "como",
+            "una",
+            "uno",
+            "los",
+            "las",
+            "del",
+            "que",
+            "por",
+            "sus",
+            "mas",
+        }
+    }
 
 
 def _coincide(descripcion, producto) -> bool:
@@ -32,7 +69,9 @@ def _coincide(descripcion, producto) -> bool:
     """
     objeto = str(descripcion.get("objeto") or "")
     atributos = str(descripcion.get("atributos") or "")
-    buscados = _tokens(objeto) | _tokens(atributos)
+    del_objeto = _tokens(objeto)
+    del_atributo = _tokens(atributos)
+    buscados = del_objeto | del_atributo
     if not buscados:
         return True
     nombre = (producto.get("name") or "") + " " + str(
@@ -46,20 +85,110 @@ def _coincide(descripcion, producto) -> bool:
             palabra in encontrados for palabra in rechazadas
         ):
             return False
-    compartidos = buscados & encontrados
-    if len(buscados) == 1:
-        return bool(compartidos)
-    # Los calificativos suaves ("de ropa", "industrial") no se exigen en el
-    # nombre: alcanza con el sustantivo.
-    faltan = buscados - encontrados
-    if compartidos and faltan <= _SUAVES:
+    compartidos = del_objeto & encontrados
+    if not compartidos:
+        return False
+    if len(del_objeto) == 1:
+        # El sustantivo alcanza, salvo que la foto tenga un detalle que
+        # distinga otro producto ("mochila escolar" no es "mochila
+        # pulverizadora").
+        # Solo cuentan los calificativos que cambian el producto; el resto
+        # de lo que describe la foto (colores, escenas) no descarta nada.
+        especificos = del_atributo & _DISCRIMINANTES
+        if especificos and not (especificos & encontrados):
+            return False
         return True
-    # Con atributos en la foto hay que coincidir en algo más que el sustantivo.
-    return len(compartidos) >= 2
+    # Lo que no está en el nombre tiene que ser un atributo, no otro producto
+    # ("secadora de ropa" sí, "mochila escolar" no).
+    faltan = del_objeto - encontrados
+    if faltan <= _SUAVES:
+        return True
+    # Un detalle de la foto que sí figura en el nombre también alcanza.
+    return len(compartidos) >= 2 or bool(del_atributo & encontrados)
 
 
 # Calificativos que no hace falta exigir en el nombre del producto.
-_SUAVES = {"ropa", "industrial", "comercial", "profesional"}
+_SUAVES = {
+    "ropa",
+    "industrial",
+    "comercial",
+    "profesional",
+    "inalambrico",
+    "inalambrica",
+    "electrico",
+    "electrica",
+    "manual",
+    "grande",
+    "chico",
+    "chica",
+    # Colores y materiales: la foto los muestra, el nombre no siempre.
+    "negro",
+    "negra",
+    "blanco",
+    "blanca",
+    "gris",
+    "azul",
+    "rojo",
+    "roja",
+    "verde",
+    "plateado",
+    "plateada",
+    "acero",
+    "plastico",
+    "vidrio",
+    "metalico",
+}
+
+# Palabras que cambian el producto y hay que respetar cuando la foto las ve.
+_DISCRIMINANTES = {
+    "escolar",
+    "pulverizadora",
+    "industrial",
+    "profesional",
+    "gamer",
+    "ropa",
+    "cabello",
+    "bebe",
+    "nino",
+    "nina",
+    "outdoor",
+    "inflable",
+    "electrico",
+    "gas",
+}
+
+# Detalles que la foto muestra pero que el nombre no suele repetir.
+_GENERICOS = {
+    "pantalla",
+    "plana",
+    "color",
+    "base",
+    "patas",
+    "cuerpo",
+    "mango",
+    "control",
+    "boton",
+    "botones",
+    "diseno",
+    "forma",
+    "tamano",
+    "modelo",
+    "gran",
+    "negro",
+    "negra",
+    "blanco",
+    "blanca",
+    "gris",
+    "azul",
+    "rojo",
+    "verde",
+    "metalico",
+    "plastico",
+    "vidrio",
+    "acero",
+    "inoxidable",
+    "transparente",
+}
 
 # Palabras del pedido que descartan productos parecidos por nombre.
 _RECHAZA = {
@@ -247,7 +376,19 @@ async def reply(
         resultado.get("products") or [], descripcion
     )
     # Solo los que se parecen de verdad: compartir el sustantivo no alcanza.
-    productos = [p for p in productos if _coincide(descripcion, p)][:3]
+    productos = [p for p in productos if _coincide(descripcion, p)]
+    if not productos and objeto_busqueda:
+        # Se prueba con el sustantivo solo: "taladro inalámbrico" no aparece
+        # en el catálogo, "taladro" sí.
+        raiz = objeto_busqueda.split()[0]
+        simple = await caja.tool_search_products(
+            query=raiz, limit=8, ignore_state=True
+        )
+        productos = agent._ordenar_por_imagen(
+            simple.get("products") or [], descripcion
+        )
+        productos = [p for p in productos if _coincide(descripcion, p)]
+    productos = productos[:3]
     if productos:
         agent._trace(f"Imagen: {objeto} con opciones")
         # Alternativas del rubro con mejor descuento: el cliente ve lo que

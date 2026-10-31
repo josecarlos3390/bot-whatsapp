@@ -230,3 +230,31 @@ def test_el_listado_muestra_el_descuento():
 
     assert "(−29%)" in texto or "(−28%)" in texto
     assert "Bs 5,719.00" in texto.replace("5719.00", "5,719.00")
+
+def test_la_foto_de_una_tele_encuentra_televisores():
+    """En el catálogo se llaman «TV»: la foto dice «televisor»."""
+    from app.flows.media import _coincide
+
+    foto = {
+        "objeto": "televisor",
+        "atributos": "pantalla plana, color negro, google tv",
+    }
+
+    assert _coincide(foto, {"name": "TV 32 Smart LED HD Google TV", "category": "TV"})
+    assert _coincide(
+        foto, {"name": "Televisor Led 50 Pulgadas Samsung", "category": "TV"}
+    )
+
+
+def test_la_foto_de_un_taladro_inalambrico_encuentra_taladros():
+    from app.flows.media import _coincide
+
+    foto = {"objeto": "taladro inalámbrico", "atributos": "amarillo y negro"}
+
+    assert _coincide(
+        foto,
+        {
+            "name": "Taladro Atornillador 10mm 12v Bat Ingco",
+            "category": "Herramientas",
+        },
+    )
