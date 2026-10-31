@@ -5,6 +5,8 @@ Extraído de `agent.py` para que el enrutamiento no crezca.
 
 from __future__ import annotations
 
+import re
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
@@ -37,11 +39,42 @@ def _coincide(descripcion, producto) -> bool:
         producto.get("category") or ""
     )
     encontrados = _tokens(nombre)
+    # Ciertas palabras descartan el producto: una secadora de ropa no es una
+    # secadora de cabello aunque compartan el sustantivo.
+    for calificativo, rechazadas in _RECHAZA.items():
+        if calificativo in buscados and any(
+            palabra in encontrados for palabra in rechazadas
+        ):
+            return False
     compartidos = buscados & encontrados
     if len(buscados) == 1:
         return bool(compartidos)
+    # Los calificativos suaves ("de ropa", "industrial") no se exigen en el
+    # nombre: alcanza con el sustantivo.
+    faltan = buscados - encontrados
+    if compartidos and faltan <= _SUAVES:
+        return True
     # Con atributos en la foto hay que coincidir en algo más que el sustantivo.
     return len(compartidos) >= 2
+
+
+# Calificativos que no hace falta exigir en el nombre del producto.
+_SUAVES = {"ropa", "industrial", "comercial", "profesional"}
+
+# Palabras del pedido que descartan productos parecidos por nombre.
+_RECHAZA = {
+    "ropa": ("cabello", "pelo"),
+    "industrial": ("cabello",),
+    "comercial": ("cabello",),
+}
+
+# Objetos ambiguos: en el catálogo existen con otro significado.
+# "secadora" a secas devolvía secadoras de cabello.
+_DESAMBIGUAR = {
+    "secadora": "secadora de ropa",
+    "secador": "secadora de ropa",
+    "lavavajillas": "lavaplatos",
+}
 
 
 # Categorías que no sirven para buscar: son demasiado amplias.
@@ -56,6 +89,26 @@ _GENERICAS = {
     "sin categoria",
     "sin categoría",
 }
+
+
+def _tiene_relacion(objeto: str, respuesta) -> bool:
+    """¿Algún producto del puente se parece a lo que pidió el cliente?"""
+    palabras = {
+        palabra
+        for palabra in re.split(r"\W+", (objeto or "").lower())
+        if len(palabra) > 3
+    }
+    if not palabras:
+        return False
+    for mensaje in respuesta.messages:
+        for linea in (mensaje.text or "").splitlines():
+            limpia = linea.strip()
+            # Solo las líneas de producto ("1. Nombre — Bs …").
+            if not limpia[:1].isdigit() or "." not in limpia[:3]:
+                continue
+            if any(palabra in limpia.lower() for palabra in palabras):
+                return True
+    return False
 
 
 def _productos(filas) -> list[dict]:
@@ -175,9 +228,15 @@ async def reply(
     # así") aporta intención y, si nombra un producto, manda la búsqueda.
     acompanante = _caption_util(texto)
     intencion = _caption_intencion(texto)
+    # Objetos que en el catálogo significan otra cosa ("secadora" a secas
+    # devolvía secadoras de cabello).
+    objeto_busqueda = _DESAMBIGUAR.get((objeto or "").lower(), objeto)
+    # La comparación también usa el nombre desambiguado ("secadora de ropa").
+    if objeto_busqueda != objeto:
+        descripcion = {**descripcion, "objeto": objeto_busqueda}
     consulta = " ".join(
         parte
-        for parte in (acompanante, objeto, marca, atributos)
+        for parte in (acompanante, objeto_busqueda, marca, atributos)
         if parte
     )
     caja = Toolbox(session, contact, agent.wa)
@@ -270,7 +329,10 @@ async def reply(
             )
         except Exception:  # noqa: BLE001 - nunca dejar sin respuesta
             puente = None
-        if puente is not None:
+        # El puente inventa ideas que a veces no tienen nada que ver
+        # ("monitor" -> vigilar la casa). Solo se muestra si al menos un
+        # producto comparte palabra con lo que el cliente pidió.
+        if puente is not None and _tiene_relacion(objeto, puente):
             agent._trace(f"Imagen: {objeto} con puente a lo relacionado")
             return AgentReply(
                 [

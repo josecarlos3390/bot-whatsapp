@@ -12,8 +12,9 @@ def test_monitor_sugiere_televisores():
     assert "monitor" not in terminos
 
 
-def test_impresora_sugiere_insumos():
-    assert "tinta" in familia.terminos("impresora")
+def test_impresora_no_sugiere_pintura():
+    # "Tinta" en este catálogo es pintura, no insumo de impresora.
+    assert familia.terminos("impresora") == ()
 
 
 def test_un_objeto_desconocido_no_inventa():

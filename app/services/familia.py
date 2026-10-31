@@ -19,7 +19,7 @@ AFINES: dict[str, tuple[str, ...]] = {
     "computadora": ("laptop", "notebook", "teclado", "mouse"),
     "computador": ("laptop", "notebook", "teclado", "mouse"),
     "cpu": ("laptop", "notebook", "teclado", "mouse"),
-    "impresora": ("tinta", "papel", "resma"),
+    "impresora": (),
     "tablet": ("celular", "televisor"),
     "celular": ("cargador", "audifonos", "funda"),
     "consola": ("televisor", "control", "joystick"),

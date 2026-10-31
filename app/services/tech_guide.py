@@ -121,7 +121,16 @@ _YA_DIJO = {
 def rubro(texto: str) -> str:
     """Rubro de la guía que corresponde al texto, si hay."""
     valor = (texto or "").lower()
-    if re.search(r"\b(aire|aires|acondicionado|split|inverter)\b", valor):
+    # "freidora de aire" o "purificador de aire" no son aires acondicionados.
+    if re.search(
+        r"\b(freidora|purificador|humidificador|calentador)\s+de\s+aire\b",
+        valor,
+    ):
+        return ""
+    if re.search(
+        r"\baire\s+(acondicionado|split)\b|\bacondicionado\b|\bsplit\b|\binverter\b",
+        valor,
+    ):
         return "aire acondicionado"
     if re.search(r"\b(helader|refriger|nevera)\w*", valor):
         return "heladera"

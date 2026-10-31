@@ -57,8 +57,8 @@ def test_un_rubro_sin_guia_no_pregunta():
     [
         ("busco una pintura", "m2"),
         ("quiero un colchon", "plazas"),
-        ("necesito un ventilador", "m2"),
         ("quiero cortinas", "ancho"),
+        ("necesito un ventilador", "m2"),
     ],
 )
 def test_mas_rubros_preguntan_su_dato(texto, clave):
