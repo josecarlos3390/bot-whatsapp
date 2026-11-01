@@ -11,6 +11,11 @@ import re
 from . import policy
 
 # Rango amplio de emojis y símbolos decorativos.
+_SERIO = re.compile(
+    "disculp|lamento|reclamo|devoluci|reembolso|garant[ií]a|aviser|asesor|deriv",
+    re.IGNORECASE,
+)
+
 _EMOJI = re.compile(
     "[" "\U0001F300-\U0001FAFF" "\u2600-\u27BF" "\u2B00-\u2BFF" "\uFE0F" "]"
 )
@@ -46,3 +51,35 @@ def limpiar(texto: str) -> str:
 
 def tiene(texto: str) -> bool:
     return bool(_EMOJI.search(texto or ""))
+
+_EMOJI = re.compile(
+    "[🌀-🫿☀-➿⬀-⯿️]"
+)
+
+
+def _ya_tiene(texto: str) -> bool:
+    return bool(_EMOJI.search(texto or ""))
+
+
+def adornar(texto: str, delicado: bool = False) -> str:
+    """Suma un emoji si la respuesta quedó seca.
+
+    Uno solo, temático, nunca en un listado numerado ni en tono serio.
+    """
+    from . import emoji
+
+    limpio = (texto or "").rstrip()
+    if not limpio or len(limpio) < 25:
+        return texto
+    if delicado or _ya_tiene(limpio) or _SERIO.search(limpio):
+        return texto
+    lineas = limpio.splitlines()
+    es_listado = any(
+        linea.strip()[:2].rstrip(".").isdigit() for linea in lineas[:3]
+    )
+    if es_listado:
+        return texto
+    icono = emoji.para(limpio)
+    if not icono:
+        return texto
+    return f"{limpio} {icono}"

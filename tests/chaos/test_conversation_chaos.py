@@ -164,7 +164,8 @@ async def test_detector_de_bucle(session):
     reply = AgentReply([Outbound(text="Respuesta idéntica de prueba")])
     first = await agent.postprocess(session, contact, "hola", reply)
     second = await agent.postprocess(session, contact, "hola", reply)
-    assert first.messages[0].text == "Respuesta idéntica de prueba"
+    # El texto puede llevar un emoji decorativo al final.
+    assert "Respuesta idéntica de prueba" in first.messages[0].text
     assert "No quiero repetirte" in second.messages[0].text
 
 

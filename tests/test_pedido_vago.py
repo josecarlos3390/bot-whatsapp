@@ -101,3 +101,21 @@ async def test_las_ofertas_se_diversifican_por_rubro(session):
     ]
 
     assert len(cubrecamas) <= 2
+
+
+def test_el_emoji_no_ensucia_listados_ni_tono_serio():
+    from app.services import emoji_policy
+
+    listado = "1. Aire 12000 — Bs 3.999\n2. Aire 18000 — Bs 8.579"
+    assert emoji_policy.adornar(listado) == listado
+
+    disculpa = "Tenés razón y te pido disculpas: no era lo que pediste."
+    assert emoji_policy.adornar(disculpa) == disculpa
+
+
+def test_el_emoji_se_suma_en_una_respuesta_seca():
+    from app.services import emoji_policy
+
+    texto = "Sí, tenemos aires acondicionados. ¿Para qué ambiente lo buscás?"
+
+    assert emoji_policy.adornar(texto) != texto

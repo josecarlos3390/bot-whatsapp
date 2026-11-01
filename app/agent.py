@@ -4574,10 +4574,32 @@ class Agent:
             (antes.text or "") != (despues.text or "")
             for antes, despues in zip(reply.messages, limpios)
         )
+        # El emoji se suma al final: así la comparación de respuestas
+        # repetidas usa el texto real y no se rompe el detector de bucles.
+        from dataclasses import replace
+
+        from .services import emoji_policy
+
+        delicado = emoji_policy.es_delicado(answer)
+        base = limpios if cambio else reply.messages
+        # Se copian los mensajes: adornar no debe modificar el reply original
+        # (rompía el detector de respuestas repetidas entre turnos).
+        salida = AgentReply(
+            [
+                replace(
+                    mensaje,
+                    text=(
+                        emoji_policy.adornar(mensaje.text, delicado)
+                        if mensaje.kind == "text" and mensaje.text
+                        else mensaje.text
+                    ),
+                )
+                for mensaje in base
+            ]
+        )
         if cambio:
             self._trace("Cierre repetido podado")
-            return AgentReply(limpios)
-        return reply
+        return salida
 
     async def handle(
         self,
@@ -4972,6 +4994,39 @@ class Agent:
         # Clasificación de intención: primero reglas, y si hay duda, el modelo
         # con lista cerrada de ocasiones. Una frase personal nunca termina en
         # una lista de productos "cercanos".
+        # "¿En qué tienda lo encuentro?": se responde la disponibilidad, no
+        # se repite la ficha del producto.
+        if not _es_accion(normalized):
+            from .services import tienda
+
+            if tienda.pregunta_tienda(raw):
+                from .services import memoria_cliente
+
+                visto = await memoria_cliente.ultimo_visto(session, contact)
+                stock = None
+                nombre = (visto or {}).get("name") or ""
+                if visto and visto.get("sku"):
+                    from .services import catalog as catalogo
+
+                    item = await catalogo.get_item(session, visto["sku"])
+                    if item is not None:
+                        stock = int(item.stock or 0)
+                        nombre = item.name or nombre
+                self._trace("Pregunta por tienda")
+                return AgentReply(
+                    [
+                        Outbound(text=tienda.responder(nombre, stock)),
+                        Outbound(
+                            kind="buttons",
+                            text="¿Cómo querés seguir?",
+                            buttons=[
+                                {"id": "human", "title": "Consultar stock"},
+                                {"id": "envio:resto", "title": "Envío a domicilio"},
+                            ],
+                        ),
+                    ]
+                )
+
         # Cuestiona lo que se le mostró ("¿por qué me sugerís almohadas?"):
         # se responde la pregunta, no se muestra otra ficha.
         if not _es_accion(normalized):

@@ -15,8 +15,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..models import Contact, Conversation, Message
 
 
+_EMOJI = re.compile(
+    "[🌀-🫿☀-➿⬀-⯿️]"
+)
+
+
 def _normalizar(texto: str) -> str:
-    limpio = re.sub(r"\s+", " ", (texto or "").strip().lower())
+    # El emoji decorativo no cuenta como contenido: sin esto, la misma
+    # respuesta con y sin emoji parecía distinta y se repetía.
+    limpio = _EMOJI.sub("", (texto or ""))
+    limpio = re.sub(r"\s+", " ", limpio.strip().lower())
     return limpio[:400]
 
 

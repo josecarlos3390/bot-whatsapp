@@ -31,7 +31,7 @@ from app.models import (
     PurchaseHistory,
     PurchaseHistoryLine,
 )
-from app.sap import SapNotFound, get_sap
+from app.sap import SapError, SapNotFound, get_sap
 
 logger = logging.getLogger("sync_vtex_customers")
 PAGE_SIZE = 500
@@ -300,6 +300,13 @@ async def _order_history(
                     term,
                 )
                 break
+            except SapError as exc:
+                logger.warning(
+                    "No se pudo leer compras de %s (%s); se omite",
+                    term,
+                    exc,
+                )
+                break
             if not batch:
                 break
             local.extend(batch)
@@ -456,7 +463,15 @@ async def _sync_contacts(
             migrated += 1
             continue
 
-        raw = await sap.get_customer(term)
+        try:
+            raw = await sap.get_customer(term)
+        except SapError as exc:
+            logger.warning(
+                "No se pudo leer el cliente %s (%s); se omite",
+                term,
+                exc,
+            )
+            continue
         target = contact
         if raw:
             target = await _upsert_customer(session, _from_cl(raw)) or contact

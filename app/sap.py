@@ -880,6 +880,13 @@ class PaasSap:
         else:
             path = path.lstrip("/")
         response = await self._client.get(path, params=params)
+        for attempt in range(4):
+            if response.status_code != 429:
+                break
+            if attempt == 3:
+                break
+            await asyncio.sleep(2.0 * (attempt + 1))
+            response = await self._client.get(path, params=params)
         if response.status_code == 404:
             raise SapNotFound(f"PaaS 404: {original}")
         if response.status_code >= 400:
