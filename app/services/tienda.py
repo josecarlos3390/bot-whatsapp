@@ -61,15 +61,17 @@ def responder(nombre_producto: str = "", stock: int | None = None) -> str:
     for tienda in lista:
         lineas.append(f"📍 *{tienda['titulo']}*")
         lineas.append(f"   {tienda['direccion']}")
+    lineas.append("")
     if stock is not None:
-        lineas.append("")
         lineas.append(
-            f"Hay *{stock} unidades* en stock central: se puede retirar o "
-            "enviar a domicilio en 24 a 48 horas."
+            f"Hay *{stock} unidades* disponibles en depósito central."
         )
+    lineas.append(
+        "No manejamos stock separado por tienda: cualquiera de las tres te lo "
+        "consigue, y el retiro se coordina desde la tienda de Av. Banzer."
+    )
     lineas.append("")
     lineas.append(
-        "¿Querés que te reserve una unidad en la tienda que te quede más "
-        "cerca?"
+        "¿Querés que te reserve una unidad o preferís envío a domicilio?"
     )
     return "\n".join(lineas)

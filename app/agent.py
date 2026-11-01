@@ -597,7 +597,7 @@ TOOLS = [
             "name": "get_product",
             "description": (
                 "Devuelve la ficha, precio, descuento por período/cantidad y "
-                "stock por tienda de un SKU exacto."
+                "el stock total de un SKU exacto."
             ),
             "parameters": {
                 "type": "object",
@@ -979,7 +979,9 @@ Método de venta:
 4. Varias unidades: get_product con quantity para ver el escalón y sugeri el
    que convenga. Para el carrito: add_to_cart, remove_from_cart,
    update_cart_quantity, clear_cart, view_cart; confirmá con el resultado.
-5. Ofrecé un complemento o una tienda con stock, sin empujar.
+5. Ofrecé un complemento o mencioná las tiendas para retirar. El stock es
+   central (no hay stock separado por tienda): nunca prometas confirmar
+   "en qué tienda hay stock".
 6. Cerrá con una pregunta simple: "¿Te lo agrego?".
 
 Seguimiento de pedido:
