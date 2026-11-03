@@ -334,6 +334,13 @@ class Cart(Base):
     contact_id: Mapped[str] = mapped_column(ForeignKey("contacts.id"), index=True)
     status: Mapped[str] = mapped_column(String(20), default="active")
     currency: Mapped[str] = mapped_column(String(3), default="BOB")
+    # Referencia al carrito de VTEX (orderForm): es el puente para que el
+    # cliente termine la compra en la tienda.
+    vtex_order_form_id: Mapped[str | None] = mapped_column(String(64))
+    vtex_cart_url: Mapped[str | None] = mapped_column(String(500))
+    vtex_synced_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow

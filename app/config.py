@@ -104,6 +104,16 @@ class Settings(BaseSettings):
     # Si un producto no existe, probar con su familia (monitor -> televisor).
     enable_family_fallback: bool = True
     # Recordatorio de carrito sin terminar.
+    # Carrito en VTEX (orderForm). Se activa con credenciales de la tienda.
+    vtex_cart_enabled: bool = False
+    vtex_account: str = ""
+    vtex_environment: str = "vtexcommercestable"
+    vtex_app_key: str = ""
+    vtex_app_token: str = ""
+    vtex_sales_channel: int = 1
+    vtex_affiliate_id: str = ""
+    # Dominio que ve el cliente para terminar la compra.
+    vtex_checkout_host: str = ""
     cart_reminder_hours: int = 3
     cart_reminder_enabled: bool = False
     cart_template_name: str = ""

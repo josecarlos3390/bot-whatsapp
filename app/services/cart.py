@@ -77,6 +77,21 @@ async def items(session: AsyncSession, cart: Cart) -> list[CartItem]:
     )
 
 
+
+
+async def _espejar_en_vtex(session: AsyncSession, cart: Cart) -> None:
+    """Replica el carrito local en VTEX. Nunca frena la venta."""
+    from . import vtex_cart
+
+    if not vtex_cart.disponible():
+        return
+    try:
+        await session.refresh(cart, attribute_names=["items"])
+        await vtex_cart.sincronizar(cart)
+        await session.commit()
+    except Exception:  # noqa: BLE001 - el carrito local manda
+        await session.rollback()
+
 async def add_item(
     session: AsyncSession,
     cart: Cart,
@@ -127,6 +142,7 @@ async def add_item(
         existing.store_code = store
 
     await session.commit()
+    await _espejar_en_vtex(session, cart)
     return cart
 
 
@@ -156,6 +172,7 @@ async def set_quantity(
     existing.discount_percent = offer.discount_percent
     existing.store_code = store
     await session.commit()
+    await _espejar_en_vtex(session, cart)
     return cart
 
 
@@ -164,6 +181,7 @@ async def remove_item(session: AsyncSession, cart: Cart, sku: str) -> Cart:
         delete(CartItem).where(CartItem.cart_id == cart.id, CartItem.sku == sku)
     )
     await session.commit()
+    await _espejar_en_vtex(session, cart)
     return cart
 
 

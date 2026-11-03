@@ -4254,6 +4254,32 @@ class Agent:
                     )
                 ]
             )
+        # Si el carrito está replicado en VTEX, se le da el link para pagar
+        # en la tienda en vez de pasarlo a un asesor.
+        from .services import vtex_cart
+
+        carrito_local = await cart_service.get_or_create_cart(
+            session, contact.id
+        )
+        enlace = vtex_cart.link_para_pagar(carrito_local)
+        if enlace:
+            self._trace("Checkout: link de VTEX")
+            return AgentReply(
+                [
+                    Outbound(
+                        kind="cta",
+                        text=(
+                            "Listo, tu pedido está armado con los mismos "
+                            "productos 🛒\n\n"
+                            "Entrá al link, revisá la dirección y elegí cómo "
+                            "pagar. Si algo no cuadra, escribime por acá."
+                        ),
+                        cta_text="Terminar mi compra",
+                        url=enlace,
+                    )
+                ]
+            )
+
         try:
             result = await toolbox.tool_checkout()
         except Exception as exc:  # noqa: BLE001 - no cobrar ni romper el chat

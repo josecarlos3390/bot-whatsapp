@@ -103,3 +103,25 @@ estaba. Ese camino ya funciona (acción `cart`).
 - **Frecuencia**: 7 días entre recordatorios es un valor inicial, no una regla del negocio.
 - **Descuento de recuperación**: si marketing quiere ofrecer uno, cambia la
   categoría de la plantilla y Meta la revisa distinto.
+
+## Variante con link al carrito de VTEX
+
+Cuando el carrito se replica en VTEX (ver docs/carrito-vtex.md), la
+plantilla puede llevar un **botón con URL** para que el cliente pague
+directo:
+
+**Botón:** Terminar mi compra · tipo URL · **dinámica**
+
+`
+https://roho.com.bo/checkout/#/orderform/{{1}}
+`
+
+En ese caso el cuerpo queda:
+
+`
+Hola {{2}}, quedaron {{3}} artículo(s) en tu carrito por Bs {{4}}.
+Terminá la compra cuando quieras.
+`
+
+> El dominio base del botón **se registra una sola vez** en Meta; solo la
+> parte final ({{1}}) puede ser variable.
