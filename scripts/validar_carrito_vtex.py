@@ -99,6 +99,11 @@ async def main() -> int:
         _ok(f"order_form_id = {creado['order_form_id'][:8]}…")
         _ok(f"checkout_url  = {creado['checkout_url'] or 'null (no se muestra link)'}")
         _ok(f"expires_at    = {creado.get('expires_at') or 'null (TTL 24 h del bot)'}")
+        if creado["items"]:
+            _mal(
+                f"el carrito nuevo ya traía {len(creado['items'])} ítem(s): "
+                + ", ".join(i["sku"] for i in creado["items"])
+            )
 
         print("\n4. Agregar ítem")
         try:
@@ -138,7 +143,14 @@ async def main() -> int:
             _ok("sin link: el bot no lo muestra (correcto si checkout_url es null)")
 
         print("\n7. Limpieza")
+        from sqlalchemy import delete
+
+        await session.execute(
+            delete(CartItem).where(CartItem.cart_id == carrito.id)
+        )
+        await session.commit()
         await session.delete(carrito)
+        await session.commit()
         await session.delete(contacto)
         await session.commit()
         _ok("datos de prueba borrados")

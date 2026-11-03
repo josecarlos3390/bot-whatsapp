@@ -325,12 +325,21 @@ async def sincronizar(cart: Cart) -> dict:
 
 
 async def asegurar_vigente(cart: Cart) -> bool:
-    """Antes de usar el link: confirma que el carrito sigue vigente."""
+    """Antes de usar el link: confirma que el carrito sigue vigente.
+
+    Si hay id pero no fecha de sincronización, se consulta igual: el carrito
+    pudo crearse y fallar la copia de ítems.
+    """
     if not cart.vtex_order_form_id:
         return False
-    if vencido(cart):
+    if cart.vtex_synced_at is not None and vencido(cart):
         return False
-    return await consultar(cart) is not None
+    actual = await consultar(cart)
+    if actual is None:
+        return False
+    if cart.vtex_synced_at is None:
+        cart.vtex_synced_at = utcnow()
+    return True
 
 
 def link_para_pagar(cart: Cart) -> str:
