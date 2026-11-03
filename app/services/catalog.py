@@ -1067,3 +1067,25 @@ async def best_discounts(session: AsyncSession, limit: int = 5) -> list[CatalogI
         if len(salida) >= limit:
             break
     return salida
+
+def nombra_todos(item: CatalogItem, query: str | None) -> bool:
+    """¿El nombre contiene todos los términos con contenido de la consulta?
+
+    Más laxo que `is_head_match`: "set 10 autos a escala hot wheels"
+    contiene "auto" y "escala" aunque no empiece con ellos.
+    """
+    terminos = [
+        termino
+        for termino in _relevance_terms(query or "")
+        if termino not in QUERY_STOPWORDS
+    ]
+    if not terminos:
+        return False
+    nombre = _fold(item.name or "")
+    for termino in terminos:
+        base = _fold(termino)
+        if base.endswith("s") and len(base) > 4:
+            base = base[:-1]
+        if base not in nombre:
+            return False
+    return True

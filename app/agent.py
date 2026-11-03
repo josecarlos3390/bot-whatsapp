@@ -1426,6 +1426,22 @@ class Toolbox:
             )
         else:
             rows = await self._search_with_hot_cache(query, take)
+        # La marca que venía de la charla no puede dejar al cliente con una
+        # sola opción cuando hay más: "auto a escala" tras ver Hot Wheels.
+        if brand and len(rows) <= 1 and query:
+            alternativas = await catalog.search_items(
+                self.session,
+                query,
+                limit=take,
+                category=category,
+                min_price=min_price,
+                max_price=max_price,
+                only_discount=only_discount,
+            )
+            if len(alternativas) > len(rows):
+                rows = alternativas
+                brand = None
+
         if not rows and category and query:
             # El cliente pudo cambiar de rubro ("ahora quiero alfombras"):
             # se prueba sin la categoría que venía arrastrando la charla.
@@ -1469,7 +1485,7 @@ class Toolbox:
             logger.debug("No se pudo ordenar por promociones", exc_info=True)
         exact_match = any(
             catalog.is_head_match(row, query) for row in rows
-        )
+        ) or any(catalog.nombra_todos(row, query) for row in rows)
         # Si hay coincidencias reales por nombre, no mezclar accesorios
         # ("panel de TV", "soporte de TV") entre los primeros resultados.
         if exact_match and query and not has_filters:
@@ -3041,8 +3057,30 @@ class Agent:
             ]
         )
 
+    @staticmethod
+    async def _encaja_con_el_texto(
+        session: AsyncSession, texto: str, sku: str
+    ) -> bool:
+        """¿El producto de la ficha tiene que ver con lo que pidió el cliente?"""
+        item = await catalog.get_item(session, sku)
+        if item is None:
+            return True
+        from .services.catalog import QUERY_STOPWORDS
+
+        nombre = _fold_word(item.name or "")
+        palabras = [
+            _fold_word(palabra)
+            for palabra in re.split(r"\W+", texto or "")
+            if palabra and _fold_word(palabra) not in QUERY_STOPWORDS
+        ]
+        if not palabras:
+            return True
+        # Todas las palabras con contenido tienen que aparecer: "el auto a
+        # escala" no encaja con un estuche para autos.
+        return all(palabra in nombre for palabra in palabras)
+
     async def _direct_reply_for_tool(
-        self, session: AsyncSession, contact: Contact, call
+        self, session: AsyncSession, contact: Contact, call, texto: str = ""
     ) -> AgentReply | None:
         """Respuesta determinística cuando la herramienta pedida ya se sabe
         contestar, sin gastar una segunda llamada al modelo."""
@@ -3061,6 +3099,14 @@ class Agent:
                 sku = str(arguments.get("sku") or "").strip()
                 if not sku:
                     return None
+                # Si el mensaje nombra otra cosa ("el auto a escala" cuando el
+                # último producto era un estuche), se busca en vez de mostrar
+                # la ficha equivocada.
+                if texto and not await self._encaja_con_el_texto(
+                    session, texto, sku
+                ):
+                    self._trace("Ficha descartada: no coincide con el mensaje")
+                    return await self._search_reply(session, contact, texto)
                 return await self._product_detail(session, contact, sku)
 
             query = " ".join(
@@ -3537,12 +3583,18 @@ class Agent:
                     entendido = await understanding.parse(self._llm(), query)
                     producto = (entendido or {}).get("producto")
                     atributos = (entendido or {}).get("atributos") or []
+                    propuesta = ""
                     if producto:
-                        query = " ".join([producto, *atributos]).strip()
-                        self._trace(f"Consulta reinterpretada: {query}")
+                        propuesta = " ".join([producto, *atributos]).strip()
                     elif atributos:
-                        query = " ".join([rubro, *atributos]).strip()
-                        self._trace(f"Consulta ampliada: {query}")
+                        propuesta = " ".join([rubro, *atributos]).strip()
+                    # La reescritura no puede perder lo que pidió el cliente:
+                    # "el auto a escala" no es "estuche para autos".
+                    if propuesta and _conserva_las_palabras(query, propuesta):
+                        self._trace(f"Consulta reinterpretada: {propuesta}")
+                        query = propuesta
+                    elif propuesta:
+                        self._trace(f"Se descarta la reescritura: {propuesta}")
             except Exception:  # noqa: BLE001 - interpretar no debe romper
                 logger.debug("No se pudo reinterpretar la búsqueda", exc_info=True)
         # Si el cliente ya dijo la medida, la búsqueda la usa sin volver a
@@ -7130,7 +7182,7 @@ class Agent:
             # los resultados del catálogo (~2.000 tokens) y ~1 s de latencia.
             if ronda == 0 and len(choice.tool_calls) == 1:
                 direct = await self._direct_reply_for_tool(
-                    session, contact, choice.tool_calls[0]
+                    session, contact, choice.tool_calls[0], text
                 )
                 if direct is not None:
                     logger.info(

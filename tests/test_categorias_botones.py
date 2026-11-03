@@ -558,3 +558,42 @@ async def test_finalizar_con_carrito_en_vtex_manda_el_link(session, monkeypatch)
     assert mensaje.kind == "cta"
     assert mensaje.url == "https://rodabo.myvtex.com/checkout/?orderFormId=OF-1"
     assert "compra" in (mensaje.cta_text or "").lower()
+
+async def test_no_abre_la_ficha_de_otro_producto(session):
+    """Si el mensaje nombra algo que el producto no tiene, se busca."""
+    from app.models import CatalogItem
+    from app.agent import Agent
+
+    session.add(
+        CatalogItem(
+            sku="EST-1",
+            name="Estuche Para Autos 8 Unidades",
+            price="129",
+            stock=5,
+            brand="HOT WHEELS",
+            category="Vehículos",
+            active=True,
+        )
+    )
+    for indice in range(3):
+        session.add(
+            CatalogItem(
+                sku=f"ESC-{indice}",
+                name=f"Auto A Escala Modelo {indice}",
+                price="199",
+                stock=5,
+                brand="MARVEL",
+                category="Vehículos",
+                active=True,
+            )
+        )
+    await session.commit()
+    contacto = await _contacto(session, "59170036001")
+    agente = Agent()
+
+    assert not await agente._encaja_con_el_texto(
+        session, "quiero el auto a escala", "EST-1"
+    )
+    assert await agente._encaja_con_el_texto(
+        session, "quiero el estuche", "EST-1"
+    )
