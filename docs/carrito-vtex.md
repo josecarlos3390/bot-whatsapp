@@ -128,12 +128,12 @@ Validado el 3/11/2026 contra el PaaS desplegado:
 
 Acordado con el PaaS:
 
-`
+```
 checkout_url: null
 expires_at:   null
 TTL:          24 h del lado del bot
 SellerId:     1
-`
+```
 
 **No hace falta cambiar nada más del contrato.**
 
@@ -149,7 +149,7 @@ Pasos acordados:
 
 ### Qué prueba el E2E
 
-`
+```
 crear                 → order_form_id nuevo y carrito vacío
 aislamiento           → dos carritos distintos
 agregar               → ítem con precio de VTEX
@@ -159,4 +159,38 @@ consultar             → mismo carrito
 sincronizar           → ok
 sincronizar dos veces → no duplica
 limpiar               → borra los datos de prueba
-`
+```
+
+## Detección del pedido (¿el cliente pagó?)
+
+El cliente paga en VTEX. Para enterarse, el bot consulta
+`GET /api/vtex/orders` y busca el pedido cuyo `orderFormId` coincide con el
+carrito que armó.
+
+```
+Cliente paga en la tienda
+        ↓
+Vuelve a WhatsApp y pide "mi carrito"
+        ↓
+El bot consulta los pedidos y encuentra el suyo
+        ↓
+"Tu pedido 500195 ya está registrado y quedó en preparación"
+        ↓
+El carrito pasa a estado ordered y no se le ofrece el link otra vez
+```
+
+Estados traducidos: `payment-pending` → esperando el pago ·
+`payment-approved` → pago aprobado · `ready-for-handling` → en preparación ·
+`handling` → preparando el envío · `invoiced` → facturado · `canceled` →
+cancelado.
+
+### Limitación actual
+
+`GET /api/vtex/orders` **no filtra** por `orderFormId` (devuelve la lista
+completa e ignora `limit`). El bot la pide, la guarda 60 s y busca en memoria.
+
+Con 61 pedidos es instantáneo; con miles habrá que pedirle al PaaS:
+
+```
+GET /api/vtex/orders?orderFormId=...
+```

@@ -350,6 +350,9 @@ class Cart(Base):
     vtex_currency: Mapped[str | None] = mapped_column(String(3))
     # Ítems que el integrador rechazó (JSON), para avisar al cliente.
     vtex_messages: Mapped[str | None] = mapped_column(Text)
+    # Pedido que se generó a partir de este carrito (cuando el cliente paga).
+    vtex_order_id: Mapped[str | None] = mapped_column(String(64))
+    vtex_order_status: Mapped[str | None] = mapped_column(String(40))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow

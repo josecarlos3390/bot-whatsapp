@@ -4212,6 +4212,11 @@ class Agent:
         base = await toolbox.tool_view_cart()
         if not carrito.vtex_order_form_id:
             return self._cart_reply(base)
+        # ¿Ya pagó? Si existe un pedido con este carrito, no se le ofrece
+        # volver a comprar: se le cuenta cómo va.
+        pedido = await self._pedido_del_carrito(session, carrito)
+        if pedido is not None:
+            return AgentReply([Outbound(text=self._texto_pedido(pedido))])
         try:
             cambio = await vtex_cart.reconciliar(session, carrito)
         except Exception:  # noqa: BLE001 - nunca frenar por la tienda
@@ -4221,6 +4226,41 @@ class Agent:
         if cambio.get("cambiado") and actualizado.get("items"):
             self._trace(f"Carrito alineado: {cambio.get('motivo')}")
         return self._cart_reply(actualizado)
+
+    async def _pedido_del_carrito(self, session, carrito) -> dict | None:
+        """Busca (y recuerda) el pedido generado a partir del carrito."""
+        from .services import vtex_pedidos
+
+        if carrito.vtex_order_id:
+            return {
+                "order_id": carrito.vtex_order_id,
+                "status": carrito.vtex_order_status or "",
+                "status_legible": vtex_pedidos.estado_legible(
+                    carrito.vtex_order_status
+                ),
+                "sequence": "",
+            }
+        if not carrito.vtex_order_form_id or not vtex_pedidos.disponible():
+            return None
+        pedido = await vtex_pedidos.del_carrito(carrito.vtex_order_form_id)
+        if pedido is None:
+            return None
+        carrito.vtex_order_id = pedido["order_id"]
+        carrito.vtex_order_status = pedido["status"]
+        carrito.status = "ordered"
+        await session.commit()
+        self._trace(f"Pedido encontrado: {pedido['order_id']}")
+        return pedido
+
+    @staticmethod
+    def _texto_pedido(pedido: dict) -> str:
+        numero = pedido.get("sequence") or pedido.get("order_id") or ""
+        estado = pedido.get("status_legible") or "en proceso"
+        return (
+            f"Tu pedido *{numero}* ya está registrado y quedó *{estado}* ✅\n"
+            "Si querés cambiar algo o saber cuándo llega, decime y lo reviso "
+            "con el equipo."
+        )
 
     async def _asegurar_derivacion(
         self, session: AsyncSession, contact: Contact, reason: str
@@ -4284,6 +4324,10 @@ class Agent:
         )
         # El link solo se usa si el integrador lo devolvió y el carrito
         # sigue vigente: nunca se arma una URL a mano.
+        pedido_previo = await self._pedido_del_carrito(session, carrito_local)
+        if pedido_previo is not None:
+            return AgentReply([Outbound(text=self._texto_pedido(pedido_previo))])
+
         enlace = vtex_cart.link_para_pagar(carrito_local)
         if enlace and await vtex_cart.asegurar_vigente(carrito_local):
             faltantes = json.loads(carrito_local.vtex_messages or "[]")
