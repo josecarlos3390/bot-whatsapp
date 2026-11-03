@@ -341,6 +341,11 @@ class Cart(Base):
     vtex_synced_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True)
     )
+    # Total y moneda según VTEX: el bot muestra ese precio, no el local.
+    vtex_value: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    vtex_currency: Mapped[str | None] = mapped_column(String(3))
+    # Ítems que el integrador rechazó (JSON), para avisar al cliente.
+    vtex_messages: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow

@@ -157,7 +157,10 @@ def _nombre_pila(contacto: Contact) -> str:
 
 
 def texto_con_nombres(
-    contacto: Contact, filas: list[dict], total: Decimal
+    contacto: Contact,
+    filas: list[dict],
+    total: Decimal,
+    enlace: str = "",
 ) -> str:
     nombre = _nombre_pila(contacto)
     saludo = f"Hola {nombre}" if nombre else "Hola"
@@ -170,6 +173,8 @@ def texto_con_nombres(
     if len(filas) > 5:
         lineas.append(f"• y {len(filas) - 5} más")
     lineas.append(f"\nTotal: *Bs {_formato(total)}*")
+    if enlace:
+        lineas.append(f"\nTerminá la compra acá: {enlace}")
     lineas.append("\n¿Querés que lo terminemos? Decime *retomar carrito*.")
     return "\n".join(lineas)
 
@@ -187,11 +192,26 @@ async def recordar(session, carrito: Cart, contacto: Contact, items) -> dict:
         (fila["unit_price"] * fila["quantity"] for fila in filas),
         Decimal("0"),
     )
+    # Si el carrito está en VTEX: se confirma que sigue vigente antes de
+    # mandar el link (y el total pasa a ser el de VTEX).
+    enlace = ""
+    from . import vtex_cart
+
+    if vtex_cart.disponible() and carrito.vtex_order_form_id:
+        if await vtex_cart.asegurar_vigente(carrito):
+            enlace = vtex_cart.link_para_pagar(carrito)
+            if carrito.vtex_value:
+                total = Decimal(carrito.vtex_value)
+        else:
+            carrito.vtex_order_form_id = ""
+            carrito.vtex_cart_url = ""
+            await session.commit()
     abierta = await ventana_abierta(session, contacto)
     canal = "text"
     if abierta:
         await whatsapp.send_text(
-            contacto.wa_id, texto_con_nombres(contacto, filas, total)
+            contacto.wa_id,
+            texto_con_nombres(contacto, filas, total, enlace=enlace),
         )
     elif settings.cart_template_name:
         canal = "template"

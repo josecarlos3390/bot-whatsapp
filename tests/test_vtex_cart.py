@@ -1,140 +1,243 @@
-"""Carrito espejo en VTEX (orderForm)."""
+"""Carrito espejo en VTEX: contrato acordado con el equipo del PaaS."""
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 import pytest
 
 from app.config import settings
-from app.models import Cart, CartItem, CatalogItem, Contact
+from app.models import Cart, CartItem, Contact
 from app.services import vtex_cart
 
 
 @pytest.fixture(autouse=True)
 def _config(monkeypatch):
     monkeypatch.setattr(settings, "vtex_cart_enabled", True)
-    monkeypatch.setattr(settings, "vtex_account", "roho")
-    monkeypatch.setattr(settings, "vtex_environment", "vtexcommercestable")
-    monkeypatch.setattr(settings, "vtex_app_key", "clave")
-    monkeypatch.setattr(settings, "vtex_app_token", "token")
+    monkeypatch.setattr(settings, "vtex_cart_via", "paas")
+    monkeypatch.setattr(settings, "sap_paas_url", "http://paas.local")
+    monkeypatch.setattr(settings, "sap_paas_api_key", "llave")
+    monkeypatch.setattr(settings, "sap_paas_tenant", "RETAIL_QA5")
     monkeypatch.setattr(settings, "vtex_sales_channel", 1)
     monkeypatch.setattr(settings, "vtex_affiliate_id", "")
     monkeypatch.setattr(settings, "vtex_checkout_host", "")
-    monkeypatch.setattr(settings, "vtex_cart_via", "direct")
 
 
-async def _carrito(session) -> Cart:
+async def _carrito(session, skus=("REF-1",)) -> Cart:
     contacto = Contact(
-        wa_id="59170050001", phone_e164="+59170050001", name="Ana"
+        wa_id="59170060001", phone_e164="+59170060001", name="Ana"
     )
     session.add(contacto)
     await session.flush()
     carrito = Cart(contact_id=contacto.id, status="active")
     session.add(carrito)
     await session.flush()
-    session.add(
-        CartItem(
-            cart_id=carrito.id,
-            sku="VTX-001",
-            quantity=2,
-            unit_price=Decimal("100"),
-            list_price=Decimal("100"),
+    for sku in skus:
+        session.add(
+            CartItem(
+                cart_id=carrito.id,
+                sku=sku,
+                quantity=2,
+                unit_price=Decimal("100"),
+                list_price=Decimal("100"),
+            )
         )
-    )
     await session.commit()
     await session.refresh(carrito, attribute_names=["items"])
     return carrito
 
 
-def test_sin_credenciales_no_esta_disponible(monkeypatch):
-    monkeypatch.setattr(settings, "vtex_app_key", "")
+class FakePaaS:
+    """Integrador simulado con el contrato acordado."""
 
-    assert not vtex_cart.disponible()
+    def __init__(self, checkout_url=None, rechazar=()):
+        self.checkout_url = checkout_url
+        self.rechazar = set(rechazar)
+        self.creados = 0
+        self.agregados: list[dict] = []
+        self.consultas = 0
+        self.vivo = True
+
+    async def pedir(self, metodo, ruta, *, cart=None, json_body=None):
+        if metodo == "POST" and ruta == "/api/vtex/cart":
+            self.creados += 1
+            return {
+                "order_form_id": "OF-1",
+                "orderFormId": "OF-1",
+                "checkout_url": self.checkout_url,
+                "items": [],
+                "value": 0,
+                "currency": "BOB",
+            }
+        if metodo == "POST" and ruta.endswith("/items"):
+            self.agregados.append(json_body)
+            items = [
+                item
+                for item in json_body["items"]
+                if item["sku"] not in self.rechazar
+            ]
+            mensajes = [
+                {
+                    "code": "ORD027",
+                    "text": f"Ítem {sku} no encontrado o no disponible",
+                    "status": "error",
+                }
+                for sku in self.rechazar
+            ]
+            valor = sum(165.0 * item["quantity"] for item in items)
+            return {
+                "order_form_id": "OF-1",
+                "items": [
+                    {
+                        "sku": item["sku"],
+                        "sku_id": "5031",
+                        "quantity": item["quantity"],
+                        "price": 165.0,
+                    }
+                    for item in items
+                ],
+                "value": valor,
+                "currency": "BOB",
+                "messages": mensajes,
+            }
+        if metodo == "GET":
+            self.consultas += 1
+            if not self.vivo:
+                raise vtex_cart.CarritoVencido("404")
+            return {
+                "order_form_id": "OF-1",
+                "checkout_url": self.checkout_url,
+                "items": [{"sku": "REF-1", "quantity": 2, "price": 165.0}],
+                "value": 330.0,
+                "currency": "BOB",
+            }
+        raise AssertionError(f"ruta inesperada: {metodo} {ruta}")
 
 
-def test_por_paas_alcanza_con_la_llave_del_integrador(monkeypatch):
-    monkeypatch.setattr(settings, "vtex_cart_via", "paas")
-    monkeypatch.setattr(settings, "vtex_app_key", "")
-    monkeypatch.setattr(settings, "vtex_app_token", "")
-    monkeypatch.setattr(settings, "sap_paas_url", "http://127.0.0.1:5050")
-    monkeypatch.setattr(settings, "sap_paas_api_key", "llave")
-
-    assert vtex_cart.disponible()
-
-
-def test_por_paas_usa_las_rutas_del_integrador(monkeypatch):
-    monkeypatch.setattr(settings, "vtex_cart_via", "paas")
-    monkeypatch.setattr(settings, "sap_paas_url", "http://127.0.0.1:5050")
-
-    assert vtex_cart._base() == "http://127.0.0.1:5050"
-    assert "X-API-Key" in vtex_cart._cabeceras()
-
-
-def test_el_link_apunta_al_carrito():
-    enlace = vtex_cart.url_para_cliente("ABC123")
-
-    assert enlace.endswith("/checkout/#/orderform/ABC123")
-    assert enlace.startswith("https://roho.vtexcommercestable.com.br")
-
-
-def test_el_link_usa_el_dominio_del_cliente(monkeypatch):
-    monkeypatch.setattr(settings, "vtex_checkout_host", "https://roho.com.bo")
-
-    assert vtex_cart.url_para_cliente("ABC").startswith(
-        "https://roho.com.bo/checkout/"
-    )
-
-
-async def test_sincronizar_crea_el_carrito_y_guarda_el_link(
-    session, monkeypatch
-):
+async def test_crear_carrito_acepta_las_dos_claves(session, monkeypatch):
     carrito = await _carrito(session)
-    llamadas: list[tuple[str, str]] = []
+    fake = FakePaaS()
+    monkeypatch.setattr(vtex_cart, "_pedir", fake.pedir)
 
-    async def _fake_pedir(metodo, ruta, json=None):
-        llamadas.append((metodo, ruta))
-        if ruta.startswith("/api/checkout/pub/orderForm?"):
-            return {"orderFormId": "OF-1"}
-        return {"items": json.get("items") if json else []}
+    creado = await vtex_cart.crear_carrito(carrito)
 
-    monkeypatch.setattr(vtex_cart, "_pedir", _fake_pedir)
-
-    await vtex_cart.sincronizar(carrito)
-
-    assert carrito.vtex_order_form_id == "OF-1"
-    assert carrito.vtex_cart_url.endswith("/orderform/OF-1")
-    assert [ruta for _m, ruta in llamadas][0].startswith("/api/checkout/pub/orderForm")
+    assert creado["order_form_id"] == "OF-1"
 
 
-async def test_si_vtex_falla_el_carrito_local_sigue(session, monkeypatch):
+def test_normalizar_acepta_orderFormId():
+    assert vtex_cart.normalizar({"orderFormId": "ABC"})["order_form_id"] == "ABC"
+    assert vtex_cart.normalizar({"order_form_id": "XYZ"})["order_form_id"] == "XYZ"
+
+
+async def test_sin_checkout_url_no_hay_link(session, monkeypatch):
     carrito = await _carrito(session)
+    fake = FakePaaS(checkout_url=None)
+    monkeypatch.setattr(vtex_cart, "_pedir", fake.pedir)
 
-    async def _falla(*args, **kwargs):
-        raise vtex_cart.VtexCartError("sin conexión")
+    resultado = await vtex_cart.sincronizar(carrito)
 
-    monkeypatch.setattr(vtex_cart, "_pedir", _falla)
-
-    await vtex_cart.sincronizar(carrito)
-
-    assert carrito.vtex_order_form_id is None
+    assert resultado["estado"] == "ok"
+    assert resultado["link"] == ""
     assert vtex_cart.link_para_pagar(carrito) == ""
 
 
-async def test_sin_items_no_llama_a_vtex(session, monkeypatch):
+async def test_con_checkout_url_hay_link(session, monkeypatch):
     carrito = await _carrito(session)
-    for item in list(carrito.items):
-        await session.delete(item)
-    await session.commit()
-    await session.refresh(carrito, attribute_names=["items"])
+    fake = FakePaaS(
+        checkout_url="https://roho.com.bo/checkout/#/orderform/OF-1"
+    )
+    monkeypatch.setattr(vtex_cart, "_pedir", fake.pedir)
 
-    llamado = {"veces": 0}
+    resultado = await vtex_cart.sincronizar(carrito)
 
-    async def _fake(*args, **kwargs):
-        llamado["veces"] += 1
-        return {}
+    assert resultado["link"].startswith("https://roho.com.bo/checkout/")
 
-    monkeypatch.setattr(vtex_cart, "_pedir", _fake)
+
+async def test_un_item_rechazado_marca_incompleto(session, monkeypatch):
+    carrito = await _carrito(session, skus=("REF-1", "REF-2"))
+    fake = FakePaaS(rechazar={"REF-2"})
+    monkeypatch.setattr(vtex_cart, "_pedir", fake.pedir)
+
+    resultado = await vtex_cart.sincronizar(carrito)
+
+    assert resultado["estado"] == "incompleto"
+    assert resultado["faltantes"] == ["REF-2"]
+    assert any("REF-2" in m["text"] for m in resultado["mensajes"])
+
+
+async def test_manda_el_refid_y_cantidad(session, monkeypatch):
+    carrito = await _carrito(session, skus=("PTRPARD020198",))
+    fake = FakePaaS()
+    monkeypatch.setattr(vtex_cart, "_pedir", fake.pedir)
+
     await vtex_cart.sincronizar(carrito)
 
-    assert llamado["veces"] == 0
+    enviado = fake.agregados[0]["items"][0]
+    assert enviado["sku"] == "PTRPARD020198"
+    assert enviado["quantity"] == 2
+    assert enviado["seller"] == "1"
+
+
+async def test_usa_la_idempotency_key(session):
+    carrito = await _carrito(session)
+
+    cabeceras = vtex_cart._cabeceras(carrito)
+
+    assert cabeceras["Idempotency-Key"] == f"{carrito.contact_id}:{carrito.id}"
+
+
+async def test_no_reutiliza_un_carrito_vencido(session, monkeypatch):
+    carrito = await _carrito(session)
+    fake = FakePaaS()
+    monkeypatch.setattr(vtex_cart, "_pedir", fake.pedir)
+    await vtex_cart.sincronizar(carrito)
+    assert fake.creados == 1
+
+    carrito.vtex_synced_at = datetime.now(timezone.utc) - timedelta(hours=25)
+    await session.commit()
+
+    await vtex_cart.sincronizar(carrito)
+    assert fake.creados == 2
+
+
+async def test_un_carrito_404_no_esta_vigente(session, monkeypatch):
+    carrito = await _carrito(session)
+    fake = FakePaaS()
+    monkeypatch.setattr(vtex_cart, "_pedir", fake.pedir)
+    await vtex_cart.sincronizar(carrito)
+
+    fake.vivo = False
+    carrito.vtex_synced_at = datetime.now(timezone.utc)
+    await session.commit()
+
+    assert not await vtex_cart.asegurar_vigente(carrito)
+
+
+async def test_si_el_integrador_falla_el_carrito_local_sigue(
+    session, monkeypatch
+):
+    carrito = await _carrito(session)
+
+    async def _falla(*args, **kwargs):
+        raise vtex_cart.VtexCartError("502")
+
+    monkeypatch.setattr(vtex_cart, "_pedir", _falla)
+
+    resultado = await vtex_cart.sincronizar(carrito)
+
+    assert resultado["estado"] == "error"
+    assert vtex_cart.link_para_pagar(carrito) == ""
+    assert len(carrito.items) == 1  # el carrito local no se toca
+
+
+async def test_el_precio_es_el_de_vtex(session, monkeypatch):
+    carrito = await _carrito(session)
+    fake = FakePaaS()
+    monkeypatch.setattr(vtex_cart, "_pedir", fake.pedir)
+
+    await vtex_cart.sincronizar(carrito)
+
+    # 2 × 165 (precio de VTEX), no 2 × 100 (precio local).
+    assert carrito.vtex_value == Decimal("330.0")
+    assert carrito.vtex_currency == "BOB"

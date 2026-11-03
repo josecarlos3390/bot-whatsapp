@@ -4261,8 +4261,37 @@ class Agent:
         carrito_local = await cart_service.get_or_create_cart(
             session, contact.id
         )
+        # El link solo se usa si el integrador lo devolvió y el carrito
+        # sigue vigente: nunca se arma una URL a mano.
         enlace = vtex_cart.link_para_pagar(carrito_local)
-        if enlace:
+        if enlace and await vtex_cart.asegurar_vigente(carrito_local):
+            faltantes = json.loads(carrito_local.vtex_messages or "[]")
+            rechazados = [
+                mensaje.get("text")
+                for mensaje in faltantes
+                if mensaje.get("status") == "error"
+            ]
+            if rechazados:
+                self._trace("Checkout: ítems rechazados por VTEX")
+                return AgentReply(
+                    [
+                        Outbound(
+                            kind="buttons",
+                            text=(
+                                "No pude cargar todo en la tienda 😕\n"
+                                + "\n".join(
+                                    f"• {texto[:90]}" for texto in rechazados[:3]
+                                )
+                                + "\n\n¿Seguimos con lo que sí está "
+                                "disponible o lo revisa un asesor?"
+                            ),
+                            buttons=[
+                                {"id": "cart", "title": "Ver carrito"},
+                                {"id": "human", "title": "Asesor"},
+                            ],
+                        )
+                    ]
+                )
             self._trace("Checkout: link de VTEX")
             return AgentReply(
                 [
