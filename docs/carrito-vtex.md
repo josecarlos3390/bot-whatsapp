@@ -112,3 +112,51 @@ carrito.
 | Dominio de checkout (checkout_url) | ⏳ |
 | Validación de punta a punta | ⏳ |
 | VTEX_CART_ENABLED=false | ✅ hasta entonces |
+
+## Estado del cierre con el PaaS
+
+Validado el 3/11/2026 contra el PaaS desplegado:
+
+| Punto | Resultado |
+|---|---|
+| crear | order_form_id nuevo, carrito vacío |
+| Aislamiento | dos creaciones → dos carritos distintos |
+| gregar | ítem correcto, messages solo de la request |
+| consultar | mismo order_form_id, vigente |
+| sincronizar | ok, y repetir no duplica |
+| limpiar | ok |
+
+Acordado con el PaaS:
+
+`
+checkout_url: null
+expires_at:   null
+TTL:          24 h del lado del bot
+SellerId:     1
+`
+
+**No hace falta cambiar nada más del contrato.**
+
+### Lo único pendiente: dominio de checkout
+
+Pasos acordados:
+
+1. El PaaS configura Vtex:CheckoutHost y redespliega.
+2. Verifican que checkout_url deje de ser null.
+3. Avisan para activar VTEX_CART_ENABLED=true temporalmente.
+4. Corre el E2E final con el link real.
+5. Si funciona, la bandera queda activa.
+
+### Qué prueba el E2E
+
+`
+crear                 → order_form_id nuevo y carrito vacío
+aislamiento           → dos carritos distintos
+agregar               → ítem con precio de VTEX
+varios productos      → cantidades por SKU, sin sumar
+SKU inexistente       → rechazo informado en messages
+consultar             → mismo carrito
+sincronizar           → ok
+sincronizar dos veces → no duplica
+limpiar               → borra los datos de prueba
+`

@@ -164,6 +164,59 @@ async def main() -> int:
             _ok(f"messages corresponde a esta request ({len(propios)})")
         _ok(f"total VTEX = {respuesta['value']} {respuesta['currency']}")
 
+        print("\n4b. Varios productos y cantidades")
+        otros = (
+            await session.scalars(
+                select(CatalogItem)
+                .where(
+                    CatalogItem.active.is_(True),
+                    CatalogItem.stock > 3,
+                    CatalogItem.sku != articulo.sku,
+                )
+                .limit(2)
+            )
+        ).all()
+        lote = [
+            {"sku": articulo.sku, "quantity": 2},
+            *[{"sku": otro.sku, "quantity": 3} for otro in otros],
+        ]
+        try:
+            varios = await vtex_cart.agregar_items(carrito, lote)
+        except Exception as exc:  # noqa: BLE001
+            _mal(f"no se pudo agregar el lote: {str(exc)[:120]}")
+            varios = None
+        if varios is not None:
+            if len(varios["items"]) == len(lote):
+                _ok(f"quedaron {len(lote)} productos distintos")
+            else:
+                _mal(
+                    f"esperaba {len(lote)} productos y quedaron "
+                    f"{len(varios['items'])}"
+                )
+            por_sku = {i["sku"]: i["quantity"] for i in varios["items"]}
+            if por_sku.get(articulo.sku) == 2:
+                _ok("la cantidad se actualiza, no se suma")
+            else:
+                _mal(f"cantidad inesperada: {por_sku.get(articulo.sku)}")
+            _ok(f"total con el lote = {varios['value']} {varios['currency']}")
+
+        print("\n4c. SKU inexistente")
+        try:
+            fallo = await vtex_cart.agregar_items(
+                carrito, [{"sku": "NOEXISTE-999", "quantity": 1}]
+            )
+        except Exception as exc:  # noqa: BLE001
+            _mal(f"el SKU inválido rompió la llamada: {str(exc)[:100]}")
+        else:
+            if any("NOEXISTE-999" in m["text"] for m in fallo["messages"]):
+                _ok("el rechazo se informa en messages")
+            elif fallo["messages"]:
+                _ok("hay mensajes, aunque no nombran el SKU")
+            else:
+                _mal("el SKU inexistente no generó ningún aviso")
+            if not any(i["sku"] == "NOEXISTE-999" for i in fallo["items"]):
+                _ok("no quedó en el carrito")
+
         print("\n5. Consultar carrito")
         actual = await vtex_cart.consultar(carrito)
         if actual is None:

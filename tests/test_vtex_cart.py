@@ -268,3 +268,27 @@ def test_expires_at_null_usa_el_ttl_del_bot():
     carrito = vtex_cart.normalizar({"order_form_id": "OF-9"})
 
     assert carrito["expires_at"] is None
+
+async def test_faltantes_detecta_el_rechazado_entre_varios(session):
+    carrito = await _carrito(session, skus=("REF-1", "REF-2", "REF-3"))
+    respuesta = {
+        "items": [
+            {"sku": "REF-1", "quantity": 2},
+            {"sku": "REF-3", "quantity": 1},
+        ]
+    }
+
+    faltantes = vtex_cart._faltantes(carrito, respuesta)
+
+    assert faltantes == ["REF-2"]
+
+
+async def test_varios_items_se_mandan_todos(session, monkeypatch):
+    carrito = await _carrito(session, skus=("REF-1", "REF-2"))
+    fake = FakePaaS()
+    monkeypatch.setattr(vtex_cart, "_pedir", fake.pedir)
+
+    await vtex_cart.sincronizar(carrito)
+
+    enviados = {i["sku"] for i in fake.agregados[0]["items"]}
+    assert enviados == {"REF-1", "REF-2"}
