@@ -274,3 +274,30 @@ async def test_agregar_pregunta_cantidad_y_la_respeta(session):
 
     carrito = await agente.handle(session, contacto, "carrito")
     assert "4 ×" in (carrito.messages[0].text or "")
+
+async def test_pedir_el_menu_no_busca_productos(session):
+    from app.agent import Agent
+
+    contacto = await _contacto(session, "59170028001")
+    agente = Agent()
+
+    for texto in (
+        "Muéstrame el menú de opciones",
+        "Puedes mostrarme las opciones nuevamente?",
+        "menu",
+    ):
+        respuesta = await agente.handle(session, contacto, texto)
+        mensaje = respuesta.messages[0]
+        assert mensaje.kind == "buttons", texto
+        ids = [boton["id"] for boton in mensaje.buttons]
+        assert "catalog" in ids
+
+
+async def test_otra_opcion_vuelve_al_menu_de_categorias(session):
+    from app.agent import Agent
+
+    contacto = await _contacto(session, "59170028002")
+
+    respuesta = await Agent().handle(session, contacto, "otra opción")
+
+    assert respuesta.messages[0].kind == "list"

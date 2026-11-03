@@ -2832,6 +2832,20 @@ FRIENDLY_CATEGORIES = [
         "category": "LINEA BLANCA",
     },
 ]
+# "Muéstrame el menú de opciones" o "otra opción": no es una búsqueda.
+_MENU_RE = re.compile(
+    r"\b(muestrame|muéstrame|mostrar|ver|dame|pasame|abrime|abríme)\b"
+    r".{0,25}\b(menu|menú|opciones)\b"
+    r"|\b(menu|menú)\b.{0,20}\b(opciones|principal|del bot)\b"
+    r"|^\s*(menu|menú|opciones|inicio|otra opci[oó]n|ver opciones)\s*$"
+    r"|\b(opciones)\b.{0,18}\b(nuevamente|otra vez|de nuevo)\b",
+    re.IGNORECASE,
+)
+_MAS_RE = re.compile(
+    r"^\s*(otra opci[oó]n|otras opciones|ver m[aá]s|mostrame m[aá]s|m[aá]s opciones)\s*$",
+    re.IGNORECASE,
+)
+
 SEARCH_RE = re.compile(
     r"\b(living|sala|comedor|sofa|sill[oó]n|mesa|silla|aparador|rack|"
     r"colch[oó]n(?:es)?|cama(?:s)?|refri(?:gerador(?:es)?)?|"
@@ -5135,6 +5149,37 @@ class Agent:
         # Clasificación de intención: primero reglas, y si hay duda, el modelo
         # con lista cerrada de ocasiones. Una frase personal nunca termina en
         # una lista de productos "cercanos".
+        # "Muéstrame el menú de opciones" / "otra opción": no es una
+        # búsqueda de producto, es pedir el menú o más alternativas.
+        if not _es_accion(normalized):
+            if _MAS_RE.match(raw):
+                self._trace("Pide más opciones")
+                return await self._category_list(session, contact)
+            if _MENU_RE.search(raw) and len(raw.split()) <= 8:
+                from .services import catalog as _catalogo
+
+                termino = _catalogo.primary_term(_catalogo.clean_for_search(raw))
+                # Si nombró un producto real, es una búsqueda, no el menú.
+                if not termino or not await _catalogo.search_items(
+                    session, termino, limit=1
+                ):
+                    self._trace("Pide el menú")
+                    return AgentReply(
+                        [
+                            Outbound(
+                                kind="buttons",
+                                text=(
+                                    "Este es el menú 👇 ¿Con qué seguimos?"
+                                ),
+                                buttons=[
+                                    {"id": "catalog", "title": "Buscar productos"},
+                                    {"id": "cart", "title": "Ver mi carrito"},
+                                    {"id": "human", "title": "Hablar con asesor"},
+                                ],
+                            )
+                        ]
+                    )
+
         # "¿Tenés stock?": se responde por el producto que se venía viendo,
         # sin buscar la palabra "stock" en el catálogo.
         if not _es_accion(normalized):
