@@ -194,7 +194,9 @@ async def product_list(
 
     # Si hay mucha diferencia de precios, se pregunta el presupuesto: es lo
     # que más ayuda a acertar (y lo que haría un vendedor).
-    if not max_precio:
+    # Con "Sin límite" (o cuando ya eligió presupuesto) no se vuelve a
+    # preguntar: era un bucle al tocar "Sin límite".
+    if not max_precio and not directo:
         from ..services import presupuesto
 
         precios = [

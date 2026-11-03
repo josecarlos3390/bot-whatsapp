@@ -431,6 +431,40 @@ def _monto(valor) -> str:
     return f"{numero:,.0f}".replace(",", ".") if numero else str(valor or "")
 
 
+def _error_cantidad(error: str, sku: str) -> str:
+    """Traduce el error de stock a algo que el cliente entienda."""
+    import re as _re
+
+    texto = (error or "").strip()
+    detalle = _re.search(r"Disponible por tienda:\s*(.+)\.", texto)
+    if "no hay" in texto.lower() and detalle:
+        partes = [
+            parte.strip()
+            for parte in detalle.group(1).split(",")
+            if parte.strip()
+        ]
+        con_stock = [
+            parte for parte in partes if not parte.endswith(": 0")
+        ]
+        nombre = texto.split(" unidades de ")[-1].split(" en una sola")[0]
+        if con_stock:
+            return (
+                f"De *{nombre[:48]}* no tengo esa cantidad en una sola "
+                f"tienda.\nHay disponible: {', '.join(con_stock)}.\n\n"
+                "¿Te agrego menos unidades o lo vemos por envío?"
+            )
+        return (
+            f"De *{nombre[:48]}* no queda stock en este momento.\n"
+            "¿Querés que te muestre algo parecido?"
+        )
+    if "stock" in texto.lower() or "unidades" in texto.lower():
+        return (
+            "No pude agregar esa cantidad 🤔\n"
+            "Probá con menos unidades o decime si querés otra cosa."
+        )
+    return f"No pude agregarlo: {texto[:160]}"
+
+
 def _es_accion(texto: str) -> bool:
     """¿El mensaje es un botón o comando del cliente?"""
     from .services import actions
@@ -3962,8 +3996,11 @@ class Agent:
                 [
                     Outbound(
                         kind="buttons",
-                        text=f"No pude agregarlo: {result.get('error', 'sin stock')}",
+                        text=_error_cantidad(
+                            result.get("error", "sin stock"), sku
+                        ),
                         buttons=[
+                            {"id": f"add:{sku}:1", "title": "Agregar 1"},
                             {"id": "catalog", "title": "Ver opciones"},
                             {"id": "human", "title": "Asesor"},
                         ],
@@ -5229,6 +5266,35 @@ class Agent:
                     if item is not None:
                         stock = int(item.stock or 0)
                         nombre = item.name or nombre
+                        # Si el proveedor informa stock por sucursal, se usa.
+                        por_tienda = await tienda.stock_por_tienda(
+                            session, visto["sku"]
+                        )
+                        if por_tienda:
+                            self._trace("Pregunta por tienda (por sucursal)")
+                            return AgentReply(
+                                [
+                                    Outbound(
+                                        text=tienda.responder_con_tiendas(
+                                            nombre, stock, por_tienda
+                                        )
+                                    ),
+                                    Outbound(
+                                        kind="buttons",
+                                        text="¿Cómo seguimos?",
+                                        buttons=[
+                                            {
+                                                "id": "human",
+                                                "title": "Reservar en tienda",
+                                            },
+                                            {
+                                                "id": "envio:resto",
+                                                "title": "Envío a domicilio",
+                                            },
+                                        ],
+                                    ),
+                                ]
+                            )
                 self._trace("Pregunta por tienda")
                 return AgentReply(
                     [

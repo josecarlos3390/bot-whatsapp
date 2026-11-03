@@ -301,3 +301,47 @@ async def test_otra_opcion_vuelve_al_menu_de_categorias(session):
     respuesta = await Agent().handle(session, contacto, "otra opción")
 
     assert respuesta.messages[0].kind == "list"
+
+async def test_sin_limite_no_vuelve_a_preguntar(session):
+    """Tocar «Sin límite» listaba de nuevo la pregunta: bucle."""
+    from app.agent import Agent
+    from app.models import CatalogItem, Contact, Conversation
+
+    for indice in range(6):
+        session.add(
+            CatalogItem(
+                sku=f"LB-{indice}",
+                name=f"Cocina {indice}",
+                price=str(1000 + indice * 1500),
+                stock=5,
+                brand="TEST",
+                category="LINEA BLANCA",
+                active=True,
+            )
+        )
+    await session.commit()
+    contacto = await _contacto(session, "59170029001")
+    agente = Agent()
+
+    await agente.handle(session, contacto, "cat:linea-blanca")
+
+    respuesta = await agente.handle(session, contacto, "price:linea-blanca|0")
+
+    texto = respuesta.messages[0].text or ""
+    # Lo importante: no vuelve a preguntar el presupuesto.
+    assert "Hasta cuánto querés gastar" not in texto
+    assert respuesta.messages[0].kind == "list"
+
+def test_el_error_de_stock_se_entiende():
+    from app.agent import _error_cantidad
+
+    error = (
+        "No hay 7 unidades de COCINA 4H INOX en una sola tienda. "
+        "Disponible por tienda: Tienda 1: 5, Tienda 3: 0, Tienda 2: 0."
+    )
+    texto = _error_cantidad(error, "LBLCNHR020145")
+
+    assert "no tengo esa cantidad" in texto
+    assert "Tienda 1: 5" in texto
+    assert "Tienda 3" not in texto
+    assert "No hay 7 unidades" not in texto
