@@ -258,3 +258,63 @@ def test_la_foto_de_un_taladro_inalambrico_encuentra_taladros():
             "category": "Herramientas",
         },
     )
+
+async def test_la_ficha_no_muestra_vigencia_ni_unidades(session):
+    from app.models import CatalogItem
+
+    session.add(
+        CatalogItem(
+            sku="FICHA-001",
+            name="Microondas de prueba",
+            price="1403",
+            stock=10,
+            brand="TEST",
+            category="Microondas",
+            active=True,
+        )
+    )
+    await session.commit()
+    from app.agent import Agent
+    from app.models import Contact, Conversation
+
+    contacto = Contact(
+        wa_id="59170026001", phone_e164="+59170026001", name="Ana"
+    )
+    session.add(contacto)
+    await session.flush()
+    session.add(Conversation(contact_id=contacto.id))
+    await session.commit()
+
+    respuesta = await Agent().handle(session, contacto, "product:FICHA-001")
+    texto = " ".join(m.text or "" for m in respuesta.messages)
+
+    assert "Vigente hasta" not in texto
+    assert "Disponible:" not in texto
+    assert "Bs 1.403" in texto or "Bs 1,403" in texto
+
+
+def test_detecta_la_pregunta_de_stock():
+    from app.services import stock
+
+    for texto in (
+        "hay stock?",
+        "cuántas unidades tenés",
+        "tenés disponible el microondas?",
+        "queda algo?",
+        "está disponible?",
+    ):
+        assert stock.pregunta_stock(texto), texto
+
+
+def test_una_busqueda_normal_no_es_pregunta_de_stock():
+    from app.services import stock
+
+    assert not stock.pregunta_stock("busco un microondas")
+    assert not stock.pregunta_stock("¿cuánto sale el envío?")
+
+
+def test_responde_si_hay_y_si_no_hay():
+    from app.services import stock
+
+    assert "disponible" in stock.responder("Microondas X", 10)
+    assert "no tiene stock" in stock.responder("Microondas X", 0)

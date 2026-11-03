@@ -66,16 +66,12 @@ async def detail(
         )
     else:
         lines.append(f"Precio: *Bs {final:,.2f}*")
-    # VTEX usa 2100-01-01 como "sin vencimiento": mostrarlo parece un error.
-    vigencia = str(product.get("period_to") or "")
-    if vigencia and int(vigencia[:4] or 0) < 2099:
-        lines.append(f"Vigente hasta {vigencia}")
-    # Disponibilidad concreta: el cliente pregunta "¿tenés stock?" y la
-    # ficha repetía lo mismo sin responder.
-    if stock > 0:
-        unidades = "unidad" if stock == 1 else "unidades"
-        lines.append(f"Disponible: {stock:,} {unidades}".replace(",", "."))
-    else:
+    # La vigencia del descuento y las unidades exactas quedan dentro de los
+    # datos del producto (el bot las usa si le preguntan) pero no se muestran:
+    # al cliente no le aportan y parecen información interna.
+    #
+    # El stock se comunica solo cuando NO hay: ahí sí importa.
+    if stock <= 0:
         lines.append("Sin stock por ahora")
     for tier in product.get("tiers") or []:
         if tier.get("quantity") and tier.get("price"):

@@ -5043,6 +5043,37 @@ class Agent:
         # Clasificación de intención: primero reglas, y si hay duda, el modelo
         # con lista cerrada de ocasiones. Una frase personal nunca termina en
         # una lista de productos "cercanos".
+        # "¿Tenés stock?": se responde por el producto que se venía viendo,
+        # sin buscar la palabra "stock" en el catálogo.
+        if not _es_accion(normalized):
+            from .services import stock as stock_service
+
+            if stock_service.pregunta_stock(raw):
+                from .services import catalog as catalogo
+                from .services import memoria_cliente
+
+                visto = await memoria_cliente.ultimo_visto(session, contact)
+                if visto is not None:
+                    item = await catalogo.get_item(session, visto["sku"])
+                    if item is not None:
+                        self._trace("Pregunta de stock")
+                        precio = (
+                            f"Bs {float(item.promo_price):,.0f}".replace(
+                                ",", "."
+                            )
+                            if getattr(item, "promo_price", None)
+                            else ""
+                        )
+                        return AgentReply(
+                            [
+                                Outbound(
+                                    text=stock_service.responder(
+                                        item.name, int(item.stock or 0), precio
+                                    )
+                                )
+                            ]
+                        )
+
         # "¿En qué tienda lo encuentro?": se responde la disponibilidad, no
         # se repite la ficha del producto.
         if not _es_accion(normalized):
