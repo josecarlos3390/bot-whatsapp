@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { api } from "./api";
 import { Badge, Button, Card, Example, Input, Textarea } from "./ui";
 import { ThemeToggle } from "./theme";
+import { AssistantPanel } from "./assistant";
 import type { Advisor, AreaRule, AreaUser } from "./types";
 
 const AREAS = ["ecommerce", "calidad", "marketing", "operaciones", "general"];
@@ -412,6 +413,13 @@ function RuleBuilder({
             </div>
           )}
         </Card>
+        <div className="mb-4">
+          <AssistantPanel
+            claro
+            tipoInicial="regla"
+            onCreado={() => void load()}
+          />
+        </div>
         <Card className="mb-4 p-4">
           <h2 className="mb-3 text-sm font-bold text-slate-900">{editing ? t("Editar regla") : t("Nueva regla")}</h2>
           <label className="mb-1 block text-xs font-semibold text-slate-600">{t("¿Qué querés hacer?")}</label>

@@ -2,6 +2,7 @@
 import { t } from "./i18n";
 import { Link } from "react-router-dom";
 import { api } from "./api";
+import { AssistantPanel } from "./assistant";
 import { AreaHeader } from "./areas";
 import { Badge, Button, Card, Example, Input } from "./ui";
 import type { Advisor, AreaUser, Occasion } from "./types";
@@ -287,6 +288,14 @@ export function OccasionsPage({
           )}
         </Card>
 
+        <div className="mb-6">
+          <AssistantPanel
+            claro
+            tipoInicial="ocasion"
+            onCreado={() => void load()}
+          />
+        </div>
+
         <Card className="mb-6 border-[#e5e7eb] bg-[#ffffff] p-5">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="font-serif text-xl font-semibold text-[#111111]">{editing ? "Editar ocasión" : "Nueva ocasión"}</h2>
@@ -317,6 +326,14 @@ export function OccasionsPage({
             <label className="text-xs font-semibold text-[#4b5563]">{t("Términos directos")}<Input className="mt-1 border-[#e5e7eb]" value={form.direct} onChange={(event) => setForm({ ...form, direct: event.target.value })} placeholder={t("disfraz, dulce, calabaza, vela")} />
               <Hint>{t("Productos que se buscan tal cual. Separados por coma.")}</Hint>
             </label>
+            <details className="md:col-span-2 rounded-xl border border-[#e5e7eb] bg-[#f9fafb] px-4 py-3">
+              <summary className="cursor-pointer text-xs font-bold text-[#111111]">
+                {t("Opciones avanzadas (opcional)")}
+              </summary>
+              <p className="mt-1 text-[11px] text-[#6b7280]">
+                {t("Para afinar cuándo se activa la campaña y qué ofrece si no hay productos. Podés dejarlo vacío.")}
+              </p>
+              <div className="mt-3 grid gap-4 md:grid-cols-2">
             <label className="text-xs font-semibold text-[#4b5563]">{t("Excluir términos")}<Input className="mt-1 border-[#e5e7eb]" value={form.exclude} onChange={(event) => setForm({ ...form, exclude: event.target.value })} placeholder={t("mueble, silla, navidad")} />
               <Hint>{t("Si el mensaje contiene alguno, la campaña no se activa.")}</Hint>
             </label>
@@ -337,6 +354,8 @@ export function OccasionsPage({
             <label className="text-xs font-semibold text-[#4b5563]">{t("Términos de la alternativa")}<Input className="mt-1 border-[#e5e7eb]" value={form.bridge_terms} onChange={(event) => setForm({ ...form, bridge_terms: event.target.value })} placeholder={t("televisor, tv")} />
               <Hint>{t("Productos que se muestran como alternativa. Separados por coma.")}</Hint>
             </label>
+              </div>
+            </details>
             <label className="text-xs font-semibold text-[#4b5563]">{t("Estado")}<select className="mt-1 w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm" value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}>
                 <option value="draft">{t("Borrador")}</option>
                 <option value="published">{t("Publicada")}</option>

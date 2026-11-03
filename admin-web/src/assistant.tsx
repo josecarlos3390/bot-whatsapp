@@ -21,14 +21,22 @@ const TIPOS = [
 ];
 
 const EJEMPLOS: Record<string, string> = {
-  regla: "quiero una regla que priorice la marca ELECTROLUX cuando pregunten por cocinas",
-  ocasion: "creá una ocasión para el Día del Padre con taladros y sets de herramientas",
+  regla: "quiero priorizar la marca ELECTROLUX cuando pregunten por cocinas",
+  ocasion: "creá una ocasión para el Día del Padre con taladros y herramientas",
   conocimiento: "agregá un artículo que explique la garantía de los colchones",
   faq: "¿hacen envíos a domicilio? Sí, entregamos en 24 horas",
 };
 
-export function AssistantPanel({ onCreado }: { onCreado?: () => void }) {
-  const [tipo, setTipo] = useState("regla");
+export function AssistantPanel({
+  onCreado,
+  tipoInicial = "regla",
+  claro = false,
+}: {
+  onCreado?: () => void;
+  tipoInicial?: string;
+  claro?: boolean;
+}) {
+  const [tipo, setTipo] = useState(tipoInicial);
   const [texto, setTexto] = useState("");
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [borrador, setBorrador] = useState<Borrador | null>(null);
@@ -41,10 +49,26 @@ export function AssistantPanel({ onCreado }: { onCreado?: () => void }) {
     fin.current?.scrollIntoView({ behavior: "smooth" });
   }, [mensajes, borrador]);
 
+  const caja = claro
+    ? "rounded-xl border border-slate-300 bg-white p-4"
+    : "rounded-xl border border-slate-800 bg-slate-900/60 p-4";
+  const titulo = claro ? "text-slate-900" : "text-white";
+  const panel = claro ? "bg-slate-50" : "bg-slate-950/60";
+  const burbujaBot = claro
+    ? "bg-slate-100 text-slate-700"
+    : "bg-slate-800/60 text-slate-200";
+  const burbujaYo = claro
+    ? "bg-emerald-50 text-emerald-900"
+    : "bg-emerald-600/15 text-emerald-100";
+  const campo = claro
+    ? "border-slate-300 bg-white text-slate-900"
+    : "border-slate-700 bg-slate-950 text-white";
+  const suave = claro ? "text-slate-500" : "text-slate-400";
+
   async function enviar() {
     const limpio = texto.trim();
     if (!limpio || cargando) return;
-    const nuevos = [...mensajes, { role: "user" as const, content: limpio }];
+    const nuevos: Mensaje[] = [...mensajes, { role: "user", content: limpio }];
     setMensajes(nuevos);
     setTexto("");
     setError("");
@@ -59,8 +83,11 @@ export function AssistantPanel({ onCreado }: { onCreado?: () => void }) {
       const respuesta = datos.listo
         ? `${datos.resumen}\n\n¿Confirmás la creación?`
         : [datos.resumen, ...datos.preguntas].filter(Boolean).join("\n\n");
-      setMensajes([...nuevos, { role: "assistant", content: respuesta }]);
-    } catch (exc) {
+      setMensajes([
+        ...nuevos,
+        { role: "assistant", content: respuesta || "Contame un poco más." },
+      ]);
+    } catch {
       setError("No se pudo interpretar. Probá con otra frase.");
     } finally {
       setCargando(false);
@@ -76,40 +103,45 @@ export function AssistantPanel({ onCreado }: { onCreado?: () => void }) {
         "/admin/assistant/crear",
         {
           method: "POST",
-          body: JSON.stringify({ tipo: borrador.tipo, borrador: borrador.borrador }),
+          body: JSON.stringify({
+            tipo: borrador.tipo,
+            borrador: borrador.borrador,
+          }),
         },
       );
-      setCreado(resultado.nombre || resultado.titulo || "Creado");
+      const nombre = resultado.nombre || resultado.titulo || "Listo";
+      setCreado(nombre);
       setMensajes([
         ...mensajes,
-        {
-          role: "assistant",
-          content: `Listo, quedó creado: ${resultado.nombre || resultado.titulo}`,
-        },
+        { role: "assistant", content: `Listo, quedó creado: ${nombre}` },
       ]);
       setBorrador(null);
       onCreado?.();
-    } catch (exc) {
-      setError(exc instanceof Error ? exc.message : "No se pudo crear");
+    } catch (excepcion) {
+      setError(
+        excepcion instanceof Error ? excepcion.message : "No se pudo crear",
+      );
     } finally {
       setCargando(false);
     }
   }
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+    <div className={caja}>
       <header className="mb-3 flex items-center gap-2">
-        <Bot size={18} className="text-emerald-400" />
-        <h2 className="text-sm font-semibold text-white">Crear conversando</h2>
+        <Bot size={18} className="text-emerald-500" />
+        <h2 className={`text-sm font-semibold ${titulo}`}>
+          Crear conversando
+        </h2>
         <select
           value={tipo}
-          onChange={(event) => {
-            setTipo(event.target.value);
+          onChange={(evento) => {
+            setTipo(evento.target.value);
             setMensajes([]);
             setBorrador(null);
             setCreado("");
           }}
-          className="ml-auto rounded-lg border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-white"
+          className={`ml-auto rounded-lg border px-2 py-1 text-xs ${campo}`}
         >
           {TIPOS.map((opcion) => (
             <option key={opcion.valor} value={opcion.valor}>
@@ -119,20 +151,20 @@ export function AssistantPanel({ onCreado }: { onCreado?: () => void }) {
         </select>
       </header>
 
-      <div className="mb-3 max-h-64 space-y-2 overflow-y-auto rounded-lg bg-slate-950/60 p-3 text-sm">
+      <div
+        className={`mb-3 max-h-64 space-y-2 overflow-y-auto rounded-lg p-3 text-sm ${panel}`}
+      >
         {mensajes.length === 0 && (
-          <p className="text-slate-400">
+          <p className={suave}>
             Escribí lo que querés crear. Por ejemplo: «{EJEMPLOS[tipo]}».
           </p>
         )}
         {mensajes.map((mensaje, indice) => (
           <div
             key={indice}
-            className={
-              mensaje.role === "user"
-                ? "rounded-lg bg-emerald-600/15 p-2 text-emerald-100"
-                : "whitespace-pre-line rounded-lg bg-slate-800/60 p-2 text-slate-200"
-            }
+            className={`whitespace-pre-line rounded-lg p-2 ${
+              mensaje.role === "user" ? burbujaYo : burbujaBot
+            }`}
           >
             {mensaje.content}
           </div>
@@ -141,9 +173,11 @@ export function AssistantPanel({ onCreado }: { onCreado?: () => void }) {
       </div>
 
       {borrador && borrador.listo && (
-        <div className="mb-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 text-xs text-slate-200">
-          <div className="mb-1 font-semibold text-emerald-300">Se va a crear</div>
-          <pre className="max-h-40 overflow-auto whitespace-pre-wrap">
+        <div className="mb-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 text-xs">
+          <div className="mb-1 font-semibold text-emerald-600">
+            Se va a crear
+          </div>
+          <pre className="max-h-40 overflow-auto whitespace-pre-wrap text-[11px]">
             {JSON.stringify(borrador.borrador, null, 2)}
           </pre>
           <button
@@ -156,20 +190,18 @@ export function AssistantPanel({ onCreado }: { onCreado?: () => void }) {
         </div>
       )}
 
-      {error && <p className="mb-2 text-sm text-red-300">{error}</p>}
-      {creado && (
-        <p className="mb-2 text-sm text-emerald-300">Creado: {creado}</p>
-      )}
+      {error && <p className="mb-2 text-sm text-red-500">{error}</p>}
+      {creado && <p className="mb-2 text-sm text-emerald-600">Creado: {creado}</p>}
 
       <div className="flex gap-2">
         <input
           value={texto}
-          onChange={(event) => setTexto(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") void enviar();
+          onChange={(evento) => setTexto(evento.target.value)}
+          onKeyDown={(evento) => {
+            if (evento.key === "Enter") void enviar();
           }}
           placeholder={EJEMPLOS[tipo]}
-          className="flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+          className={`flex-1 rounded-lg border px-3 py-2 text-sm ${campo}`}
         />
         <button
           onClick={enviar}
