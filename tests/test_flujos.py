@@ -318,3 +318,29 @@ def test_responde_si_hay_y_si_no_hay():
 
     assert "disponible" in stock.responder("Microondas X", 10)
     assert "no tiene stock" in stock.responder("Microondas X", 0)
+
+async def test_el_error_de_ventana_cerrada_se_entiende(monkeypatch):
+    from app.whatsapp import WhatsAppClient
+
+    class _Respuesta:
+        status_code = 400
+        text = '{"error":{"code":131047,"message":"Re-engagement"}}'
+
+        def json(self):
+            return {}
+
+    cliente = WhatsAppClient()
+
+    async def _post(*args, **kwargs):
+        return _Respuesta()
+
+    monkeypatch.setattr(cliente._client, "post", _post)
+
+    try:
+        await cliente.send_text("59170000000", "hola")
+    except RuntimeError as exc:
+        mensaje = str(exc)
+    else:
+        mensaje = ""
+
+    assert "131047" in mensaje or "ventana" in mensaje.lower()

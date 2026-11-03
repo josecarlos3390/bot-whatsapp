@@ -70,8 +70,16 @@ class WhatsAppClient:
             json=payload,
         )
         if response.status_code >= 400:
+            cuerpo = response.text[:500]
+            # 131047: pasaron más de 24 h desde el último mensaje del cliente
+            # y el mensaje no es una plantilla aprobada.
+            if "131047" in cuerpo or "re-engagement" in cuerpo:
+                raise RuntimeError(
+                    "WhatsApp: ventana de 24 h cerrada (131047). "
+                    "Hace falta una plantilla aprobada para escribirle."
+                )
             raise RuntimeError(
-                f"WhatsApp {response.status_code}: {response.text[:500]}"
+                f"WhatsApp {response.status_code}: {cuerpo}"
             )
         return response.json()["messages"][0]["id"]
 
