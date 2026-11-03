@@ -192,3 +192,26 @@ async def test_reservar_un_producto_inexistente_no_rompe(session):
     respuesta = await Agent().handle(session, contacto, "reserve:NO-EXISTE")
 
     assert respuesta.messages
+
+async def test_el_menu_de_categorias_tiene_pistas_y_salida(session):
+    from app.agent import Agent
+    from app.models import Contact, Conversation
+
+    contacto = Contact(
+        wa_id="59170025001", phone_e164="+59170025001", name="Ana"
+    )
+    session.add(contacto)
+    await session.flush()
+    session.add(Conversation(contact_id=contacto.id))
+    await session.commit()
+
+    respuesta = await Agent().handle(session, contacto, "catalog")
+    filas = respuesta.messages[0].sections[0]["rows"]
+
+    # Las pistas no repiten el nombre de la categoría.
+    for fila in filas[:-1]:
+        assert fila["description"], fila["title"]
+        assert fila["description"].lower() != fila["title"].lower()
+    # Y siempre hay una salida para escribir el producto.
+    assert filas[-1]["id"] == "search"
+    assert len(filas) <= 10

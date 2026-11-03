@@ -2774,16 +2774,63 @@ CATEGORY_ORDER = {
     "linea-blanca": ("heladera", "lavadora", "secadora", "microondas", "cocina"),
 }
 
+# Grupos pensados para el cliente (no son las 300+ categorías del catálogo:
+# esas se buscan escribiendo). El «hint» es lo que se lee debajo del nombre.
 FRIENDLY_CATEGORIES = [
-    {"key": "sala", "label": "Sala y comedor", "category": "MUEBLES"},
-    {"key": "dormitorio", "label": "Dormitorio", "category": "DECO HOGAR"},
-    {"key": "bano", "label": "Baño", "category": "BAÑOS"},
-    {"key": "cocina", "label": "Cocina", "category": "COCINAS"},
-    {"key": "iluminacion", "label": "Iluminación", "category": "ILUMINACION"},
-    {"key": "pintura", "label": "Pintura", "category": "PINTURA"},
-    {"key": "ferreteria", "label": "Ferretería", "category": "FERRETERIA"},
-    {"key": "jardin", "label": "Jardín", "category": "JARDIN"},
-    {"key": "linea-blanca", "label": "Línea blanca", "category": "LINEA BLANCA"},
+    {
+        "key": "sala",
+        "label": "Sala y comedor",
+        "hint": "sofá, mesa, rack, sillas",
+        "category": "MUEBLES",
+    },
+    {
+        "key": "dormitorio",
+        "label": "Dormitorio",
+        "hint": "colchón, base, ropero, almohada",
+        "category": "DECO HOGAR",
+    },
+    {
+        "key": "bano",
+        "label": "Baño",
+        "hint": "grifería, ducha, accesorios",
+        "category": "BAÑOS",
+    },
+    {
+        "key": "cocina",
+        "label": "Cocina",
+        "hint": "cocina, campana, mesada, pileta",
+        "category": "COCINAS",
+    },
+    {
+        "key": "iluminacion",
+        "label": "Iluminación",
+        "hint": "lámparas, focos, reflectores",
+        "category": "ILUMINACION",
+    },
+    {
+        "key": "pintura",
+        "label": "Pintura",
+        "hint": "látex, esmalte, rodillos",
+        "category": "PINTURA",
+    },
+    {
+        "key": "ferreteria",
+        "label": "Ferretería",
+        "hint": "taladros, tornillos, herramientas",
+        "category": "FERRETERIA",
+    },
+    {
+        "key": "jardin",
+        "label": "Jardín",
+        "hint": "mangueras, macetas, riego",
+        "category": "JARDIN",
+    },
+    {
+        "key": "linea-blanca",
+        "label": "Línea blanca",
+        "hint": "heladeras, lavadoras, aires",
+        "category": "LINEA BLANCA",
+    },
 ]
 SEARCH_RE = re.compile(
     r"\b(living|sala|comedor|sofa|sill[oó]n|mesa|silla|aparador|rack|"

@@ -30,9 +30,16 @@ async def categories(agent, session: AsyncSession, contact: Contact) -> AgentRep
                             {
                                 "id": f"cat:{row['key']}",
                                 "title": agent._truncate(row["label"], 24),
-                                "description": row["label"],
+                                "description": (row.get("hint") or "")[:72],
                             }
                             for row in FRIENDLY_CATEGORIES
+                        ]
+                        + [
+                            {
+                                "id": "search",
+                                "title": "Buscar otra cosa",
+                                "description": "Escribime el producto",
+                            }
                         ],
                     }
                 ],
