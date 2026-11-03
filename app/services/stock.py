@@ -34,5 +34,5 @@ def responder(nombre: str, stock: int, precio: str = "") -> str:
     extra = f" Está en {precio}." if precio else ""
     return (
         f"Sí, *{corto}* está disponible 👍{extra}\n"
-        "¿Te lo agrego al carrito o te lo reservo?"
+        "¿Te lo agrego al carrito?"
     )

@@ -432,37 +432,22 @@ def _monto(valor) -> str:
 
 
 def _error_cantidad(error: str, sku: str) -> str:
-    """Traduce el error de stock a algo que el cliente entienda."""
-    import re as _re
+    """Mensaje de error al agregar, sin datos internos de stock.
 
+    El cliente solo necesita saber que no se pudo y qué puede hacer; las
+    cantidades por sucursal son información interna.
+    """
     texto = (error or "").strip()
-    detalle = _re.search(r"Disponible por tienda:\s*(.+)\.", texto)
-    if "no hay" in texto.lower() and detalle:
-        partes = [
-            parte.strip()
-            for parte in detalle.group(1).split(",")
-            if parte.strip()
-        ]
-        con_stock = [
-            parte for parte in partes if not parte.endswith(": 0")
-        ]
-        nombre = texto.split(" unidades de ")[-1].split(" en una sola")[0]
-        if con_stock:
-            return (
-                f"De *{nombre[:48]}* no tengo esa cantidad en una sola "
-                f"tienda.\nHay disponible: {', '.join(con_stock)}.\n\n"
-                "¿Te agrego menos unidades o lo vemos por envío?"
-            )
+    bajo = texto.lower()
+    if "stock" in bajo or "unidades" in bajo or "tienda" in bajo:
         return (
-            f"De *{nombre[:48]}* no queda stock en este momento.\n"
-            "¿Querés que te muestre algo parecido?"
+            "No tengo esa cantidad disponible en este momento 🤔\n"
+            "¿Probamos con menos unidades o te muestro otra opción?"
         )
-    if "stock" in texto.lower() or "unidades" in texto.lower():
-        return (
-            "No pude agregar esa cantidad 🤔\n"
-            "Probá con menos unidades o decime si querés otra cosa."
-        )
-    return f"No pude agregarlo: {texto[:160]}"
+    return (
+        "No pude agregarlo ahora. ¿Probamos de nuevo o te paso con un "
+        "asesor?"
+    )
 
 
 def _es_accion(texto: str) -> bool:
@@ -5222,7 +5207,10 @@ class Agent:
         if not _es_accion(normalized):
             from .services import stock as stock_service
 
-            if stock_service.pregunta_stock(raw):
+            from .services import tienda as tienda_service
+
+            pide_tienda = tienda_service.pregunta_tienda(raw)
+            if stock_service.pregunta_stock(raw) and not pide_tienda:
                 from .services import catalog as catalogo
                 from .services import memoria_cliente
 
@@ -5266,35 +5254,6 @@ class Agent:
                     if item is not None:
                         stock = int(item.stock or 0)
                         nombre = item.name or nombre
-                        # Si el proveedor informa stock por sucursal, se usa.
-                        por_tienda = await tienda.stock_por_tienda(
-                            session, visto["sku"]
-                        )
-                        if por_tienda:
-                            self._trace("Pregunta por tienda (por sucursal)")
-                            return AgentReply(
-                                [
-                                    Outbound(
-                                        text=tienda.responder_con_tiendas(
-                                            nombre, stock, por_tienda
-                                        )
-                                    ),
-                                    Outbound(
-                                        kind="buttons",
-                                        text="¿Cómo seguimos?",
-                                        buttons=[
-                                            {
-                                                "id": "human",
-                                                "title": "Reservar en tienda",
-                                            },
-                                            {
-                                                "id": "envio:resto",
-                                                "title": "Envío a domicilio",
-                                            },
-                                        ],
-                                    ),
-                                ]
-                            )
                 self._trace("Pregunta por tienda")
                 return AgentReply(
                     [

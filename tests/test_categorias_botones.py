@@ -332,7 +332,7 @@ async def test_sin_limite_no_vuelve_a_preguntar(session):
     assert "Hasta cuánto querés gastar" not in texto
     assert respuesta.messages[0].kind == "list"
 
-def test_el_error_de_stock_se_entiende():
+def test_el_error_de_stock_no_revela_datos_internos():
     from app.agent import _error_cantidad
 
     error = (
@@ -341,7 +341,8 @@ def test_el_error_de_stock_se_entiende():
     )
     texto = _error_cantidad(error, "LBLCNHR020145")
 
-    assert "no tengo esa cantidad" in texto
-    assert "Tienda 1: 5" in texto
-    assert "Tienda 3" not in texto
-    assert "No hay 7 unidades" not in texto
+    assert "No tengo esa cantidad disponible" in texto
+    # Ni cantidades ni sucursales: es información interna.
+    assert "Tienda 1" not in texto
+    assert "unidades de" not in texto
+    assert "5" not in texto

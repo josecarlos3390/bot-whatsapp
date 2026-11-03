@@ -33,11 +33,11 @@ def test_lista_las_tres_tiendas_con_direccion():
     assert any("Banzer" in local["direccion"] for local in tiendas)
 
 
-def test_aclara_que_el_stock_es_central():
+def test_no_muestra_cantidades_de_stock():
     texto = tienda.responder("Aire Lakes", 13)
 
-    assert "13 unidades" in texto
-    assert "no manejamos stock separado por tienda" in texto.lower()
+    assert "13" not in texto
+    assert "unidades" not in texto.lower()
     assert "banzer" in texto.lower()
 
 
