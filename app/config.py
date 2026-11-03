@@ -106,6 +106,8 @@ class Settings(BaseSettings):
     # Recordatorio de carrito sin terminar.
     # Carrito en VTEX (orderForm). Se activa con credenciales de la tienda.
     vtex_cart_enabled: bool = False
+    # "paas" = a través del integrador; "direct" = contra VTEX.
+    vtex_cart_via: str = "paas"
     vtex_account: str = ""
     vtex_environment: str = "vtexcommercestable"
     vtex_app_key: str = ""

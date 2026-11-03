@@ -25,21 +25,41 @@ class VtexCartError(RuntimeError):
 
 
 def disponible() -> bool:
-    """¿Está configurado el carrito de VTEX?"""
+    """¿Está configurado el carrito de VTEX?
+
+    Por el integrador alcanza con la llave del PaaS; directo hacen falta las
+    credenciales de la tienda.
+    """
+    if not settings.vtex_cart_enabled:
+        return False
+    if settings.vtex_cart_via == "paas":
+        return bool(settings.sap_paas_url and settings.sap_paas_api_key)
     return bool(
-        settings.vtex_cart_enabled
-        and settings.vtex_account
+        settings.vtex_account
         and settings.vtex_app_key
         and settings.vtex_app_token
     )
 
 
 def _base() -> str:
+    if _por_paas():
+        return settings.sap_paas_url.rstrip("/")
     entorno = settings.vtex_environment or "vtexcommercestable"
     return f"https://{settings.vtex_account}.{entorno}.com.br"
 
 
+def _por_paas() -> bool:
+    return settings.vtex_cart_via == "paas"
+
+
 def _cabeceras() -> dict[str, str]:
+    if _por_paas():
+        return {
+            "X-API-Key": settings.sap_paas_api_key,
+            "X-Tenant": settings.sap_paas_tenant,
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
     return {
         "X-VTEX-API-AppKey": settings.vtex_app_key,
         "X-VTEX-API-AppToken": settings.vtex_app_token,
@@ -71,10 +91,20 @@ async def _pedir(
 
 async def crear_carrito() -> str:
     """Crea un carrito anónimo y devuelve su id."""
-    params = f"?sc={settings.vtex_sales_channel}"
-    if settings.vtex_affiliate_id:
-        params += f"&affiliateId={settings.vtex_affiliate_id}"
-    datos = await _pedir("POST", f"/api/checkout/pub/orderForm{params}")
+    if _por_paas():
+        datos = await _pedir(
+            "POST",
+            "/api/vtex/cart",
+            json={
+                "sales_channel": settings.vtex_sales_channel,
+                "affiliate_id": settings.vtex_affiliate_id or None,
+            },
+        )
+    else:
+        params = f"?sc={settings.vtex_sales_channel}"
+        if settings.vtex_affiliate_id:
+            params += f"&affiliateId={settings.vtex_affiliate_id}"
+        datos = await _pedir("POST", f"/api/checkout/pub/orderForm{params}")
     order_form_id = str(datos.get("orderFormId") or "")
     if not order_form_id:
         raise VtexCartError("VTEX no devolvió orderFormId")
@@ -98,6 +128,12 @@ async def agregar_items(
     }
     if not cuerpo["items"]:
         return {}
+    if _por_paas():
+        return await _pedir(
+            "POST",
+            f"/api/vtex/cart/{order_form_id}/items",
+            json={"items": cuerpo["items"]},
+        )
     return await _pedir(
         "POST",
         f"/api/checkout/pub/orderForm/{order_form_id}/items"

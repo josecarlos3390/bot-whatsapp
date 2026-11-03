@@ -21,6 +21,7 @@ def _config(monkeypatch):
     monkeypatch.setattr(settings, "vtex_sales_channel", 1)
     monkeypatch.setattr(settings, "vtex_affiliate_id", "")
     monkeypatch.setattr(settings, "vtex_checkout_host", "")
+    monkeypatch.setattr(settings, "vtex_cart_via", "direct")
 
 
 async def _carrito(session) -> Cart:
@@ -50,6 +51,24 @@ def test_sin_credenciales_no_esta_disponible(monkeypatch):
     monkeypatch.setattr(settings, "vtex_app_key", "")
 
     assert not vtex_cart.disponible()
+
+
+def test_por_paas_alcanza_con_la_llave_del_integrador(monkeypatch):
+    monkeypatch.setattr(settings, "vtex_cart_via", "paas")
+    monkeypatch.setattr(settings, "vtex_app_key", "")
+    monkeypatch.setattr(settings, "vtex_app_token", "")
+    monkeypatch.setattr(settings, "sap_paas_url", "http://127.0.0.1:5050")
+    monkeypatch.setattr(settings, "sap_paas_api_key", "llave")
+
+    assert vtex_cart.disponible()
+
+
+def test_por_paas_usa_las_rutas_del_integrador(monkeypatch):
+    monkeypatch.setattr(settings, "vtex_cart_via", "paas")
+    monkeypatch.setattr(settings, "sap_paas_url", "http://127.0.0.1:5050")
+
+    assert vtex_cart._base() == "http://127.0.0.1:5050"
+    assert "X-API-Key" in vtex_cart._cabeceras()
 
 
 def test_el_link_apunta_al_carrito():
