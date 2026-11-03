@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { LanguageToggle, t } from "./i18n";
 import { Link } from "react-router-dom";
 import { api } from "./api";
@@ -109,6 +109,8 @@ function RuleBuilder({
   const [simQuery, setSimQuery] = useState("");
   const [simulation, setSimulation] = useState<Simulation | null>(null);
   const [simBusy, setSimBusy] = useState(false);
+  const [categorias, setCategorias] = useState<string[]>([]);
+  const [guardado, setGuardado] = useState("");
 
   const areaQuery = canChangeArea ? `?area=${encodeURIComponent(selectedArea)}` : "";
   const load = async () => {
@@ -123,14 +125,21 @@ function RuleBuilder({
 
   useEffect(() => { void load(); }, [base, selectedArea, canChangeArea]);
 
-  async function simulate() {
-    if (!simQuery.trim()) return;
+  useEffect(() => {
+    void api<{ categories: string[] }>("/admin/catalog-categories")
+      .then((datos) => setCategorias(datos.categories || []))
+      .catch(() => setCategorias([]));
+  }, []);
+
+  async function simulate(consulta?: string) {
+    const texto = (consulta ?? simQuery).trim();
+    if (!texto) return;
     setSimBusy(true);
     try {
       const endpoint = canChangeArea ? "/admin/rules/simulate" : "/areas/rules/simulate";
       const payload = canChangeArea
-        ? { query: simQuery.trim(), area: selectedArea }
-        : { query: simQuery.trim() };
+        ? { query: texto, area: selectedArea }
+        : { query: texto };
       const result = await api<Simulation>(endpoint, {
         method: "POST",
         body: JSON.stringify(payload)
@@ -336,6 +345,11 @@ function RuleBuilder({
             )}
           </div>
         </div>
+        {guardado && (
+          <div className="mb-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">
+            ✓ {guardado}
+          </div>
+        )}
         <div className="mb-3 rounded-xl border border-[#ffb3bd]/40 bg-[#f9fafb] px-4 py-3 text-xs text-[#4b5563]">
           <strong className="text-[#111111]">{t("¿Para qué sirve?")}</strong> Acá definís cómo debe responder el bot en tu área:
           qué marca priorizar, qué promociones destacar, cómo manejar devoluciones o qué indicaciones debe seguir.
@@ -422,6 +436,11 @@ function RuleBuilder({
         </div>
         <Card className="mb-4 p-4">
           <h2 className="mb-3 text-sm font-bold text-slate-900">{editing ? t("Editar regla") : t("Nueva regla")}</h2>
+          <datalist id="categorias-catalogo">
+            {categorias.map((nombre) => (
+              <option key={nombre} value={nombre} />
+            ))}
+          </datalist>
           <label className="mb-1 block text-xs font-semibold text-slate-600">{t("¿Qué querés hacer?")}</label>
           <select className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" value={kind} onChange={(event) => setKind(event.target.value)}>
             <option value="brand_priority">{t("Priorizar una marca cuando pregunten por una categoría")}</option>
@@ -442,7 +461,7 @@ function RuleBuilder({
           <Hint>{t("Solo para identificarla en la lista; el cliente no la ve.")}</Hint>
           {kind === "brand_priority" ? (
             <div className="mt-3 grid gap-3 md:grid-cols-2">
-              <label className="text-xs font-semibold text-slate-600">{t("Categoría")}<Input className="mt-1" value={category} onChange={(event) => setCategory(event.target.value)} placeholder={t("heladera")} />
+              <label className="text-xs font-semibold text-slate-600">{t("Categoría")}<Input className="mt-1" list="categorias-catalogo" value={category} onChange={(event) => setCategory(event.target.value)} placeholder={t("heladera")} />
                 <Hint>{t("Escribila como figura en el catálogo (ej: Heladeras). Se aplica a las búsquedas de esa categoría.")}</Hint>
               </label>
               <label className="text-xs font-semibold text-slate-600">{t("Marca")}<Input className="mt-1" value={brand} onChange={(event) => setBrand(event.target.value)} placeholder="LG" />
@@ -457,7 +476,7 @@ function RuleBuilder({
             </div>
           ) : kind === "promotion_priority" ? (
             <div className="mt-3 grid gap-3 md:grid-cols-2">
-              <label className="text-xs font-semibold text-slate-600">{t("Categoría")}<Input className="mt-1" value={category} onChange={(event) => setCategory(event.target.value)} placeholder={t("colchones, pintura, herramientas")} />
+              <label className="text-xs font-semibold text-slate-600">{t("Categoría")}<Input className="mt-1" list="categorias-catalogo" value={category} onChange={(event) => setCategory(event.target.value)} placeholder={t("colchones, pintura, herramientas")} />
                 <Hint>{t("Se evalúa por la categoría del producto: funciona aunque el cliente busque \"taladro\" y no \"herramientas\".")}</Hint>
               </label>
               <label className="text-xs font-semibold text-slate-600">{t("Descuento mínimo (%)")}<Input className="mt-1" type="number" min={0} max={100} value={minDiscount} onChange={(event) => setMinDiscount(Number(event.target.value))} />
@@ -478,7 +497,7 @@ function RuleBuilder({
             </div>
           ) : kind === "response_rule" ? (
             <div className="mt-3 space-y-3">
-              <label className="block text-xs font-semibold text-slate-600">{t("Categoría o tema (opcional)")}<Input className="mt-1" value={category} onChange={(event) => setCategory(event.target.value)} placeholder={t("Ej: heladera, envíos, promociones")} />
+              <label className="block text-xs font-semibold text-slate-600">{t("Categoría o tema (opcional)")}<Input className="mt-1" list="categorias-catalogo" value={category} onChange={(event) => setCategory(event.target.value)} placeholder={t("Ej: heladera, envíos, promociones")} />
                 <Hint>{t("Si la dejás vacía, la indicación se aplica a cualquier consulta.")}</Hint>
               </label>
               <label className="block text-xs font-semibold text-slate-600">{t("¿Qué debe decir o tener en cuenta el bot?")}<Textarea className="mt-1" rows={4} value={instruction} onChange={(event) => setInstruction(event.target.value)} placeholder="Ej: Para envíos, informar entrega en 24 horas y retiro en tienda; no inventar costos." />
@@ -535,6 +554,17 @@ function RuleBuilder({
           </div>
           <div className="mt-3 flex gap-2">
             <Button onClick={save}>{t("Guardar")}</Button>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                const prueba = category.trim() || name.trim();
+                if (!prueba) return;
+                setSimQuery(prueba);
+                void simulate(prueba);
+              }}
+            >
+              {t("Probar antes de guardar")}
+            </Button>
             <Button variant="ghost" onClick={reset}>{t("Limpiar")}</Button>
           </div>
         </Card>

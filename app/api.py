@@ -3406,3 +3406,20 @@ async def root():
         "webhook": "/webhooks/whatsapp",
         "demo": "/dev/simulate",
     }
+
+@router.get(
+    "/admin/catalog-categories",
+    dependencies=[Depends(require_advisor)],
+)
+async def admin_catalog_categories(
+    limit: int = 400,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Categorías reales del catálogo, para elegirlas en las reglas."""
+    from .services import catalog as catalogo
+
+    filas = await catalogo.categories(session, limit=limit)
+    return {
+        "categories": [fila["name"] for fila in filas],
+        "detail": filas,
+    }
