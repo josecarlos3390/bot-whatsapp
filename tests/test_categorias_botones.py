@@ -215,3 +215,62 @@ async def test_el_menu_de_categorias_tiene_pistas_y_salida(session):
     # Y siempre hay una salida para escribir el producto.
     assert filas[-1]["id"] == "search"
     assert len(filas) <= 10
+
+async def test_la_ficha_ofrece_agregar_sin_cantidad(session):
+    from app.agent import Agent
+    from app.models import CatalogItem, Contact, Conversation
+
+    session.add(
+        CatalogItem(
+            sku="CARD-001",
+            name="Microondas Card",
+            price="1000",
+            stock=5,
+            brand="TEST",
+            category="Microondas",
+            active=True,
+        )
+    )
+    await session.commit()
+    contacto = await _contacto(session, "59170027001")
+
+    respuesta = await Agent().handle(session, contacto, "product:CARD-001")
+    filas = respuesta.messages[-1].sections[0]["rows"]
+    titulos = [fila["title"] for fila in filas]
+
+    assert "Agregar al carrito" in titulos
+    assert "Hablar con asesor" in titulos
+    assert not any("Reservar" in titulo for titulo in titulos)
+    assert not any(titulo.startswith("Agregar 1") for titulo in titulos)
+
+
+async def test_agregar_pregunta_cantidad_y_la_respeta(session):
+    from app.agent import Agent
+    from app.models import CatalogItem, Contact, Conversation
+
+    session.add(
+        CatalogItem(
+            sku="CARD-002",
+            name="Microondas Cantidad",
+            price="1000",
+            stock=9,
+            brand="TEST",
+            category="Microondas",
+            active=True,
+        )
+    )
+    await session.commit()
+    contacto = await _contacto(session, "59170027002")
+    agente = Agent()
+
+    pregunta = await agente.handle(session, contacto, "add:CARD-002")
+    assert pregunta.messages[0].kind == "list"
+    assert "Cuántas unidades" in (pregunta.messages[0].text or "")
+
+    # Escribe el número en vez de tocar la lista.
+    respuesta = await agente.handle(session, contacto, "4")
+    texto = respuesta.messages[0].text or ""
+    assert "4" in texto or "Agregué" in texto
+
+    carrito = await agente.handle(session, contacto, "carrito")
+    assert "4 ×" in (carrito.messages[0].text or "")

@@ -126,14 +126,13 @@ async def detail(
     # sin los botones numerados que no decían a cuál correspondían.
     rows: list[dict] = []
     if stock > 0:
-        for quantity in (1, 2, 3):
-            rows.append(
-                {
-                    "id": f"add:{product['sku']}:{quantity}",
-                    "title": f"Agregar {quantity}",
-                    "description": "Al carrito",
-                }
-            )
+        rows.append(
+            {
+                "id": f"add:{product['sku']}",
+                "title": "Agregar al carrito",
+                "description": "Te pregunto cuántas unidades",
+            }
+        )
     rows.append(
         {
             "id": "catalog",
@@ -143,15 +142,6 @@ async def detail(
             ),
         }
     )
-    # Reserva con seña: alternativa a comprar en el momento.
-    if stock > 0:
-        rows.append(
-            {
-                "id": f"reserve:{product['sku']}",
-                "title": "Reservar con seña",
-                "description": "30 % y te la guardamos 48 h",
-            }
-        )
     rows.append(
         {
             "id": "human",
@@ -185,9 +175,7 @@ async def detail(
     # Cierre con el siguiente paso concreto: un vendedor no termina en la
     # ficha, propone agregarlo al carrito.
     if stock > 0:
-        lines.append(
-            "\n¿Te lo agrego al carrito o lo reservamos con una seña? 🛒"
-        )
+        lines.append("\n¿Te lo agrego al carrito? 🛒")
         boton = "Agregar"
     else:
         lines.append(

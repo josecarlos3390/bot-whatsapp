@@ -3902,6 +3902,38 @@ class Agent:
         """Ficha del producto (implementación en flows/product.py)."""
         return await product_flow.detail(self, session, contact, sku)
 
+    @staticmethod
+    def _quantity_reply(item) -> AgentReply:
+        """Pregunta cuántas unidades quiere, con atajos."""
+        nombre = (getattr(item, "name", "") or "")[:52]
+        filas = [
+            {
+                "id": f"add:{item.sku}:{cantidad}",
+                "title": f"{cantidad} unidad(es)",
+            }
+            for cantidad in (1, 2, 3, 4, 5)
+        ]
+        filas.append(
+            {
+                "id": f"qtyask:{item.sku}",
+                "title": "Otra cantidad",
+                "description": "Escribime el número",
+            }
+        )
+        return AgentReply(
+            [
+                Outbound(
+                    kind="list",
+                    text=(
+                        f"¿Cuántas unidades de *{nombre}* querés? "
+                        "Podés elegir o escribirme el número 👇"
+                    ),
+                    button_text="Elegir cantidad",
+                    sections=[{"title": "Cantidad", "rows": filas}],
+                )
+            ]
+        )
+
     async def _add_product(
         self,
         session: AsyncSession,
@@ -4071,7 +4103,7 @@ class Agent:
 
     @staticmethod
     def _cart_reply(result: dict) -> AgentReply:
-        """Carrito con ajuste rápido del último artículo agregado."""
+        """Carrito con cada artículo seleccionable para cambiar cantidad."""
         items = result.get("items") or []
         if not items:
             return AgentReply(
@@ -4087,36 +4119,48 @@ class Agent:
                 ]
             )
 
-        lines = ["🛒 *Tu carrito*"]
+        lineas = ["🛒 *Tu carrito*"]
         for item in items:
-            lines.append(
-                f"- {item['quantity']} × {item['name']} = "
+            lineas.append(
+                f"• {item['quantity']} × {item['name'][:42]} = "
                 f"Bs {Decimal(item['line_total']):,.2f}"
             )
-        lines.append(f"\n*Total: Bs {Decimal(result['total']):,.2f}*")
+        lineas.append(f"\n*Total: Bs {Decimal(result['total']):,.2f}*")
+        lineas.append(
+            "\nTocá un artículo para cambiar la cantidad o quitarlo 👇"
+        )
 
-        last = items[-1]
-        quantity = int(last["quantity"])
-        lines.append(
-            f"\nAjusto *{last['name']}* (x{quantity}). "
-            "Para otro artículo, tocá *Ver carrito* desde su ficha."
+        filas = [
+            {
+                "id": f"cartitem:{item['sku']}",
+                "title": (item["name"] or "Artículo")[:24],
+                "description": (
+                    f"x{item['quantity']} · Bs {Decimal(item['line_total']):,.0f}"
+                ),
+            }
+            for item in items[:8]
+        ]
+        filas.append(
+            {
+                "id": "checkout",
+                "title": "Confirmar pedido",
+                "description": f"Total Bs {Decimal(result['total']):,.0f}",
+            }
+        )
+        filas.append(
+            {
+                "id": "catalog",
+                "title": "Seguir comprando",
+                "description": "Volver al catálogo",
+            }
         )
         return AgentReply(
             [
                 Outbound(
-                    kind="buttons",
-                    text="\n".join(lines)[:1024],
-                    buttons=[
-                        {"id": "checkout", "title": "Confirmar pedido"},
-                        {
-                            "id": f"qty:{last['sku']}:{quantity + 1}",
-                            "title": "Sumar 1",
-                        },
-                        {
-                            "id": f"qty:{last['sku']}:{max(quantity - 1, 0)}",
-                            "title": "Restar 1",
-                        },
-                    ],
+                    kind="list",
+                    text="\n".join(lineas)[:1024],
+                    button_text="Ver mi carrito",
+                    sections=[{"title": "Artículos", "rows": filas}],
                 )
             ]
         )
@@ -4382,6 +4426,21 @@ class Agent:
             return await self._search_reply(
                 session, contact, base, quantity=quantity
             )
+        if slot == "cantidad":
+            # "¿Cuántas unidades?": el número se toma como cantidad del
+            # producto que se iba a agregar.
+            numero = re.search(r"\b(\d{1,3})\b", raw)
+            if numero is None:
+                return None
+            cantidad = max(int(numero.group(1)), 1)
+            # El SKU se lee antes de limpiar: clear_pending lo borra.
+            sku = (guard.pending_query or "").strip()
+            await conversation_guard.clear_pending(session, contact)
+            self._trace(f"Cantidad escrita: {cantidad}")
+            if not sku:
+                return None
+            return await self._add_product(session, contact, sku, cantidad)
+
         if slot == "brand":
             if not re.search(r"\b[A-Za-zÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ -]{1,40}\b", raw):
                 return None
@@ -5023,6 +5082,39 @@ class Agent:
             if why_reply is not None:
                 return why_reply
 
+        # Quedó pendiente "¿cuántas unidades?": si el cliente escribe un
+        # número (o pide otra cantidad), se agrega esa cantidad.
+        if not _es_accion(normalized):
+            pendiente = await conversation_guard.get_for_contact(
+                session, contact
+            )
+            if (
+                pendiente is not None
+                and getattr(pendiente, "pending_slot", None) == "cantidad"
+            ):
+                sku = (pendiente.pending_query or "").strip()
+                numero = re.search(r"\b(\d{1,3})\b", raw)
+                if sku and numero is not None:
+                    cantidad = max(int(numero.group(1)), 1)
+                    await conversation_guard.clear_pending(session, contact)
+                    self._trace(f"Cantidad escrita: {cantidad}")
+                    return await self._add_product(
+                        session, contact, sku, cantidad
+                    )
+                if sku and raw.strip().lower().startswith(("otra", "otro")):
+                    item = await catalog.get_item(session, sku)
+                    if item is not None:
+                        return AgentReply(
+                            [
+                                Outbound(
+                                    text=(
+                                        "Decime el número de unidades y te lo "
+                                        "agrego (por ejemplo *4*)."
+                                    )
+                                )
+                            ]
+                        )
+
         ambiguous_question = intent_guard.detect(raw)
         if ambiguous_question:
             return await self._clarify_reply(
@@ -5484,7 +5576,7 @@ class Agent:
                 [Outbound(kind="buttons", text=texto, buttons=botones)]
             )
 
-        if normalized == "cart":
+        if normalized in {"cart", "carrito", "mi carrito"}:
             return self._cart_reply(await toolbox.tool_view_cart())
 
         if normalized.startswith("qty:"):
@@ -5696,6 +5788,70 @@ class Agent:
 
             sku = raw.split(":", 1)[1].strip()
             return await reserve_flow.reservar(self, session, contact, sku)
+
+        if normalized.startswith("qtyask:"):
+            sku = raw.split(":", 1)[1].strip()
+            item = await catalog.get_item(session, sku)
+            if item is not None:
+                await conversation_guard.set_pending(
+                    session,
+                    contact,
+                    slot="cantidad",
+                    question="unidades",
+                    query=sku,
+                )
+                return AgentReply(
+                    [
+                        Outbound(
+                            text=(
+                                "Decime cuántas unidades querés y te las agrego "
+                                "(por ejemplo *4*)."
+                            )
+                        )
+                    ]
+                )
+
+        # Artículo del carrito elegido: se ajusta la cantidad.
+        if normalized.startswith("cartitem:"):
+            sku = raw.split(":", 1)[1].strip()
+            caja = Toolbox(session, contact, self.wa)
+            vista = await caja.tool_view_cart()
+            fila = next(
+                (
+                    item
+                    for item in (vista.get("items") or [])
+                    if item.get("sku") == sku
+                ),
+                None,
+            )
+            if fila is None:
+                return AgentReply(
+                    [Outbound(text="Ese artículo ya no está en tu carrito.")]
+                )
+            cantidad = int(fila.get("quantity") or 1)
+            self._trace(f"Ajuste de carrito: {sku} x{cantidad}")
+            return AgentReply(
+                [
+                    Outbound(
+                        kind="buttons",
+                        text=(
+                            f"*{fila['name'][:52]}*\n"
+                            f"Ahora tenés *{cantidad}*. ¿Qué hago?"
+                        ),
+                        buttons=[
+                            {
+                                "id": f"qty:{sku}:{cantidad + 1}",
+                                "title": "Sumar 1",
+                            },
+                            {
+                                "id": f"qty:{sku}:{max(cantidad - 1, 0)}",
+                                "title": "Restar 1",
+                            },
+                            {"id": f"remove:{sku}", "title": "Quitar"},
+                        ],
+                    )
+                ]
+            )
 
         if normalized.startswith("product:"):
             sku = raw.split(":", 1)[1].strip()
@@ -5915,8 +6071,26 @@ class Agent:
         if normalized.startswith("add:"):
             parts = raw.split(":")
             if len(parts) >= 2 and parts[1]:
+                # Sin cantidad en el id: se pregunta cuántas unidades antes
+                # de agregar (antes había tres botones "Agregar 1/2/3").
+                if len(parts) <= 2 or not parts[2].strip():
+                    sku = parts[1].strip()
+                    item = await catalog.get_item(session, sku)
+                    if item is None:
+                        return AgentReply(
+                            [Outbound(text="No encontré ese producto.")]
+                        )
+                    await conversation_guard.set_pending(
+                        session,
+                        contact,
+                        slot="cantidad",
+                        question="unidades",
+                        query=sku,
+                    )
+                    self._trace(f"Pregunta cantidad: {sku}")
+                    return self._quantity_reply(item)
                 try:
-                    quantity = int(parts[2]) if len(parts) > 2 else 1
+                    quantity = int(parts[2])
                 except ValueError:
                     quantity = 1
                 return await self._add_product(

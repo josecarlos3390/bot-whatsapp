@@ -23,6 +23,8 @@ PREFIJOS = (
     "find:",
     "price:",
     "reserve:",
+    "cartitem:",
+    "qtyask:",
     "envio:",
     "doc:",
     "checkout",
