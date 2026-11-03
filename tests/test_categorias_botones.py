@@ -393,3 +393,53 @@ async def test_cerrar_pedido_crea_la_derivacion(session, monkeypatch):
 
     if "asesor" in texto:
         assert handoffs, "prometió derivar y no creó el caso"
+
+async def test_el_carrito_se_alinea_con_la_tienda(session, monkeypatch):
+    """Si el cliente agregó cantidades en VTEX, el bot las muestra."""
+    from sqlalchemy import select
+
+    from app.agent import Agent
+    from app.config import settings
+    from app.models import Cart, CatalogItem
+    from app.services import cart as cart_service
+    from app.services import vtex_cart
+
+    session.add(
+        CatalogItem(
+            sku="VTX-9",
+            name="Producto Tienda",
+            price="100",
+            stock=20,
+            brand="TEST",
+            category="Pintura",
+            active=True,
+        )
+    )
+    await session.commit()
+    contacto = await _contacto(session, "59170033001")
+
+    await Agent().handle(session, contacto, "add:VTX-9:1")
+    carrito = await cart_service.get_or_create_cart(session, contacto.id)
+    carrito.vtex_order_form_id = "OF-1"
+    await session.commit()
+
+    monkeypatch.setattr(settings, "vtex_cart_enabled", True)
+    monkeypatch.setattr(settings, "vtex_cart_via", "paas")
+    monkeypatch.setattr(settings, "sap_paas_url", "http://paas.local")
+    monkeypatch.setattr(settings, "sap_paas_api_key", "llave")
+
+    async def _consulta(cart):
+        return {
+            "order_form_id": "OF-1",
+            "checkout_url": None,
+            "items": [{"sku": "VTX-9", "quantity": 4, "price": 100.0}],
+            "value": 400.0,
+            "currency": "BOB",
+            "messages": [],
+        }
+
+    monkeypatch.setattr(vtex_cart, "consultar", _consulta)
+
+    respuesta = await Agent().handle(session, contacto, "carrito")
+
+    assert "4 ×" in (respuesta.messages[0].text or "")

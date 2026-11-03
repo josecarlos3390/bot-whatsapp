@@ -360,3 +360,71 @@ async def asegurar_vigente(cart: Cart) -> bool:
 def link_para_pagar(cart: Cart) -> str:
     """Link tal como lo devolvió el integrador (nunca fabricado)."""
     return cart.vtex_cart_url or ""
+
+
+async def reconciliar(session, cart: Cart) -> dict:
+    """Alinea el carrito local con lo que el cliente hizo en la tienda.
+
+    El cliente puede abrir el link de VTEX, agregar productos o cambiar
+    cantidades ahí. Cuando vuelve a escribir se lee el carrito de la tienda
+    y se actualiza el local, para no mostrarle datos viejos.
+
+    Devuelve ``{"cambiado": bool, "motivo": str}``.
+    """
+    from sqlalchemy import delete
+
+    from ..models import CartItem
+
+    if not disponible() or not cart.vtex_order_form_id:
+        return {"cambiado": False, "motivo": "sin carrito en la tienda"}
+    actual = await consultar(cart)
+    if actual is None:
+        cart.vtex_order_form_id = ""
+        cart.vtex_cart_url = ""
+        await session.commit()
+        return {"cambiado": True, "motivo": "el carrito de la tienda venció"}
+    if not actual["items"]:
+        # La tienda sin ítems puede ser una lectura rara: no se borra nada.
+        return {"cambiado": False, "motivo": "la tienda no devolvió ítems"}
+
+    locales = {item.sku.upper(): item for item in cart.items}
+    cambiado = False
+    vistos: set[str] = set()
+    for remoto in actual["items"]:
+        sku = remoto["sku"].strip().upper()
+        cantidad = int(remoto["quantity"] or 0)
+        if cantidad <= 0:
+            continue
+        vistos.add(sku)
+        item = locales.get(sku)
+        if item is None:
+            session.add(
+                CartItem(
+                    cart_id=cart.id,
+                    sku=sku,
+                    quantity=cantidad,
+                    unit_price=remoto["price"] or 0,
+                    list_price=remoto["price"] or 0,
+                )
+            )
+            cambiado = True
+            continue
+        if int(item.quantity or 0) != cantidad:
+            item.quantity = cantidad
+            cambiado = True
+        if remoto["price"] and item.unit_price != remoto["price"]:
+            item.unit_price = remoto["price"]
+            cambiado = True
+
+    for sku, item in locales.items():
+        if sku not in vistos:
+            await session.execute(delete(CartItem).where(CartItem.id == item.id))
+            cambiado = True
+
+    cart.vtex_value = actual["value"]
+    cart.vtex_currency = actual["currency"]
+    if cambiado:
+        await session.commit()
+        await session.refresh(cart, attribute_names=["items"])
+        return {"cambiado": True, "motivo": "carrito actualizado desde la tienda"}
+    return {"cambiado": False, "motivo": "sin cambios"}

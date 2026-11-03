@@ -4027,8 +4027,9 @@ class Agent:
                     kind="buttons",
                     text=added_text,
                     buttons=[
-                        {"id": "cart", "title": "Mi carrito"},
-                        {"id": "catalog", "title": "Seguir comprando"},
+                        {"id": "catalog", "title": "Agregar otro"},
+                        {"id": "checkout", "title": "Finalizar pedido"},
+                        {"id": "cart", "title": "Ver carrito"},
                     ],
                 )
             ]
@@ -4200,6 +4201,26 @@ class Agent:
                 )
             ]
         )
+
+    async def _cart_con_tienda(
+        self, session: AsyncSession, contact: Contact, toolbox: Toolbox
+    ) -> AgentReply:
+        """Muestra el carrito alineado con lo que el cliente hizo en VTEX."""
+        from .services import vtex_cart
+
+        carrito = await cart_service.get_or_create_cart(session, contact.id)
+        base = await toolbox.tool_view_cart()
+        if not carrito.vtex_order_form_id:
+            return self._cart_reply(base)
+        try:
+            cambio = await vtex_cart.reconciliar(session, carrito)
+        except Exception:  # noqa: BLE001 - nunca frenar por la tienda
+            logger.debug("No se pudo reconciliar el carrito", exc_info=True)
+            return self._cart_reply(base)
+        actualizado = await toolbox.tool_view_cart()
+        if cambio.get("cambiado") and actualizado.get("items"):
+            self._trace(f"Carrito alineado: {cambio.get('motivo')}")
+        return self._cart_reply(actualizado)
 
     async def _asegurar_derivacion(
         self, session: AsyncSession, contact: Contact, reason: str
@@ -5767,7 +5788,7 @@ class Agent:
             )
 
         if normalized in {"cart", "carrito", "mi carrito"}:
-            return self._cart_reply(await toolbox.tool_view_cart())
+            return await self._cart_con_tienda(session, contact, toolbox)
 
         if normalized.startswith("qty:"):
             parts = raw.split(":")

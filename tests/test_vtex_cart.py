@@ -292,3 +292,32 @@ async def test_varios_items_se_mandan_todos(session, monkeypatch):
 
     enviados = {i["sku"] for i in fake.agregados[0]["items"]}
     assert enviados == {"REF-1", "REF-2"}
+
+async def test_reconciliar_trae_lo_que_agrego_en_la_tienda(
+    session, monkeypatch
+):
+    carrito = await _carrito(session, skus=("REF-1",))
+    carrito.vtex_order_form_id = "OF-1"
+    await session.commit()
+
+    async def _consulta(cart):
+        return {
+            "order_form_id": "OF-1",
+            "checkout_url": None,
+            "items": [
+                {"sku": "REF-1", "quantity": 5, "price": 165.0},
+                {"sku": "REF-7", "quantity": 1, "price": 10.0},
+            ],
+            "value": 835.0,
+            "currency": "BOB",
+            "messages": [],
+        }
+
+    monkeypatch.setattr(vtex_cart, "consultar", _consulta)
+
+    cambio = await vtex_cart.reconciliar(session, carrito)
+
+    assert cambio["cambiado"] is True
+    cantidades = {i.sku: int(i.quantity) for i in carrito.items}
+    assert cantidades == {"REF-1": 5, "REF-7": 1}
+    assert carrito.vtex_value == Decimal("835.0")
