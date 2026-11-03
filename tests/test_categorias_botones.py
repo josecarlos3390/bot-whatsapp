@@ -443,3 +443,118 @@ async def test_el_carrito_se_alinea_con_la_tienda(session, monkeypatch):
     respuesta = await Agent().handle(session, contacto, "carrito")
 
     assert "4 ×" in (respuesta.messages[0].text or "")
+
+async def test_muneca_sin_enie_encuentra_la_muneca(session):
+    """Quien escribe "muneca" tiene que encontrar "Muñeca"."""
+    from app.models import CatalogItem
+    from app.services import catalog
+
+    session.add(
+        CatalogItem(
+            sku="MUN-1",
+            name="Muñeca Bebé Princesas",
+            price="299",
+            stock=4,
+            category="JUGUETES",
+            active=True,
+        )
+    )
+    await session.commit()
+
+    encontrados = await catalog.search_items(session, "muneca", limit=3)
+
+    assert any("Muñeca" in item.name for item in encontrados)
+
+
+async def test_regalo_para_hijos_pregunta_la_edad(session):
+    from app.agent import Agent
+
+    contacto = await _contacto(session, "59170034001")
+
+    respuesta = await Agent().handle(
+        session, contacto, "quiero comprar algo para mis hijos"
+    )
+    mensaje = respuesta.messages[0]
+
+    assert mensaje.kind == "buttons"
+    assert "edad" in (mensaje.text or "").lower()
+    assert [b["id"] for b in mensaje.buttons][0].startswith("kidsage:")
+
+
+async def test_la_edad_lleva_a_opciones(session):
+    from app.agent import Agent
+    from app.models import CatalogItem
+
+    for indice in range(3):
+        session.add(
+            CatalogItem(
+                sku=f"JUG-{indice}",
+                name=f"Muñeca Infantil {indice}",
+                price="199",
+                stock=5,
+                category="JUGUETES",
+                active=True,
+            )
+        )
+    await session.commit()
+    contacto = await _contacto(session, "59170034002")
+    agente = Agent()
+    await agente.handle(session, contacto, "algo para mis hijos")
+
+    respuesta = await agente.handle(session, contacto, "kidsage:3-5")
+
+    texto = " ".join(m.text or "" for m in respuesta.messages)
+    assert "3 a 5 años" in texto
+    filas = [
+        fila["title"]
+        for mensaje in respuesta.messages
+        for seccion in (mensaje.sections or [])
+        for fila in seccion["rows"]
+    ]
+    assert any("Muñeca Infantil" in titulo for titulo in filas)
+
+async def test_finalizar_con_carrito_en_vtex_manda_el_link(session, monkeypatch):
+    """Con carrito replicado, el bot ofrece el link en vez de un asesor."""
+    from app.agent import Agent
+    from app.config import settings
+    from app.models import CatalogItem
+    from app.services import vtex_cart
+
+    session.add(
+        CatalogItem(
+            sku="LINK-1",
+            name="Producto Link",
+            price="100",
+            stock=5,
+            brand="TEST",
+            category="Pintura",
+            active=True,
+        )
+    )
+    await session.commit()
+    contacto = await _contacto(session, "59170035001")
+    agente = Agent()
+    await agente.handle(session, contacto, "add:LINK-1:1")
+
+    from app.services import cart as cart_service
+
+    carrito = await cart_service.get_or_create_cart(session, contacto.id)
+    carrito.vtex_cart_url = "https://rodabo.myvtex.com/checkout/?orderFormId=OF-1"
+    await session.commit()
+
+    monkeypatch.setattr(settings, "vtex_cart_enabled", True)
+    monkeypatch.setattr(settings, "vtex_cart_via", "paas")
+    monkeypatch.setattr(settings, "sap_paas_url", "http://paas.local")
+    monkeypatch.setattr(settings, "sap_paas_api_key", "llave")
+
+    async def _vigente(cart):
+        return True
+
+    monkeypatch.setattr(vtex_cart, "asegurar_vigente", _vigente)
+
+    respuesta = await agente.handle(session, contacto, "checkout")
+    mensaje = respuesta.messages[0]
+
+    assert mensaje.kind == "cta"
+    assert mensaje.url == "https://rodabo.myvtex.com/checkout/?orderFormId=OF-1"
+    assert "compra" in (mensaje.cta_text or "").lower()

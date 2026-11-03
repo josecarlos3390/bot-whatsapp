@@ -67,6 +67,7 @@ from .services import (
     occasions,
     occasion_store,
     recommendations,
+    regalo_ninos,
     return_flow,
     rule_policy,
     rules_engine,
@@ -5336,6 +5337,19 @@ class Agent:
                             ]
                         )
 
+        # "Algo para mis hijos": primero la edad, si no adivina al azar.
+        if not _es_accion(normalized) and regalo_ninos.es_pedido(raw):
+            self._trace("Regalo para chicos: pregunta la edad")
+            return AgentReply(
+                [
+                    Outbound(
+                        kind="buttons",
+                        text=regalo_ninos.pregunta(),
+                        buttons=regalo_ninos.botones(),
+                    )
+                ]
+            )
+
         ambiguous_question = intent_guard.detect(raw)
         if ambiguous_question:
             return await self._clarify_reply(
@@ -6065,6 +6079,27 @@ class Agent:
                         )
                     ]
                 )
+
+        if normalized.startswith("kidsage:"):
+            rango = regalo_ninos.rango_de(raw)
+            if rango is None:
+                return AgentReply(
+                    [Outbound(text="¿Para qué edad? Decime el número 🙂")]
+                )
+            resultado = await regalo_ninos.buscar(session, rango)
+            if not resultado["items"]:
+                return AgentReply([Outbound(text=resultado["texto"])])
+            self._trace(f"Regalo para chicos: {rango}")
+            productos = [
+                product_view.payload(item) for item in resultado["items"]
+            ]
+            tarjetas = self._search_cards(productos)
+            # Una sola intro con la edad; el listado va aparte.
+            return AgentReply(
+                [Outbound(text=resultado["texto"]), tarjetas[-1]]
+                if len(tarjetas) > 1
+                else tarjetas
+            )
 
         # Artículo del carrito elegido: se ajusta la cantidad.
         if normalized.startswith("cartitem:"):

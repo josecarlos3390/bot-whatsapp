@@ -226,6 +226,9 @@ def test_busqueda_no_expande_sinonimos_en_palabras_clave():
     ).lower()
     assert "name" in clausula and "%living%" in clausula
     assert "keywords" in clausula
-    antes, despues = clausula.split("keywords")
+    # Puede haber varias comparaciones sobre keywords (con y sin acentos):
+    # el sinónimo no puede aparecer en ninguna.
+    partes = clausula.split("keywords")
+    antes, despues = partes[0], "".join(partes[1:])
     assert "%living%" not in despues
     assert "%living%" in antes

@@ -143,6 +143,26 @@ def _like(term: str) -> str:
     return f"%{term}%"
 
 
+# La ñ y los acentos se ignoran al comparar: quien escribe "muneca" tiene que
+# encontrar "Muñeca" (y al revés).
+_ACENTOS = "áéíóúüñÁÉÍÓÚÜÑ"
+_SIN_ACENTOS = "aeiouunAEIOUUN"
+
+
+def _plano(column, portable: bool = False):
+    """Columna sin acentos ni ñ, para comparar con el texto del cliente.
+
+    PostgreSQL tiene `translate`; SQLite (tests) no, así que ahí se arma con
+    `replace` encadenados. En producción siempre se usa translate.
+    """
+    if not portable:
+        return func.translate(column, _ACENTOS, _SIN_ACENTOS)
+    expresion = column
+    for acentuada, plano in zip(_ACENTOS, _SIN_ACENTOS):
+        expresion = func.replace(expresion, acentuada, plano)
+    return expresion
+
+
 def _base_variants(term: str) -> list[str]:
     term = term.lower().strip()
     folded = _fold(term)
@@ -199,7 +219,9 @@ def _correct_terms(terms: list[str]) -> list[str]:
     return corrected
 
 
-def _match_all(terms: list[str], *, expand: bool = True):
+def _match_all(
+    terms: list[str], *, expand: bool = True, portable: bool = False
+):
     """Exige que cada término aparezca, con sinónimos solo en el nombre.
 
     La descripción larga y los sinónimos en palabras clave arrastraban
@@ -216,12 +238,26 @@ def _match_all(terms: list[str], *, expand: bool = True):
         clauses.append(
             or_(
                 *[CatalogItem.name.ilike(p) for p in patrones_nombre],
+                # Misma búsqueda ignorando ñ y acentos ("muneca" → "Muñeca").
+                *[
+                    _plano(CatalogItem.name, portable).ilike(_fold(p))
+                    for p in patrones_nombre
+                ],
                 *[
                     column.ilike(p)
                     for p in patrones_base
                     for column in (
                         CatalogItem.keywords,
                         CatalogItem.sku,
+                        CatalogItem.brand,
+                        CatalogItem.category,
+                    )
+                ],
+                *[
+                    _plano(column, portable).ilike(_fold(p))
+                    for p in patrones_base
+                    for column in (
+                        CatalogItem.keywords,
                         CatalogItem.brand,
                         CatalogItem.category,
                     )
@@ -374,6 +410,12 @@ async def search_items(
 ) -> list[CatalogItem]:
     """Búsqueda con filtros para armar un catálogo dinámico."""
 
+    try:
+        dialecto = session.bind.dialect.name if session.bind else "postgresql"
+    except Exception:  # noqa: BLE001 - sin bind se asume postgres
+        dialecto = "postgresql"
+    portable = dialecto == "sqlite"
+
     def base(apply_category: bool = True):
         stmt = select(CatalogItem).where(CatalogItem.active.is_(True))
         if only_available:
@@ -469,7 +511,7 @@ async def search_items(
             )
         if terms:
             stmt = stmt.where(
-                *_match_all(terms[:4], expand=expanded)
+                *_match_all(terms[:4], expand=expanded, portable=portable)
             )
         # Priorizar en SQL los artículos cuyo nombre EMPIEZA con el término:
         # si se ordena sólo alfabéticamente, accesorios como "BOLSA PARA
@@ -518,7 +560,9 @@ async def search_items(
         category = None
     if not rows and terms:
         # Último intento: cualquier término, manteniendo los filtros.
-        stmt = base().where(*_match_all([terms[0]]))
+        stmt = base().where(
+            *_match_all([terms[0]], portable=portable)
+        )
         rows = list(
             (
                 await session.scalars(

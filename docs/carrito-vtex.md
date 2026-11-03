@@ -194,3 +194,16 @@ Con 61 pedidos es instantáneo; con miles habrá que pedirle al PaaS:
 ```
 GET /api/vtex/orders?orderFormId=...
 ```
+
+## El link del cliente
+
+El bot nunca arma la URL: usa la que devuelve el integrador. Cuando exista
+el dominio, el mensaje es un **botón de enlace** de WhatsApp:
+
+`
+[ Terminar mi compra ]  →  https://rodabo.myvtex.com/checkout/?orderFormId=…
+`
+
+⚠️ El link tiene que llevar el orderFormId. …/checkout/#/cart abre el
+carrito del navegador, así que un cliente que viene de WhatsApp vería uno
+vacío.
