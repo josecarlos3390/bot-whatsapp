@@ -366,6 +366,24 @@ class CartItem(Base):
     cart: Mapped[Cart] = relationship(back_populates="items")
 
 
+class CartReminder(Base):
+    """Recordatorio enviado por un carrito que quedó sin terminar."""
+
+    __tablename__ = "cart_reminders"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    cart_id: Mapped[str] = mapped_column(
+        ForeignKey("carts.id", ondelete="CASCADE"), index=True
+    )
+    contact_id: Mapped[str] = mapped_column(
+        ForeignKey("contacts.id"), index=True
+    )
+    channel: Mapped[str] = mapped_column(String(20), default="text")
+    sent_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow
+    )
+
+
 class Order(Base):
     __tablename__ = "orders"
 

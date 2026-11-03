@@ -103,6 +103,11 @@ class Settings(BaseSettings):
     slow_reply_seconds: float = 7.0
     # Si un producto no existe, probar con su familia (monitor -> televisor).
     enable_family_fallback: bool = True
+    # Recordatorio de carrito sin terminar.
+    cart_reminder_hours: int = 3
+    cart_reminder_enabled: bool = False
+    cart_template_name: str = ""
+    cart_template_lang: str = "es"
     batching_ms: int = 1600
     transcribe_enabled: bool = True
     transcribe_model: str = "small"
