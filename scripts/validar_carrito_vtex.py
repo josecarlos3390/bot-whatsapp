@@ -105,6 +105,27 @@ async def main() -> int:
                 + ", ".join(i["sku"] for i in creado["items"])
             )
 
+        # Dos carritos seguidos tienen que ser distintos: si el integrador
+        # reutiliza el orderForm, todos los clientes comparten el carrito.
+        print("\n3b. Aislamiento entre carritos")
+        try:
+            segundo = await vtex_cart.crear_carrito(carrito)
+        except Exception as exc:  # noqa: BLE001
+            _mal(f"no se pudo crear el segundo: {str(exc)[:120]}")
+            return 1
+        if segundo["order_form_id"] == creado["order_form_id"]:
+            _mal("dos creaciones devolvieron el MISMO order_form_id")
+        else:
+            _ok(
+                f"segundo carrito distinto ({segundo['order_form_id'][:8]}…)"
+            )
+        if segundo["items"]:
+            _mal(
+                f"el segundo carrito traía {len(segundo['items'])} ítem(s) ajenos"
+            )
+        else:
+            _ok("el segundo carrito arranca vacío")
+
         print("\n4. Agregar ítem")
         try:
             respuesta = await vtex_cart.agregar_items(
@@ -121,9 +142,26 @@ async def main() -> int:
             )
         else:
             _mal("el ítem no quedó en el carrito")
-        if respuesta["messages"]:
-            for mensaje in respuesta["messages"]:
-                _mal(f"rechazo {mensaje['code']}: {mensaje['text'][:80]}")
+        pedidos = {articulo.sku}
+        ajenos = [
+            mensaje
+            for mensaje in respuesta["messages"]
+            if not any(sku in mensaje["text"] for sku in pedidos)
+        ]
+        for mensaje in ajenos:
+            _mal(
+                f"mensaje de otro SKU ({mensaje['code']}): "
+                f"{mensaje['text'][:70]}"
+            )
+        propios = [
+            mensaje
+            for mensaje in respuesta["messages"]
+            if mensaje not in ajenos
+        ]
+        for mensaje in propios:
+            _ok(f"rechazo esperado {mensaje['code']}: {mensaje['text'][:60]}")
+        if not ajenos:
+            _ok(f"messages corresponde a esta request ({len(propios)})")
         _ok(f"total VTEX = {respuesta['value']} {respuesta['currency']}")
 
         print("\n5. Consultar carrito")
@@ -132,23 +170,38 @@ async def main() -> int:
             _mal("el carrito no se pudo consultar")
         else:
             _ok(f"consulta ok · {len(actual['items'])} ítem(s)")
+            if actual["order_form_id"] == carrito.vtex_order_form_id:
+                _ok("es el mismo carrito que se creó")
+            else:
+                _mal("la consulta devolvió otro order_form_id")
             _ok(f"vigente = {await vtex_cart.asegurar_vigente(carrito)}")
 
         print("\n6. Sincronización completa del carrito local")
         resultado = await vtex_cart.sincronizar(carrito)
-        _ok(f"estado = {resultado['estado']}")
+        if resultado["estado"] == "ok":
+            _ok(f"estado = {resultado['estado']}")
+        else:
+            _mal(
+                f"estado = {resultado['estado']}"
+                + (f" · {resultado.get('detalle')}" if resultado.get("detalle") else "")
+            )
         if resultado["link"]:
             _ok(f"link para el cliente = {resultado['link']}")
         else:
             _ok("sin link: el bot no lo muestra (correcto si checkout_url es null)")
 
-        print("\n7. Limpieza")
-        from sqlalchemy import delete
+        print("\n6b. Sincronizar otra vez no duplica")
+        antes = len(await vtex_cart.consultar(carrito) or {"items": []})
+        repetido = await vtex_cart.sincronizar(carrito)
+        despues = (await vtex_cart.consultar(carrito) or {}).get("items", [])
+        if len(despues) <= antes and repetido["estado"] == "ok":
+            _ok(f"sigue con {len(despues)} ítem(s), sin duplicar")
+        else:
+            _mal(f"quedaron {len(despues)} ítem(s) (antes {antes})")
 
-        await session.execute(
-            delete(CartItem).where(CartItem.cart_id == carrito.id)
-        )
-        await session.commit()
+        print("\n7. Limpieza")
+        # El carrito arrastra sus ítems: se borra primero y se confirma, así
+        # el contacto ya no está referenciado.
         await session.delete(carrito)
         await session.commit()
         await session.delete(contacto)

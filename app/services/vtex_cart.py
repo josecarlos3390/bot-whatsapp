@@ -275,11 +275,23 @@ async def sincronizar(cart: Cart) -> dict:
     Devuelve ``{"estado": ok|incompleto|error, "faltantes": [...],
     "link": str}``. Nunca lanza: el carrito local sigue siendo válido.
     """
-    vacio = {"estado": "error", "faltantes": [], "link": "", "mensajes": []}
+    vacio = {
+        "estado": "error",
+        "faltantes": [],
+        "link": "",
+        "mensajes": [],
+        "detalle": "carrito de VTEX no disponible",
+    }
     if not disponible():
         return vacio
     if not cart.items:
-        return {"estado": "ok", "faltantes": [], "link": "", "mensajes": []}
+        return {
+            "estado": "ok",
+            "faltantes": [],
+            "link": "",
+            "mensajes": [],
+            "detalle": "",
+        }
 
     try:
         if vencido(cart):
@@ -314,13 +326,16 @@ async def sincronizar(cart: Cart) -> dict:
             "faltantes": faltantes,
             "link": cart.vtex_cart_url or "",
             "mensajes": respuesta["messages"],
+            "detalle": "",
         }
     except CarritoVencido:
         cart.vtex_order_form_id = ""
         cart.vtex_cart_url = ""
+        vacio["detalle"] = "el carrito dio 404"
         return vacio
-    except Exception:  # noqa: BLE001 - el carrito local manda
+    except Exception as exc:  # noqa: BLE001 - el carrito local manda
         logger.warning("No se pudo sincronizar el carrito", exc_info=True)
+        vacio["detalle"] = str(exc)[:120]
         return vacio
 
 
