@@ -241,3 +241,13 @@ async def test_el_precio_es_el_de_vtex(session, monkeypatch):
     # 2 × 165 (precio de VTEX), no 2 × 100 (precio local).
     assert carrito.vtex_value == Decimal("330.0")
     assert carrito.vtex_currency == "BOB"
+
+async def test_el_seller_sale_de_la_configuracion(session, monkeypatch):
+    monkeypatch.setattr(settings, "vtex_seller_id", "7")
+    carrito = await _carrito(session, skus=("REF-9",))
+    fake = FakePaaS()
+    monkeypatch.setattr(vtex_cart, "_pedir", fake.pedir)
+
+    await vtex_cart.sincronizar(carrito)
+
+    assert fake.agregados[0]["items"][0]["seller"] == "7"

@@ -113,6 +113,8 @@ class Settings(BaseSettings):
     vtex_app_key: str = ""
     vtex_app_token: str = ""
     vtex_sales_channel: int = 1
+    # Seller de VTEX: para esta cuenta es "1", configurable por si cambia.
+    vtex_seller_id: str = "1"
     vtex_affiliate_id: str = ""
     # Dominio que ve el cliente para terminar la compra.
     vtex_checkout_host: str = ""

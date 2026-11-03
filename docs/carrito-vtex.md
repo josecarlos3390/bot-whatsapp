@@ -47,6 +47,7 @@ VTEX_ENVIRONMENT=vtexcommercestable
 VTEX_APP_KEY=...
 VTEX_APP_TOKEN=...
 VTEX_SALES_CHANNEL=1
+VTEX_SELLER_ID=1
 VTEX_CHECKOUT_HOST=https://roho.com.bo
 ```
 
@@ -91,3 +92,23 @@ Y en el chat: agregar un producto → el bot debe responder con un botón
 - **No valida el pago**: eso llega por el webhook de VTEX/Cucu, no por acá.
 - **No sincroniza al revés**: si el cliente cambia el carrito en VTEX, el bot
   no se entera hasta que vuelva a escribir.
+
+## Fuente de precio y stock
+
+Confirmado con el equipo del PaaS: el bot lee catálogo, precio y stock de
+**VTEX a través del PaaS**, y el checkout también es VTEX. **No hay iVend en
+ese camino**, así que el precio que muestra el bot y el del checkout salen del
+mismo lugar.
+
+⚠️ Si en algún momento iVend pasa a ser la fuente real de stock o precio, la
+paridad **deja de estar garantizada** y hay que revisarlo antes de activar el
+carrito.
+
+## Antes de activar
+
+| Requisito | Estado |
+|---|---|
+| Rutas de carrito en el PaaS | ⏳ |
+| Dominio de checkout (checkout_url) | ⏳ |
+| Validación de punta a punta | ⏳ |
+| VTEX_CART_ENABLED=false | ✅ hasta entonces |

@@ -174,7 +174,9 @@ async def agregar_items(cart: Cart, items: list[dict]) -> dict:
             {
                 "sku": str(item["sku"]),
                 "quantity": int(item["quantity"]),
-                "seller": str(item.get("seller") or "1"),
+                "seller": str(
+                    item.get("seller") or settings.vtex_seller_id or "1"
+                ),
             }
             for item in items
             if int(item.get("quantity") or 0) > 0
