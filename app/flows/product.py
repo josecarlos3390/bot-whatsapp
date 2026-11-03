@@ -110,6 +110,13 @@ async def detail(
     )
     if description and description.upper() != (product.get("name") or "").upper():
         lines.append(f"Descripción: {description}")
+    # Código del artículo en SAP Business One: es el RefId que guarda VTEX
+    # (mismo código con el que se factura y se busca en el depósito).
+    codigo_sap = str(
+        attrs.get("sap_code") or product.get("sap_code") or product.get("sku") or ""
+    ).strip()
+    if codigo_sap:
+        lines.append(f"Código SAP: {codigo_sap}")
     if product.get("barcode"):
         lines.append(f"Código de barra: {product['barcode']}")
     # Complemento con stock validado: sube el ticket sin inventar nada.

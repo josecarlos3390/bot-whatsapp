@@ -77,7 +77,9 @@ async def test_category_list_and_product_detail(session):
         message for message in detail.messages if message.kind == "list"
     )
     rows = actions.sections[0]["rows"]
-    assert "FILT-001" not in actions.text
+    # El código SAP (RefId) ahora se muestra; el de barra no se inventa.
+    assert "Código SAP: FILT-001" in actions.text
+    assert "Código de barra" not in actions.text
     assert any(row["id"].startswith("add:FILT-001") for row in rows)
 
 

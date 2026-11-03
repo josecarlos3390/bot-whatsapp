@@ -1,4 +1,4 @@
-"""Las incoherencias que llegaron de chats reales no vuelven.
+﻿"""Las incoherencias que llegaron de chats reales no vuelven.
 
 Cada caso salió de una conversación de prueba:
 
@@ -153,3 +153,31 @@ def test_una_ficha_coherente_no_se_marca():
         )
         is None
     )
+
+
+async def test_la_ficha_muestra_el_codigo_sap(session):
+    """La ficha lleva el código de SAP Business One (el RefId de VTEX)."""
+    from app.models import CatalogItem
+
+    session.add(
+        CatalogItem(
+            sku="LBLELEC020078",
+            name="Cafetera Express 1465W 20Bar Inox Cecotec",
+            price="1599",
+            stock=10,
+            brand="CECOTEC",
+            category="Cafeteras",
+            barcode="8435484019866",
+            active=True,
+        )
+    )
+    await session.commit()
+    contacto = await _contacto(session, "59170081001")
+
+    respuesta = await Agent().handle(
+        session, contacto, "product:LBLELEC020078"
+    )
+    texto = " ".join(m.text or "" for m in respuesta.messages)
+
+    assert "Código SAP: LBLELEC020078" in texto
+    assert "8435484019866" in texto
