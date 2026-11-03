@@ -341,6 +341,10 @@ class Cart(Base):
     vtex_synced_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True)
     )
+    # Vencimiento si el integrador lo informa (hoy viene null).
+    vtex_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
     # Total y moneda según VTEX: el bot muestra ese precio, no el local.
     vtex_value: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     vtex_currency: Mapped[str | None] = mapped_column(String(3))

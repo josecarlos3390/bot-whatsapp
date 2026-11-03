@@ -251,3 +251,20 @@ async def test_el_seller_sale_de_la_configuracion(session, monkeypatch):
     await vtex_cart.sincronizar(carrito)
 
     assert fake.agregados[0]["items"][0]["seller"] == "7"
+
+def test_expires_at_se_lee_si_viene():
+    datos = {
+        "order_form_id": "OF-9",
+        "expires_at": "2026-11-04T12:00:00Z",
+    }
+
+    carrito = vtex_cart.normalizar(datos)
+
+    assert carrito["expires_at"] is not None
+    assert carrito["expires_at"].year == 2026
+
+
+def test_expires_at_null_usa_el_ttl_del_bot():
+    carrito = vtex_cart.normalizar({"order_form_id": "OF-9"})
+
+    assert carrito["expires_at"] is None

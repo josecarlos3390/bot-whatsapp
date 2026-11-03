@@ -81,6 +81,19 @@ def _cabeceras(cart: Cart | None = None) -> dict[str, str]:
     return cabeceras
 
 
+def _fecha(valor) -> datetime | None:
+    """Fecha ISO del integrador; null o inválida cuenta como sin dato."""
+    if not valor:
+        return None
+    try:
+        momento = datetime.fromisoformat(str(valor).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if momento.tzinfo is None:
+        momento = momento.replace(tzinfo=timezone.utc)
+    return momento
+
+
 def _numero(valor) -> Decimal:
     try:
         return Decimal(str(valor or 0))
@@ -117,6 +130,7 @@ def normalizar(datos: dict) -> dict:
     return {
         "order_form_id": order_form_id,
         "checkout_url": datos.get("checkout_url") or None,
+        "expires_at": _fecha(datos.get("expires_at")),
         "items": items,
         "value": _numero(datos.get("value")),
         "currency": str(datos.get("currency") or "BOB"),
@@ -218,7 +232,16 @@ async def consultar(cart: Cart) -> dict | None:
 
 
 def vencido(cart: Cart) -> bool:
-    """¿Pasaron más de 24 h desde la última sincronización?"""
+    """¿El carrito ya no sirve?
+
+    Si el integrador informa `expires_at` se respeta; si viene null (hoy)
+    se usa el TTL local de 24 h desde la última sincronización.
+    """
+    informado = getattr(cart, "vtex_expires_at", None)
+    if informado is not None:
+        if informado.tzinfo is None:
+            informado = informado.replace(tzinfo=timezone.utc)
+        return datetime.now(timezone.utc) > informado
     if not cart.vtex_order_form_id or cart.vtex_synced_at is None:
         return True
     momento = cart.vtex_synced_at
@@ -277,6 +300,8 @@ async def sincronizar(cart: Cart) -> dict:
         cart.vtex_value = respuesta["value"]
         cart.vtex_currency = respuesta["currency"]
         cart.vtex_messages = json.dumps(respuesta["messages"])[:4000]
+        if respuesta.get("expires_at") is not None:
+            cart.vtex_expires_at = respuesta["expires_at"]
         cart.vtex_synced_at = utcnow()
         if faltantes:
             logger.warning(
