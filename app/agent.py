@@ -4201,6 +4201,41 @@ class Agent:
             ]
         )
 
+    async def _asegurar_derivacion(
+        self, session: AsyncSession, contact: Contact, reason: str
+    ) -> None:
+        """Crea la derivación si no hay una abierta para esta conversación.
+
+        Nunca lanza: derivar es secundario frente a responder.
+        """
+        try:
+            conversacion = await session.scalar(
+                select(Conversation).where(
+                    Conversation.contact_id == contact.id
+                )
+            )
+            if conversacion is None:
+                return
+            abierta = await session.scalar(
+                select(handoffs.Handoff)
+                .where(
+                    handoffs.Handoff.conversation_id == conversacion.id,
+                    handoffs.Handoff.status.in_(
+                        {"pending", "queued", "active"}
+                    ),
+                )
+                .limit(1)
+            )
+            if abierta is not None:
+                self._trace("Derivación ya abierta")
+                return
+            await handoffs.create_handoff(
+                session, conversacion, contact, reason=reason
+            )
+            self._trace(f"Derivación creada: {reason[:40]}")
+        except Exception:  # noqa: BLE001 - la derivación no frena la respuesta
+            logger.exception("No se pudo derivar")
+
     async def _checkout_reply(
         self, session: AsyncSession, contact: Contact
     ) -> AgentReply:
@@ -4236,11 +4271,26 @@ class Agent:
                 # Quitamos el prefijo técnico y mostramos el motivo de SAP.
                 _, _, detail = error.partition(": ")
                 error = detail or error
+            # Si no se puede cerrar el pedido, el caso pasa a un asesor
+            # de verdad: antes el modelo decía "ya lo pasé" sin crear nada.
+            detalle = ", ".join(
+                f"{item['quantity']} × {item['name'][:32]}"
+                for item in cart["items"][:4]
+            )
+            await self._asegurar_derivacion(
+                session,
+                contact,
+                f"Quiere cerrar el pedido ({detalle})",
+            )
             return AgentReply(
                 [
                     Outbound(
                         kind="buttons",
-                        text=persona.checkout_failed(error),
+                        text=(
+                            f"{persona.checkout_failed(error)}\n\n"
+                            "Ya dejé tu carrito con un asesor del equipo para "
+                            "que lo confirme y te pase el link de pago 🙌"
+                        ),
                         buttons=[
                             {"id": "cart", "title": "Ver carrito"},
                             {"id": "human", "title": "Asesor"},
@@ -4718,6 +4768,21 @@ class Agent:
             (antes.text or "") != (despues.text or "")
             for antes, despues in zip(reply.messages, limpios)
         )
+        # Si la respuesta dice que se derivó, la derivación tiene que existir:
+        # el modelo a veces la promete sin llamar a la herramienta.
+        if re.search(
+            r"\b(pas[eé]|paso|deriv[eé]|derivado|dej[eé]|envi[eé])\b.{0,30}"
+            r"\b(asesor|equipo|persona)",
+            answer,
+            re.IGNORECASE,
+        ) and not accion:
+            try:
+                await self._asegurar_derivacion(
+                    session, contact, "El cliente habló de un pedido o consulta"
+                )
+            except Exception:  # noqa: BLE001 - nunca romper la respuesta
+                logger.debug("No se pudo asegurar la derivación", exc_info=True)
+
         # El emoji se suma al final: así la comparación de respuestas
         # repetidas usa el texto real y no se rompe el detector de bucles.
         from dataclasses import replace

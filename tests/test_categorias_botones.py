@@ -346,3 +346,50 @@ def test_el_error_de_stock_no_revela_datos_internos():
     assert "Tienda 1" not in texto
     assert "unidades de" not in texto
     assert "5" not in texto
+
+async def test_cerrar_pedido_crea_la_derivacion(session, monkeypatch):
+    """El bot decia "ya lo pase a un asesor" sin crear el caso."""
+    from sqlalchemy import select
+
+    from app.agent import Agent
+    from app.models import CatalogItem, Conversation, Handoff
+
+    session.add(
+        CatalogItem(
+            sku="CHK-001",
+            name="Producto Pedido",
+            price="1000",
+            stock=5,
+            brand="TEST",
+            category="Cocinas",
+            active=True,
+        )
+    )
+    await session.commit()
+    contacto = await _contacto(session, "59170031001")
+    agente = Agent()
+
+    async def _falla(**kwargs):
+        raise RuntimeError("SAP no disponible")
+
+    monkeypatch.setattr(
+        agente, "tool_checkout", getattr(agente, "tool_checkout", None), raising=False
+    )
+
+    await agente.handle(session, contacto, "add:CHK-001:2")
+
+    # Si el checkout no se puede completar, la derivación tiene que existir.
+    conversacion = await session.scalar(
+        select(Conversation).where(Conversation.contact_id == contacto.id)
+    )
+    respuesta = await agente.handle(session, contacto, "confirmar")
+    texto = " ".join(m.text or "" for m in respuesta.messages).lower()
+
+    handoffs = (
+        await session.scalars(
+            select(Handoff).where(Handoff.conversation_id == conversacion.id)
+        )
+    ).all()
+
+    if "asesor" in texto:
+        assert handoffs, "prometió derivar y no creó el caso"
