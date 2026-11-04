@@ -1402,6 +1402,13 @@ class Toolbox:
             category = None
         state = await self._current_state()
         query_category = bool(query and SEARCH_RE.search(query))
+        if not ignore_state and (state.category or state.brand) and query:
+            # El mensaje nuevo gana: si por sí solo encuentra algo
+            # ("autos a escala"), no se le aplica el rubro ni la marca que
+            # venían de la charla ("muñecas").
+            propio = await catalog.search_items(self.session, query, limit=1)
+            if propio:
+                ignore_state = True
         if not ignore_state:
             if not category and state.category and not query_category:
                 category = state.category

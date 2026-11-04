@@ -30,7 +30,12 @@ CUESTIONA = re.compile(
     r")\b"
     r"|\bno\s+te\s+ped[ií]\b"
     r"|\bqu[eé]\s+tiene\s+que\s+ver\b"
-    r"|\bpara\s+qu[eé]\s+me\s+mostr[aá]s\b",
+    r"|\bpara\s+qu[eé]\s+me\s+mostr[aá]s\b"
+    # "Primero me dijiste 5 y luego 3": incoherencia que el cliente nota.
+    r"|\b(primero|antes|reci[eé]n)\s+me\s+(dijiste|mostraste|ofreciste)\b"
+    r"|\bme\s+(dijiste|mostraste)\b.{0,40}\by\s+(luego|ahora|despu[eé]s)\b"
+    r"|\b(no\s+)?(son|es)\s+lo\s+que\s+(ped[ií]|busca(ba|ba)?)\b"
+    r"|\bno\s+son\s+(los|las)?\s*(autos?|mu[ñn]ecas?|productos?)\b",
     re.IGNORECASE,
 )
 

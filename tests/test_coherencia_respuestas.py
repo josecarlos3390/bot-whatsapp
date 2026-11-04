@@ -223,3 +223,48 @@ async def test_kidsage_es_una_accion():
     from app.services import actions
 
     assert actions.es_accion("kidsage:6-9")
+
+async def test_el_mensaje_nuevo_gana_al_rubro_anterior(session):
+    """Tras ver muñecas, "autos a escala" no puede heredar el rubro."""
+    from app.models import CatalogItem
+
+    for sku, nombre, marca in (
+        ("MK-1", "Muñeca Bebe Princesas", "DISNEY"),
+        ("MK-2", "Muñeca Bebe Lloron", "CRY BABIES"),
+        ("MC-1", "Auto A Escala Avengers A Friccion", "MARVEL"),
+        ("MC-2", "Auto A Escala Batman A Friccion", "DC"),
+        ("MC-3", "Auto A Escala Spiderman A Friccion", "MARVEL"),
+    ):
+        session.add(
+            CatalogItem(
+                sku=sku,
+                name=nombre,
+                price="199",
+                stock=20,
+                brand=marca,
+                category="Vehículos",
+                active=True,
+            )
+        )
+    await session.commit()
+    contacto = await _contacto(session, "59170083001")
+    agente = Agent()
+
+    await agente.handle(session, contacto, "tienes muñecas?")
+    respuesta = await agente.handle(session, contacto, "autos a escala")
+
+    texto = _todo(respuesta)
+    assert "Auto A Escala" in texto
+    assert "Muñeca" not in texto
+
+
+async def test_reconoce_la_queja_por_la_lista_anterior():
+    from app.services import pedido_vago
+
+    assert pedido_vago.es_cuestionamiento(
+        "Primero me dijiste que tenías 5 opciones y luego 3?"
+    )
+    assert pedido_vago.es_cuestionamiento(
+        "Me diste la lista de unas muñecas no son autos a escala"
+    )
+    assert not pedido_vago.es_cuestionamiento("hola, busco un taladro")
