@@ -181,3 +181,45 @@ async def test_la_ficha_muestra_el_codigo_sap(session):
 
     assert "Código SAP: LBLELEC020078" in texto
     assert "8435484019866" in texto
+
+async def test_autos_a_escala_no_muestra_munecas(session):
+    """El bug del chat: tras el regalo para chicos, "autos a escala" salió con muñecas."""
+    from app.models import CatalogItem
+
+    datos = [
+        ("AUT-1", "Auto A Escala Avengers Todo Terreno A Friccion", "199", "MARVEL"),
+        ("AUT-2", "Auto A Escala Batman Todo Terreno A Friccion", "199", "DC"),
+        ("AUT-3", "Auto A Escala Spiderman Todo Terreno A Friccion", "199", "MARVEL"),
+        ("MUN-1", "Muñeca Bebe Princesas Disney", "299", "DISNEY"),
+        ("MUN-2", "Muñeca Bebe Lloron Tiny Cuddles", "449", "CRY BABIES"),
+    ]
+    for sku, nombre, precio, marca in datos:
+        session.add(
+            CatalogItem(
+                sku=sku,
+                name=nombre,
+                price=precio,
+                stock=20,
+                brand=marca,
+                category="Vehículos",
+                active=True,
+            )
+        )
+    await session.commit()
+
+    contacto = await _contacto(session, "59170082001")
+    agente = Agent()
+    await agente.handle(session, contacto, "quiero comprar algo para mis hijos")
+    await agente.handle(session, contacto, "kidsage:6-9")
+
+    respuesta = await agente.handle(session, contacto, "Autos a escala")
+    texto = _todo(respuesta)
+
+    assert "Auto A Escala" in texto
+    assert "Muñeca" not in texto
+
+
+async def test_kidsage_es_una_accion():
+    from app.services import actions
+
+    assert actions.es_accion("kidsage:6-9")

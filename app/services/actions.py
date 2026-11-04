@@ -25,6 +25,7 @@ PREFIJOS = (
     "reserve:",
     "cartitem:",
     "qtyask:",
+    "kidsage:",
     "envio:",
     "doc:",
     "checkout",

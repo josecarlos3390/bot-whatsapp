@@ -6691,13 +6691,28 @@ class Agent:
         if (
             1 <= len(simple.split()) <= 4
             and simple not in _CONTROL_WORDS
-            and not any(word in _STOPWORDS for word in simple.split())
+            # Alcanza con que quede una palabra con contenido: "a fricción"
+            # es una respuesta válida a la búsqueda anterior.
+            and any(word not in _STOPWORDS for word in simple.split())
         ):
             conversation = await session.scalar(
                 select(Conversation).where(Conversation.contact_id == contact.id)
             )
             last = (conversation.last_query or "").strip() if conversation else ""
-            if last and _fold_word(last) not in simple:
+            # Si el mensaje corto ya se entiende solo ("autos a escala"), no
+            # se le pega la búsqueda anterior: terminaba mostrando muñecas.
+            ultimo_solo = await Toolbox(
+                session, contact, self.wa
+            ).tool_search_products(query=simple, limit=1)
+            # Se entiende solo y hay productos: se listan ("a fricción" tras
+            # "autos a escala"). Antes el modelo repreguntaba.
+            if ultimo_solo.get("products") and last:
+                self._trace("Respuesta corta con resultados propios")
+                return await self._search_reply(session, contact, text)
+            if (
+                last
+                and _fold_word(last) not in simple
+            ):
                 display = _clean_query(raw) or raw
                 probe = await Toolbox(session, contact, self.wa).tool_search_products(
                     query=f"{last} {display}".strip(), limit=3
