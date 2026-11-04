@@ -43,13 +43,16 @@ def test_una_sola_opcion_no_dice_opciones():
     assert "1 opción" in texto
 
 
-def test_muestra_hasta_cinco_opciones():
-    productos = [_producto(numero) for numero in range(1, 9)]
+def test_muestra_hasta_ocho_opciones():
+    """El cliente quiere ver el abanico: hasta 8, con "ver más" si hay más."""
+    productos = [_producto(numero) for numero in range(1, 11)]
 
     tarjetas = Agent._search_cards(productos)
 
-    assert "5 opciones" in (tarjetas[0].text or "")
-    assert len(tarjetas[-1].sections[0]["rows"]) == 5
+    assert "8 opciones" in (tarjetas[0].text or "")
+    filas = tarjetas[-1].sections[0]["rows"]
+    assert len(filas) == 9
+    assert filas[-1]["id"] == "more"
 
 
 def test_no_agrega_seguimos_despues_de_una_pregunta():

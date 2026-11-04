@@ -29,7 +29,10 @@ def _precio(product: dict) -> str:
 
 
 def cards(
-    products: list[dict], maximo: int = 5, consulta: str = ""
+    products: list[dict],
+    maximo: int = 8,
+    consulta: str = "",
+    hay_mas: bool = False,
 ) -> list[Outbound]:
     """Lista de opciones (texto + menú), sin fotos.
 
@@ -108,10 +111,25 @@ def cards(
                     if (product.get("brand") or "").strip()
                     else ""
                 )
+                + (
+                    f" · {product.get('sku')}"
+                    if (product.get("sku") or "").strip()
+                    else ""
+                )
             )[:72],
         }
         for index, product in enumerate(seleccionados, start=1)
     ]
+    # Si el catálogo tiene más, el cliente puede pedirlas sin volver a
+    # escribir la búsqueda (WhatsApp permite hasta 10 filas).
+    if (hay_mas or len(products) > len(seleccionados)) and len(rows) < 10:
+        rows.append(
+            {
+                "id": "more",
+                "title": "Ver más opciones",
+                "description": "Más resultados de esta búsqueda",
+            }
+        )
     return [
         Outbound(text=mensaje[:4096]),
         Outbound(

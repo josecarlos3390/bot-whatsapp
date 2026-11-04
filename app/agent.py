@@ -979,13 +979,17 @@ Estilo:
 - Si escribe con errores o abrevia (air, televisro, refri), inferí la
   categoría. Si hay duda real, preguntá "¿Te referís a ...?".
 - Enumerá marcas o medidas una por línea.
-- Si ya dijo qué busca, mostrale 2-3 opciones con precio y después preguntá
-  medida, estilo o presupuesto. No lo interrogues antes de dar valor.
+- Si ya dijo qué busca, mostrale las opciones con precio (hasta 8 en la
+  lista; si hay más, ofrecé "Ver más opciones") y después preguntá medida,
+  estilo o presupuesto. No lo interrogues antes de dar valor.
+- Nunca listes de a 3 si el catálogo tiene más: el cliente quiere ver el
+  abanico y elegir.
 - En un reclamo: "Lamento lo ocurrido", disculpa breve, solución o derivación.
 
 Método de venta:
 1. Descubrí la necesidad (uso, espacio, presupuesto, estilo).
-2. Buscá con search_products y recomendá 1 o 2 opciones concretas con precio.
+2. Buscá con search_products (limit 8) y mostrá las opciones que haya con
+   precio. Recomendá 1 o 2, pero no escondas el resto.
    Si menciona una categoría concreta, buscá antes de preguntar medida o marca.
    Si pregunta "tenés televisores", usá get_catalog_facets y ofrecé las marcas
    reales antes de listar modelos.
@@ -1332,7 +1336,7 @@ class Toolbox:
     async def tool_search_products(
         self,
         query: str | None = None,
-        limit: int = 5,
+        limit: int = 8,
         category: str | None = None,
         brand: str | None = None,
         size: str | None = None,
@@ -1342,7 +1346,7 @@ class Toolbox:
         quantity: int = 1,
         ignore_state: bool = False,
     ) -> dict:
-        take = min(int(limit or 5), 8)
+        take = min(int(limit or 8), 8)
         # Código de barra: si el mensaje trae un EAN/UPC, se resuelve directo.
         barcode = catalog.barcode_from_text(query)
         if barcode:
@@ -1380,6 +1384,8 @@ class Toolbox:
                 and not _es_respuesta_suelta(query)
             ):
                 conversacion.last_query = query[:300]
+                # Se guarda ya: "ver más" lee de acá y sin commit se perdía.
+                await self.session.commit()
             # Si la búsqueda de la IA no encuentra nada, también es un
             # faltante para el informe de compras.
             if query:
@@ -1492,7 +1498,9 @@ class Toolbox:
             head_rows = [
                 row for row in rows if catalog.is_head_match(row, query)
             ]
-            if head_rows:
+            # Con pocas coincidencias "de cabecera" no conviene esconder el
+            # resto: el cliente quiere ver el abanico (muñecas, taladros...).
+            if len(head_rows) >= 3:
                 rows = head_rows
                 products = [self._product(row) for row in rows]
                 await self._attach_promotions(products)
@@ -3117,7 +3125,9 @@ class Agent:
                 query = f"{query} en descuento"
             if not query:
                 return None
-            limit = min(int(arguments.get("limit") or 5), 5)
+            # Siempre el abanico completo: el modelo a veces pide 3 y el
+            # cliente se queda con la sensación de que hay poco.
+            limit = 8
             return await self._search_reply(
                 session,
                 contact,
@@ -3273,7 +3283,7 @@ class Agent:
                     continue
                 seen.add(product["sku"])
                 direct.append(product)
-            if len(direct) >= 3:
+            if len(direct) >= 8:
                 break
         if direct:
             return AgentReply(
@@ -3283,7 +3293,7 @@ class Agent:
                             f"Para *{event['label']}* te puedo ofrecer esto:"
                         )
                     ),
-                    *self._search_cards(direct[:3]),
+                    *self._search_cards(direct[:8]),
                     Outbound(
                         kind="buttons",
                         text=(
@@ -3432,7 +3442,7 @@ class Agent:
         # devolvía cuadrados porque ignora el atributo.
         literal = await Toolbox(
             session, contact, self.wa
-        ).tool_search_products(query=text, limit=3)
+        ).tool_search_products(query=text, limit=8)
         productos_literal = literal.get("products") or []
         terminos = catalog._relevance_terms(text)
         if productos_literal and terminos:
@@ -3560,13 +3570,24 @@ class Agent:
         contact: Contact,
         query: str,
         *,
-        limit: int = 5,
+        limit: int = 8,
         min_price: float | None = None,
         max_price: float | None = None,
         quantity: int | None = None,
         policy: rule_policy.RulePolicy | None = None,
     ) -> AgentReply:
         self._trace("Búsqueda en catálogo")
+        # Se recuerda la búsqueda para que "ver más" sepa qué ampliar, sin
+        # importar por qué camino se llegó acá.
+        try:
+            conversacion_busqueda = await session.scalar(
+                select(Conversation).where(Conversation.contact_id == contact.id)
+            )
+            if conversacion_busqueda is not None and query:
+                conversacion_busqueda.last_query = query[:300]
+                await session.commit()
+        except Exception:  # noqa: BLE001 - recordar no debe romper la búsqueda
+            logger.debug("No se pudo guardar la última búsqueda", exc_info=True)
         # Referencias y atributos ("ese", "de 13mm", "con luz"): si la frase es
         # corta y ya hay rubro en la charla, el modelo la reescribe antes de
         # buscar. Así no se pierde el hilo ni se buscan palabras sueltas.
@@ -3711,7 +3732,7 @@ class Agent:
                 logger.debug("No se pudo comparar el rubro", exc_info=True)
         result = await toolbox.tool_search_products(
             query=query,
-            limit=min(int(limit), 5),
+            limit=min(int(limit), 8),
             min_price=min_price,
             max_price=max_price,
             quantity=quantity,
@@ -3723,7 +3744,7 @@ class Agent:
         if aprendida and aprendida != query:
             result = await toolbox.tool_search_products(
                 query=aprendida,
-                limit=min(int(limit), 5),
+                limit=min(int(limit), 8),
                 min_price=min_price,
                 max_price=max_price,
                 quantity=quantity,
@@ -3742,7 +3763,7 @@ class Agent:
                 parcial = " ".join(terminos[:corte])
                 retry = await toolbox.tool_search_products(
                     query=parcial,
-                    limit=min(int(limit), 5),
+                    limit=min(int(limit), 8),
                     min_price=min_price,
                     max_price=max_price,
                     quantity=quantity,
@@ -3769,7 +3790,7 @@ class Agent:
             if candidato and candidato.lower() != (query or "").lower():
                 retry = await toolbox.tool_search_products(
                     query=candidato,
-                    limit=min(int(limit), 5),
+                    limit=min(int(limit), 8),
                     min_price=min_price,
                     max_price=max_price,
                     quantity=quantity,
@@ -3937,10 +3958,63 @@ class Agent:
                 )
             )
         # La intro ya confirmó lo que se entendió: el listado no repite.
+        # Si el resultado quedó cortado por el tope, se ofrece "ver más".
+        hay_mas = len(products) >= int(limit)
         return AgentReply(
             [
                 Outbound(text=intro),
-                *self._search_cards(products),
+                *search_flow.cards(products, hay_mas=hay_mas),
+            ]
+        )
+
+    async def _mas_opciones(
+        self, session: AsyncSession, contact: Contact, consulta: str
+    ) -> AgentReply:
+        """Siguiente tanda de resultados, sin repetir los ya mostrados."""
+        from .services import conversation_state, product_view
+
+        conversacion = await session.scalar(
+            select(Conversation).where(Conversation.contact_id == contact.id)
+        )
+        vistos: set[str] = set()
+        if conversacion is not None:
+            estado = await conversation_state.get_state(
+                session, conversacion.id
+            )
+            vistos = set(estado.shown_skus or [])
+
+        filas = await catalog.search_items(session, consulta, limit=24)
+        nuevas = [fila for fila in filas if fila.sku not in vistos][:8]
+        if not nuevas:
+            self._trace("Ver más: no quedan opciones nuevas")
+            return AgentReply(
+                [
+                    Outbound(
+                        kind="buttons",
+                        text=(
+                            f"Esas son todas las opciones de "
+                            f"*{_clean_query(consulta)}* que tengo ahora.\n"
+                            "¿Probamos con otra búsqueda o te paso con un "
+                            "asesor?"
+                        ),
+                        buttons=[
+                            {"id": "catalog", "title": "Ver categorías"},
+                            {"id": "human", "title": "Asesor"},
+                        ],
+                    )
+                ]
+            )
+        productos = [product_view.payload(fila) for fila in nuevas]
+        await Toolbox(session, contact, self.wa)._attach_promotions(productos)
+        return AgentReply(
+            [
+                Outbound(
+                    text=(
+                        "Estas son más opciones de "
+                        f"*{_clean_query(consulta)}*:"
+                    )
+                ),
+                *self._search_cards(productos),
             ]
         )
 
@@ -3950,7 +4024,7 @@ class Agent:
         """Las mejores ofertas del catálogo, con precio y descuento."""
         from .services import catalog as catalogo
 
-        filas = await catalogo.best_discounts(session, limit=5)
+        filas = await catalogo.best_discounts(session, limit=8)
         if not filas:
             return None
         productos = [Toolbox._product(fila) for fila in filas]
@@ -6495,8 +6569,10 @@ class Agent:
             if normalized == "more":
                 # Si la búsqueda anterior no tenía resultados, no hay "más"
                 # que mostrar: se dice claro y se ofrecen opciones reales.
+                # Con limit=1 siempre vuelve uno cuando hay algo: se piden
+                # dos para distinguir "una sola opción" de "hay más".
                 existe = await catalog.search_items(
-                    session, last_query, limit=1
+                    session, last_query, limit=2
                 )
                 if len(existe) == 1:
                     # Una sola opción: decir "ver más" otra vez confunde.
@@ -6542,9 +6618,9 @@ class Agent:
                             )
                         ]
                     )
-                return await self._search_reply(
-                    session, contact, last_query, limit=9
-                )
+                # Página siguiente: se saltan los que ya vio para que
+                # "ver más" muestre algo nuevo de verdad.
+                return await self._mas_opciones(session, contact, last_query)
             if normalized == "filter":
                 return AgentReply(
                     [
