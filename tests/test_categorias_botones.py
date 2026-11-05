@@ -532,6 +532,9 @@ async def test_finalizar_con_carrito_en_vtex_manda_el_link(session, monkeypatch)
         )
     )
     await session.commit()
+
+    # Se apaga VTEX mientras se arma el carrito: el test no debe tocar la tienda.
+    monkeypatch.setattr(settings, "vtex_cart_enabled", False)
     contacto = await _contacto(session, "59170035001")
     agente = Agent()
     await agente.handle(session, contacto, "add:LINK-1:1")
@@ -546,6 +549,8 @@ async def test_finalizar_con_carrito_en_vtex_manda_el_link(session, monkeypatch)
     monkeypatch.setattr(settings, "vtex_cart_via", "paas")
     monkeypatch.setattr(settings, "sap_paas_url", "http://paas.local")
     monkeypatch.setattr(settings, "sap_paas_api_key", "llave")
+    # Sin lista de piloto: cualquier número recibe el link.
+    monkeypatch.setattr(settings, "vtex_cart_pilot_phones", "")
 
     async def _vigente(cart):
         return True
