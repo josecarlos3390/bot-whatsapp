@@ -429,3 +429,58 @@ async def test_preguntar_por_cuotas_no_cierra_el_pedido(session):
     )
 
     assert respuesta.messages[0].kind != "cta"
+
+async def test_la_confirmacion_de_agregado_es_detallada(session):
+    """El mensaje de agregado muestra cantidad, precio y subtotal."""
+    from app.models import CatalogItem
+
+    session.add(
+        CatalogItem(
+            sku="EST-ELSA",
+            name="Muñeca Elsa De Frozen",
+            price="499",
+            stock=9,
+            brand="DISNEY",
+            category="Juguetes",
+            active=True,
+        )
+    )
+    await session.commit()
+    contacto = await _contacto(session, "59170087001")
+
+    respuesta = await Agent().handle(session, contacto, "add:EST-ELSA:2")
+    mensaje = respuesta.messages[0]
+
+    assert "¡Agregado a tu carrito!" in mensaje.text
+    assert "Cantidad: 2 unidades" in mensaje.text
+    assert "Precio unitario: Bs 499.00" in mensaje.text
+    assert "Subtotal: Bs 998.00" in mensaje.text
+    assert "Total del carrito" in mensaje.text
+    titulos = [boton["title"] for boton in mensaje.buttons]
+    assert titulos == ["Finalizar compra", "Seguir comprando", "Ver mi carrito"]
+
+
+async def test_el_carrito_dice_cuantos_productos_y_unidades(session):
+    from app.models import CatalogItem
+
+    session.add(
+        CatalogItem(
+            sku="CARR-1",
+            name="Producto Carrito",
+            price="100",
+            stock=9,
+            brand="TEST",
+            category="Pintura",
+            active=True,
+        )
+    )
+    await session.commit()
+    contacto = await _contacto(session, "59170087002")
+    agente = Agent()
+    await agente.handle(session, contacto, "add:CARR-1:3")
+
+    respuesta = await agente.handle(session, contacto, "carrito")
+    texto = respuesta.messages[0].text
+
+    assert "1 producto, 3 unidades" in texto
+    assert "Total:" in texto

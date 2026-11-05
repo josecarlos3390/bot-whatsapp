@@ -82,7 +82,15 @@ CASOS: list[dict] = [
     {
         "id": "ocasion-pregunta",
         "mensajes": ["busco algo para halloween"],
-        "espera": ["ideas", "cuál te interesa", "cual te interesa"],
+        # Puede ofrecer ideas o directamente productos de la ocasión.
+        "espera": [
+            "ideas",
+            "cuál te interesa",
+            "cual te interesa",
+            "ocasión",
+            "ocasion",
+            "te puedo ofrecer",
+        ],
     },
     {
         "id": "relacionado",

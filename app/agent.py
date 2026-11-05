@@ -3352,7 +3352,9 @@ class Agent:
                     continue
                 seen.add(product["sku"])
                 direct.append(product)
-            if len(direct) >= 8:
+            # Con pocas coincidencias conviene seguir a las ideas de la
+            # ocasión ("¿qué ideas te interesan?") en vez de listar una sola.
+            if len(direct) >= 3:
                 break
         if direct:
             return AgentReply(
@@ -4217,6 +4219,12 @@ class Agent:
         added_text = persona.added(
             result.get("name") or sku,
             f"{Decimal(result['cart_total']):,.2f}",
+            cantidad=int(quantity),
+            precio_unitario=(
+                f"{Decimal(result['unit_price']):,.2f}"
+                if result.get("unit_price")
+                else None
+            ),
         )
         await funnel.track(
             session,
@@ -4249,9 +4257,9 @@ class Agent:
                     kind="buttons",
                     text=added_text,
                     buttons=[
-                        {"id": "catalog", "title": "Agregar otro"},
-                        {"id": "checkout", "title": "Finalizar pedido"},
-                        {"id": "cart", "title": "Ver carrito"},
+                        {"id": "checkout", "title": "Finalizar compra"},
+                        {"id": "catalog", "title": "Seguir comprando"},
+                        {"id": "cart", "title": "Ver mi carrito"},
                     ],
                 )
             ]
@@ -4378,16 +4386,22 @@ class Agent:
                 ]
             )
 
-        lineas = ["🛒 *Tu carrito*"]
+        unidades = sum(int(item.get("quantity") or 0) for item in items)
+        lineas = [
+            f"🛒 *Tu carrito* — {len(items)} "
+            f"{'producto' if len(items) == 1 else 'productos'}, "
+            f"{unidades} {'unidad' if unidades == 1 else 'unidades'}",
+            "",
+        ]
         for item in items:
             lineas.append(
                 f"• {item['quantity']} × {item['name'][:42]} = "
                 f"Bs {Decimal(item['line_total']):,.2f}"
             )
-        lineas.append(f"\n*Total: Bs {Decimal(result['total']):,.2f}*")
-        lineas.append(
-            "\nTocá un artículo para cambiar la cantidad o quitarlo 👇"
-        )
+        lineas.append("")
+        lineas.append(f"🧾 Total: *Bs {Decimal(result['total']):,.2f}*")
+        lineas.append("")
+        lineas.append("Tocá un artículo para cambiar la cantidad o quitarlo 👇")
 
         filas = [
             {
@@ -4590,10 +4604,10 @@ class Agent:
                     Outbound(
                         kind="cta",
                         text=(
-                            "Listo, tu pedido está armado con los mismos "
-                            "productos 🛒\n\n"
+                            "✅ *Tu pedido está listo* 🛒\n\n"
                             "Entrá al link, revisá la dirección y elegí cómo "
-                            "pagar. Si algo no cuadra, escribime por acá."
+                            "pagar.\n"
+                            "Si algo no cuadra, escribime por acá y lo vemos."
                         ),
                         cta_text="Terminar mi compra",
                         url=enlace,

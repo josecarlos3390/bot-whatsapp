@@ -58,11 +58,28 @@ def no_results() -> str:
     )
 
 
-def added(product_name: str, total: str) -> str:
-    return (
-        f"¡Listo! Agregué *{product_name}*.\n"
-        f"Tu carrito va en *Bs {total}*."
-    )
+def added(
+    product_name: str,
+    total: str,
+    *,
+    cantidad: int | None = None,
+    precio_unitario: str | None = None,
+) -> str:
+    """Confirmación del artículo agregado, con el detalle a la vista."""
+    lineas = [f"✅ ¡Agregado a tu carrito! 🛒", "", f"*{product_name}*"]
+    if cantidad and precio_unitario:
+        importe = f"{float(precio_unitario.replace(',', '')) * cantidad:,.2f}"
+        lineas.append("")
+        lineas.append(
+            f"📦 Cantidad: {cantidad} "
+            f"{'unidad' if cantidad == 1 else 'unidades'}"
+        )
+        lineas.append(f"💰 Precio unitario: Bs {precio_unitario}")
+        lineas.append(f"🧾 Subtotal: Bs {importe}")
+    lineas.append(f"🛒 Total del carrito: *Bs {total}*")
+    lineas.append("")
+    lineas.append("¿Qué querés hacer ahora?")
+    return "\n".join(lineas)
 
 
 def cart_empty() -> str:
