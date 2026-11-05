@@ -332,3 +332,19 @@ econciliar (queda anotado en el log cuando se usa).
 Si un SKU no tiene RefId en VTEX, el integrador devuelve el id interno como
 respaldo. En ese caso el bot no puede mostrar nombre ni precio y lo omite del
 carrito hasta el próximo sync.
+
+### Cerrado el 5/11
+
+El PaaS desplegó el binario nuevo y el GET devuelve el RefId:
+
+`
+5. Consultar carrito
+   ✓ consulta ok · 3 ítem(s)
+   ✓ el GET devuelve el RefId (DCHBANO030191)
+`
+
+**Se retiró la traducción con tex_sku_id** y el helper sku_por_vtex_id.
+El carrito ahora trabaja solo con RefIds.
+
+Caso borde (SKU sin RefId → VTEX devuelve el id interno): el ítem no coincide
+con el catálogo y se omite, para no mostrar un código al cliente.

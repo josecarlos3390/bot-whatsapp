@@ -1192,16 +1192,3 @@ async def buscar_con_sinonimos(
                 break
     return locales + agregados
 
-async def sku_por_vtex_id(
-    session: AsyncSession, vtex_id: str
-) -> str | None:
-    """Pasa el id interno de VTEX al RefId que usamos en la base."""
-    buscado = str(vtex_id or "").strip()
-    if not buscado:
-        return None
-    fila = await session.scalar(
-        select(CatalogItem).where(
-            CatalogItem.attributes["vtex_sku_id"].as_string() == buscado
-        )
-    )
-    return fila.sku if fila is not None else None

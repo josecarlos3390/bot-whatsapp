@@ -315,14 +315,6 @@ async def test_reconciliar_trae_lo_que_agrego_en_la_tienda(
 
     monkeypatch.setattr(vtex_cart, "consultar", _consulta)
 
-    # El integrador devuelve ids de VTEX: se traducen al RefId local.
-    from app.services import catalog as catalogo
-
-    async def _traducir(sesion, valor):
-        return {"REF-1": "REF-1", "REF-7": "REF-7"}.get(valor)
-
-    monkeypatch.setattr(catalogo, "sku_por_vtex_id", _traducir)
-
     cambio = await vtex_cart.reconciliar(session, carrito)
 
     assert cambio["cambiado"] is True
