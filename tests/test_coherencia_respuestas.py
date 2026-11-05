@@ -699,3 +699,30 @@ def test_parece_referencia_reconoce_las_formas():
     assert _parece_referencia("la primera")
     assert _parece_referencia("ese")
     assert not _parece_referencia("hola, busco un taladro")
+
+async def test_la_ficha_manda_primero_la_foto(session):
+    """La imagen va antes que los datos y especificaciones."""
+    from app.models import CatalogItem
+
+    session.add(
+        CatalogItem(
+            sku="FOTO-1",
+            name="Televisor Foto Primero",
+            price="1499",
+            stock=3,
+            brand="HOUCE",
+            category="TV",
+            barcode="117777000875",
+            image_url="https://rodabo.vteximg.com.br/arquivos/ids/1/foto.png",
+            active=True,
+        )
+    )
+    await session.commit()
+    contacto = await _contacto(session, "59170090001")
+
+    respuesta = await Agent().handle(session, contacto, "product:FOTO-1")
+
+    tipos = [mensaje.kind for mensaje in respuesta.messages]
+    assert tipos[0] == "image", tipos
+    assert tipos[-1] in {"list", "buttons"}, tipos
+    assert "image" not in tipos[1:], tipos

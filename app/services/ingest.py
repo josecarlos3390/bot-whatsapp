@@ -338,9 +338,22 @@ async def ingest_inbound(
                 outbound_id = await whatsapp.send(wa_id, outbound)
                 outbox_health.record_success()
             except Exception as exc:  # noqa: BLE001 - no perder el entrante
-                outbox_health.record_failure(str(exc))
-                logger.exception("No se pudo enviar la respuesta a %s", wa_id)
-                continue
+                # Una foto que falla no puede dejar la ficha sin imagen: se
+                # reintenta una vez antes de seguir.
+                if outbound.kind == "image":
+                    await asyncio.sleep(1)
+                    try:
+                        outbound_id = await whatsapp.send(wa_id, outbound)
+                        outbox_health.record_success()
+                        exc = None
+                    except Exception as segundo:  # noqa: BLE001
+                        exc = segundo
+                if exc is not None:
+                    outbox_health.record_failure(str(exc))
+                    logger.exception(
+                        "No se pudo enviar la respuesta a %s", wa_id
+                    )
+                    continue
         else:
             outbound_id = f"sim-{uuid.uuid4()}"
         session.add(
