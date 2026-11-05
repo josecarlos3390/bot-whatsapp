@@ -530,3 +530,65 @@ def test_la_confirmacion_del_pedido_tiene_icono():
     assert "Pedido 500195" in texto
     assert "Listo para preparar" in texto
     assert "2,583.00" in texto
+
+async def test_los_mas_economicos_ordenan_por_precio_final(session, monkeypatch):
+    """«Arrancan en» tiene que coincidir con el primer producto de la lista."""
+    from app.models import CatalogItem
+    from app.services import most_chosen
+
+    session.add_all(
+        [
+            CatalogItem(
+                sku="TV-CARO",
+                name="Televisor Caro 50",
+                price="1900",
+                stock=5,
+                brand="A",
+                category="Televisores",
+                active=True,
+            ),
+            CatalogItem(
+                sku="TV-PROMO",
+                name="Televisor Promo 32",
+                price="2200",
+                stock=5,
+                brand="B",
+                category="Televisores",
+                active=True,
+            ),
+        ]
+    )
+    await session.commit()
+
+    # La promo baja el precio final a 1.499, aunque el de lista sea 2.200.
+    async def _adjuntar(self, productos):
+        for producto in productos:
+            if producto.get("sku") == "TV-PROMO":
+                producto["promo_price"] = "1499"
+                producto["promo_discount_percent"] = "38"
+            else:
+                producto["promo_price"] = None
+
+    from app.agent import Toolbox
+
+    monkeypatch.setattr(Toolbox, "_attach_promotions", _adjuntar)
+
+    contacto = await _contacto(session, "59170088001")
+    from sqlalchemy import select as _select
+
+    from app.models import Conversation
+
+    conversacion = await session.scalar(
+        _select(Conversation).where(Conversation.contact_id == contacto.id)
+    )
+    conversacion.last_query = "televisor"
+    await session.commit()
+
+    respuesta = await most_chosen.reply_cheapest(
+        Agent(), session, contacto, "cuales son los mas economicos"
+    )
+
+    texto = " ".join(m.text or "" for m in respuesta.messages)
+    assert "1.499" in texto.replace(",", ".")
+    primera = respuesta.messages[1].text or ""
+    assert primera.index("Promo") < primera.index("Caro")

@@ -232,16 +232,36 @@ async def reply_cheapest(
             return 0.0
 
     con_precio = [item for item in productos if precio(item) > 0]
-    ordenados = sorted(con_precio, key=precio)[:3]
-    ordenados = _con_marca(ordenados, productos, policy)
-    if not ordenados:
+    if not con_precio:
         return None
 
     toolbox = Toolbox(session, contact, agent.wa)
-    tarjetas = [Toolbox._product(item) for item in ordenados]
+    tarjetas = [Toolbox._product(item) for item in con_precio]
+    # Primero las promociones: así el orden y el "arrancan en" usan el
+    # precio final, que es el que ve el cliente.
     await toolbox._attach_promotions(tarjetas)
 
-    desde = precio(ordenados[0])
+    def precio_final(producto: dict) -> float:
+        for clave in ("promo_price", "final_price", "price"):
+            valor = producto.get(clave)
+            if valor in (None, ""):
+                continue
+            try:
+                return float(valor)
+            except (TypeError, ValueError):
+                continue
+        return 0.0
+
+    tarjetas.sort(key=precio_final)
+    elegidos = _con_marca(tarjetas, tarjetas, policy) or tarjetas
+    tarjetas = elegidos[:3]
+    if not tarjetas:
+        return None
+
+    desde = min(
+        (precio_final(tarjeta) for tarjeta in tarjetas),
+        default=precio(con_precio[0]),
+    )
     agent._trace(f"Más económicos: {base}")
     respuesta = AgentReply(
         [
