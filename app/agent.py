@@ -490,7 +490,12 @@ def _es_presencia(texto: str, limpiar) -> bool:
         _plano(palabra)
         for palabra in restante.split()
         if _plano(palabra)
-        not in {"ahi", "hay", "alguien", "todo", "bien", "por", "favor"}
+        not in {
+            "ahi", "hay", "alguien", "todo", "bien", "por", "favor",
+            # Relleno de saludo: "hola cómo estás", "buenas, cómo andás".
+            "como", "tal", "andas", "anda", "estas", "estan", "va",
+            "vos", "che", "que", "mucho", "gente", "dia", "tarde",
+        }
     }
     return not sobra
 
@@ -3995,6 +4000,31 @@ class Agent:
                 ]
             )
         products = result.get("products") or []
+
+        # Si la búsqueda "encuentra" algo que en realidad no nombra
+        # ("hola cómo estás" -> cómodas), lo decide el modelo: saludo,
+        # charla o producto de verdad.
+        if (
+            products
+            and settings.deepseek_api_key
+            and len((query or "").split()) <= 6
+            and not any(
+                catalog.nombra_todos(producto, query) for producto in products
+            )
+        ):
+            try:
+                leido = await understanding.parse(self._llm(), query)
+            except Exception:  # noqa: BLE001 - interpretar no rompe
+                leido = None
+            if leido:
+                intencion = leido.get("intencion")
+                if intencion == "saludo":
+                    self._trace("El modelo dice: saludo (búsqueda débil)")
+                    return await self._saludo_reply(session, contact)
+                if intencion == "humano":
+                    self._trace("El modelo dice: humano (búsqueda débil)")
+                    return await self._human_fallback(session, contact, query)
+
         # Si no hay nada, se prueba con la familia del producto antes de
         # inventar ideas: un monitor se parece a un televisor, no a una ducha.
         # Sin resultados: puede que no sea una búsqueda sino un saludo o
@@ -4936,6 +4966,43 @@ class Agent:
         await conversation_guard.clear_pending(session, contact)
         return None
 
+    async def _saludo_reply(
+        self, session: AsyncSession, contact: Contact
+    ) -> AgentReply:
+        """Saludo con memoria: si ya nos conoce, retoma lo que estaba viendo."""
+        from .services import memoria_cliente
+
+        memoria = await memoria_cliente.saludo_con_memoria(
+            self, session, contact
+        )
+        texto = persona.welcome(contact.name)
+        botones = [
+            {"id": "catalog", "title": "Buscar productos"},
+            {"id": "estado", "title": "Consultar mi pedido"},
+            {"id": "human", "title": "Hablar con un asesor"},
+        ]
+        if memoria:
+            saludo, sku = memoria
+            texto = f"¡Hola de nuevo, {contact.name or ''}! 👋\n\n{saludo}"
+            # Retomar es un toque, no volver a buscar.
+            botones = [
+                {"id": f"product:{sku}", "title": "Ver ese producto"},
+                {"id": "catalog", "title": "Buscar otra cosa"},
+                {"id": "human", "title": "Hablar con un asesor"},
+            ]
+        return AgentReply(
+            [Outbound(kind="buttons", text=texto, buttons=botones)]
+        )
+
+    async def _nombra_producto(
+        self, session: AsyncSession, texto: str
+    ) -> bool:
+        """¿El mensaje nombra un producto que existe de verdad?"""
+        if not (texto or "").strip():
+            return False
+        filas = await catalog.search_items(session, texto, limit=4)
+        return any(catalog.nombra_todos(fila, texto) for fila in filas)
+
     async def _resolve_reference(
         self,
         session: AsyncSession,
@@ -5747,7 +5814,7 @@ class Agent:
         # "hola" para que lo atienda la rama de saludos (con memoria).
         if _es_presencia(simple, _clean_query):
             self._trace("Saludo / presencia")
-            simple = "hola"
+            return await self._saludo_reply(session, contact)
 
         # "Muéstrame el menú de opciones" / "otra opción": no es una
         # búsqueda de producto, es pedir el menú o más alternativas.
@@ -6203,32 +6270,7 @@ class Agent:
             or compacto in saludables
             or compacto[:-1] in saludables
         ):
-            # Si ya nos conoce, el saludo retoma lo que estaba viendo.
-            from .services import memoria_cliente
-
-            memoria = await memoria_cliente.saludo_con_memoria(
-                self, session, contact
-            )
-            texto = persona.welcome(contact.name)
-            botones = [
-                {"id": "catalog", "title": "Buscar productos"},
-                {"id": "estado", "title": "Consultar mi pedido"},
-                {"id": "human", "title": "Hablar con un asesor"},
-            ]
-            if memoria:
-                saludo, sku = memoria
-                texto = (
-                    f"¡Hola de nuevo, {contact.name or ''}! 👋\n\n{saludo}"
-                )
-                # Retomar es un toque, no volver a buscar.
-                botones = [
-                    {"id": f"product:{sku}", "title": "Ver ese producto"},
-                    {"id": "catalog", "title": "Buscar otra cosa"},
-                    {"id": "human", "title": "Hablar con un asesor"},
-                ]
-            return AgentReply(
-                [Outbound(kind="buttons", text=texto, buttons=botones)]
-            )
+            return await self._saludo_reply(session, contact)
 
         if normalized in {"cart", "carrito", "mi carrito"}:
             return await self._cart_con_tienda(session, contact, toolbox)

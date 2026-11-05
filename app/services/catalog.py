@@ -1137,7 +1137,8 @@ def nombra_todos(item: CatalogItem, query: str | None) -> bool:
     ]
     if not terminos:
         return False
-    nombre = _fold(item.name or "")
+    crudo = item.get("name") if isinstance(item, dict) else getattr(item, "name", "")
+    nombre = _fold(crudo or "")
     for termino in terminos:
         base = _fold(termino)
         if base.endswith("s") and len(base) > 4:

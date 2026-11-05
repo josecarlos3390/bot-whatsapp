@@ -156,14 +156,29 @@ async def correr(caso: dict) -> tuple[bool, str, list[str]]:
         ok, motivo = evaluar(salidas, caso["espera"])
         # Se borra todo lo generado: la auditoría no debe dejar contactos,
         # casos en la bandeja ni avisos a asesores.
-        from sqlalchemy import delete
+        from sqlalchemy import delete, select
 
         from app.models import (
+            Cart,
+            CartItem,
             ConversationFlow,
             ConversationState,
             Handoff,
             Message,
         )
+
+        # El flujo puede haber creado un carrito: se borra antes del contacto.
+        carritos = (
+            await session.scalars(
+                select(Cart).where(Cart.contact_id == contacto.id)
+            )
+        ).all()
+        for carro in carritos:
+            await session.execute(
+                delete(CartItem).where(CartItem.cart_id == carro.id)
+            )
+            await session.delete(carro)
+        await session.flush()
 
         await session.execute(
             delete(Message).where(Message.conversation_id == conversacion_id)

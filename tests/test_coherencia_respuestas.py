@@ -764,3 +764,76 @@ def test_el_total_coincide_con_la_suma_de_items():
     total = sum(i["unit_price"] * i["quantity"] for i in items)
 
     assert total == Decimal("3357.00")
+
+async def test_hola_como_estas_no_busca(session, monkeypatch):
+    """«hola cómo estás?» buscaba cómodas por parecido."""
+    from app.config import settings
+
+    contacto = await _contacto(session, "59170091001")
+
+    async def _modelo(client, texto):
+        return {
+            "intencion": "saludo",
+            "producto": None,
+            "atributos": [],
+            "orden_precio": None,
+            "referencia": None,
+        }
+
+    from app.services import understanding
+
+    monkeypatch.setattr(settings, "deepseek_api_key", "clave-de-prueba")
+    monkeypatch.setattr(understanding, "parse", _modelo)
+
+    respuesta = await Agent().handle(session, contacto, "hola cómo estás?")
+    texto = " ".join(m.text or "" for m in respuesta.messages)
+
+    assert "Rohi" in texto
+    assert "Buscás" not in texto
+    assert not any(m.sections for m in respuesta.messages)
+
+
+async def test_una_charla_corta_no_se_busca(session, monkeypatch):
+    from app.config import settings
+
+    contacto = await _contacto(session, "59170091002")
+
+    async def _modelo(client, texto):
+        return {
+            "intencion": "otro",
+            "producto": None,
+            "atributos": [],
+            "orden_precio": None,
+            "referencia": None,
+        }
+
+    from app.services import understanding
+
+    monkeypatch.setattr(settings, "deepseek_api_key", "clave-de-prueba")
+    monkeypatch.setattr(understanding, "parse", _modelo)
+
+    respuesta = await Agent().handle(session, contacto, "todo tranquilo por acá")
+
+    assert not any(m.sections for m in respuesta.messages)
+
+
+async def test_un_producto_corto_sigue_buscando(session):
+    from app.models import CatalogItem
+
+    session.add(
+        CatalogItem(
+            sku="SILLA-1",
+            name="Silla Plegable",
+            price="200",
+            stock=5,
+            brand="TEST",
+            category="Muebles",
+            active=True,
+        )
+    )
+    await session.commit()
+    contacto = await _contacto(session, "59170091003")
+
+    respuesta = await Agent().handle(session, contacto, "silla plegable")
+
+    assert "Silla" in " ".join(m.text or "" for m in respuesta.messages)
