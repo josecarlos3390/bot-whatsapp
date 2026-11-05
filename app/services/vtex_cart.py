@@ -455,3 +455,19 @@ def url_carrito_compartido(
     if not host or not identificador:
         return ""
     return f"{host}/checkout/?orderFormId={identificador}#/cart"
+
+def en_piloto(wa_id: str) -> bool:
+    """¿Este número está habilitado para el link de pago?
+
+    Con `VTEX_CART_PILOT_PHONES` vacío, todos lo están. Con una lista, solo
+    esos números reciben el link; el resto sigue con el asesor.
+    """
+    lista = [
+        numero.strip().lstrip("+")
+        for numero in (settings.vtex_cart_pilot_phones or "").split(",")
+        if numero.strip()
+    ]
+    if not lista:
+        return True
+    telefono = (wa_id or "").strip().lstrip("+")
+    return any(telefono.endswith(numero) for numero in lista)

@@ -4463,6 +4463,11 @@ class Agent:
             return AgentReply([Outbound(text=self._texto_pedido(pedido_previo))])
 
         enlace = vtex_cart.link_para_pagar(carrito_local)
+        # Piloto: mientras roho.com.bo no esté operativo, solo algunos números
+        # reciben el link; el resto sigue con el asesor.
+        if enlace and not vtex_cart.en_piloto(contact.wa_id):
+            self._trace("Piloto: número fuera de la lista")
+            enlace = ""
         if enlace and await vtex_cart.asegurar_vigente(carrito_local):
             faltantes = json.loads(carrito_local.vtex_messages or "[]")
             rechazados = [

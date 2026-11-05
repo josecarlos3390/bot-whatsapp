@@ -118,6 +118,8 @@ class Settings(BaseSettings):
     vtex_affiliate_id: str = ""
     # Dominio que ve el cliente para terminar la compra.
     vtex_checkout_host: str = ""
+    # Piloto: solo estos números reciben el link de pago (vacío = todos).
+    vtex_cart_pilot_phones: str = ""
     cart_reminder_hours: int = 3
     cart_reminder_enabled: bool = False
     cart_template_name: str = ""

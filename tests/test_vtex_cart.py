@@ -375,3 +375,21 @@ async def test_usa_checkout_host_de_la_respuesta(session, monkeypatch):
     assert resultado["link"] == (
         "https://rodabo.myvtex.com/checkout/?orderFormId=OF-1#/cart"
     )
+
+def test_el_piloto_con_lista_vacia_habilita_a_todos(monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "vtex_cart_pilot_phones", "")
+
+    assert vtex_cart.en_piloto("59177810716")
+    assert vtex_cart.en_piloto("59169006969")
+
+
+def test_el_piloto_limita_a_los_numeros_de_la_lista(monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "vtex_cart_pilot_phones", "59177810716")
+
+    assert vtex_cart.en_piloto("59177810716")
+    assert vtex_cart.en_piloto("+59177810716")
+    assert not vtex_cart.en_piloto("59169006969")

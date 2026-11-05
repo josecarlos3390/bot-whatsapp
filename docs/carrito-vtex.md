@@ -236,3 +236,34 @@ VTEX_CART_ENABLED=false        ← hasta que el PaaS despliegue el formato
 | Carrito de 2 unidades | API devuelve quantity: 2 |
 | Link con ?orderFormId= | 200 |
 | Sin cookies | funciona |
+
+## Piloto activo (5/11/2026)
+
+Deploy confirmado por el PaaS. La bandera quedó **activa** con un piloto:
+
+`
+VTEX_CART_ENABLED=true
+VTEX_CHECKOUT_HOST=https://rodabo.myvtex.com
+VTEX_CART_PILOT_PHONES=59177810716,59169006969,59179050453,59176012480,59171657810
+`
+
+- **Solo esos números** reciben el link de pago.
+- El resto sigue igual: el caso pasa a un asesor.
+- Para abrirlo a todos: dejar VTEX_CART_PILOT_PHONES vacío.
+
+### Por qué piloto
+
+
+oho.com.bo sigue devolviendo **503** (página de SeedProd). Los links usan
+
+odabo.myvtex.com hasta que el dominio de marca esté operativo. Cuando el
+PaaS cambie CheckoutHost, los links **nuevos** saldrán con el dominio de
+marca; los viejos con 
+odabo.myvtex.com siguen funcionando.
+
+### Cómo se prueba
+
+1. Escribir al bot desde un número de la lista.
+2. Agregar un producto y tocar **Finalizar pedido**.
+3. Debe llegar el botón **Terminar mi compra** con el link.
+4. Abrirlo en incógnito: el carrito tiene que estar completo.
