@@ -432,6 +432,49 @@ def _monto(valor) -> str:
     return f"{numero:,.0f}".replace(",", ".") if numero else str(valor or "")
 
 
+# Saludos y chequeos de presencia: "hola hola", "¿estás ahí?", "me escuchas".
+_PRESENCIA_RE = re.compile(
+    r"\b(hola+|holis|buenas|buen(?:os)?\s+d[ií]as|buenas\s+tardes|buenas\s+noches|"
+    r"hey|qu[eé]\s+tal|est[aá]s|estas|sigues|segu[ií]s|hay\s+alguien|"
+    r"me\s+escuchas|me\s+oyes|me\s+le[eé]s|est[aá]\s+ah[ií]|ahi\s+est[aá]s)\b",
+    re.IGNORECASE,
+)
+
+
+def _es_presencia(texto: str, limpiar) -> bool:
+    """¿El mensaje es solo un saludo o un "¿estás ahí?"?
+
+    Se descartan las palabras de saludo y relleno: si no queda nada con
+    contenido, es un saludo.
+    """
+    valor = (texto or "").strip()
+    if not valor or len(valor.split()) > 8:
+        return False
+    if not _PRESENCIA_RE.search(valor):
+        return False
+    resto = _PRESENCIA_RE.sub(" ", valor)
+    restante = limpiar(resto).strip()
+    if not restante:
+        return True
+    # "¿estás ahí?" deja "ahi": sigue siendo un saludo.
+    import unicodedata
+
+    def _plano(palabra: str) -> str:
+        return "".join(
+            ch
+            for ch in unicodedata.normalize("NFKD", palabra.lower())
+            if not unicodedata.combining(ch)
+        )
+
+    sobra = {
+        _plano(palabra)
+        for palabra in restante.split()
+        if _plano(palabra)
+        not in {"ahi", "hay", "alguien", "todo", "bien", "por", "favor"}
+    }
+    return not sobra
+
+
 def _error_cantidad(error: str, sku: str) -> str:
     """Mensaje de error al agregar, sin datos internos de stock.
 
@@ -5516,6 +5559,12 @@ class Agent:
         # Clasificación de intención: primero reglas, y si hay duda, el modelo
         # con lista cerrada de ocasiones. Una frase personal nunca termina en
         # una lista de productos "cercanos".
+        # "Hola hola, ¿estás ahí?": se saluda, no se busca. Se normaliza a
+        # "hola" para que lo atienda la rama de saludos (con memoria).
+        if _es_presencia(simple, _clean_query):
+            self._trace("Saludo / presencia")
+            simple = "hola"
+
         # "Muéstrame el menú de opciones" / "otra opción": no es una
         # búsqueda de producto, es pedir el menú o más alternativas.
         if not _es_accion(normalized):

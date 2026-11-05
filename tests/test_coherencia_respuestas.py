@@ -268,3 +268,64 @@ async def test_reconoce_la_queja_por_la_lista_anterior():
         "Me diste la lista de unas muñecas no son autos a escala"
     )
     assert not pedido_vago.es_cuestionamiento("hola, busco un taladro")
+
+async def test_saludo_con_presencia_no_busca(session):
+    """«Hola hola, ¿estás ahí?» saludaba... y ofrecía estantes."""
+    from app.models import CatalogItem
+
+    for sku, nombre in (
+        ("EST-1", "Estante Alto Merk Nogal"),
+        ("EST-2", "Estante Esquinero Multiuso"),
+    ):
+        session.add(
+            CatalogItem(
+                sku=sku,
+                name=nombre,
+                price="839",
+                stock=5,
+                brand="TEST",
+                category="Muebles",
+                active=True,
+            )
+        )
+    await session.commit()
+    contacto = await _contacto(session, "59170084001")
+
+    respuesta = await Agent().handle(session, contacto, "Hola hola estás ahí?")
+
+    texto = " ".join(m.text or "" for m in respuesta.messages)
+    assert "Rohi" in texto
+    assert "Estante" not in texto
+    assert respuesta.messages[0].kind == "buttons"
+
+
+async def test_sigues_ahi_tambien_saluda(session):
+    contacto = await _contacto(session, "59170084002")
+
+    respuesta = await Agent().handle(session, contacto, "¿sigues ahí?")
+
+    assert "Rohi" in (respuesta.messages[0].text or "")
+
+
+async def test_saludo_con_producto_sigue_buscando(session):
+    from app.models import CatalogItem
+
+    session.add(
+        CatalogItem(
+            sku="TAL-9",
+            name="Taladro Percutor 13mm",
+            price="500",
+            stock=5,
+            brand="INGCO",
+            category="Herramientas",
+            active=True,
+        )
+    )
+    await session.commit()
+    contacto = await _contacto(session, "59170084003")
+
+    respuesta = await Agent().handle(session, contacto, "hola, busco un taladro")
+
+    texto = _todo(respuesta)
+    assert "taladro" in texto.lower()
+    assert "Soy *Rohi*" not in texto
