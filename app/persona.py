@@ -66,17 +66,36 @@ def added(
     precio_unitario: str | None = None,
 ) -> str:
     """Confirmación del artículo agregado, con el detalle a la vista."""
-    lineas = [f"✅ ¡Agregado a tu carrito! 🛒", "", f"*{product_name}*"]
+    lineas = ["✅ ¡Agregado a tu carrito! 🛒", "", f"*{product_name}*"]
+    importe = None
     if cantidad and precio_unitario:
-        importe = f"{float(precio_unitario.replace(',', '')) * cantidad:,.2f}"
+        try:
+            importe = float(precio_unitario.replace(",", "")) * cantidad
+        except ValueError:
+            importe = None
+    if importe is not None:
         lineas.append("")
         lineas.append(
             f"📦 Cantidad: {cantidad} "
             f"{'unidad' if cantidad == 1 else 'unidades'}"
         )
         lineas.append(f"💰 Precio unitario: Bs {precio_unitario}")
-        lineas.append(f"🧾 Subtotal: Bs {importe}")
+        lineas.append(f"🧾 Subtotal: Bs {importe:,.2f}")
     lineas.append(f"🛒 Total del carrito: *Bs {total}*")
+    # Si el carrito ya tenía otros artículos, se aclara de dónde sale el
+    # total: sumando el subtotal con lo anterior tiene que dar exacto.
+    if importe is not None:
+        try:
+            total_numero = float(total.replace(",", ""))
+        except ValueError:
+            total_numero = None
+        if total_numero is not None:
+            anterior = round(total_numero - importe, 2)
+            if anterior > 0.004:
+                lineas.append(
+                    f"   (Bs {anterior:,.2f} que ya tenías + "
+                    f"Bs {importe:,.2f} de este)"
+                )
     lineas.append("")
     lineas.append("¿Qué querés hacer ahora?")
     return "\n".join(lineas)

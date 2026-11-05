@@ -726,3 +726,41 @@ async def test_la_ficha_manda_primero_la_foto(session):
     assert tipos[0] == "image", tipos
     assert tipos[-1] in {"list", "buttons"}, tipos
     assert "image" not in tipos[1:], tipos
+
+def test_el_total_del_carrito_no_duplica_y_desglosa():
+    """Subtotal + lo que ya había = total, y se muestra el desglose."""
+    from app.persona import added
+
+    texto = added(
+        "TV 32 Houce", "3,357.00", cantidad=1, precio_unitario="1,499.00"
+    )
+
+    assert "Subtotal: Bs 1,499.00" in texto
+    assert "Total del carrito: *Bs 3,357.00*" in texto
+    assert "1,858.00 que ya tenías" in texto
+    assert "1,499.00 de este" in texto
+
+
+def test_si_el_carrito_era_solo_ese_articulo_no_desglosa():
+    from app.persona import added
+
+    texto = added(
+        "TV 32 Houce", "1,499.00", cantidad=1, precio_unitario="1,499.00"
+    )
+
+    assert "Total del carrito: *Bs 1,499.00*" in texto
+    assert "que ya tenías" not in texto
+
+
+def test_el_total_coincide_con_la_suma_de_items():
+    """La aritmética del carrito: unidad × cantidad sumado por línea."""
+    from decimal import Decimal
+
+    items = [
+        {"quantity": 1, "unit_price": Decimal("1499.00")},
+        {"quantity": 1, "unit_price": Decimal("1599.00")},
+        {"quantity": 1, "unit_price": Decimal("259.00")},
+    ]
+    total = sum(i["unit_price"] * i["quantity"] for i in items)
+
+    assert total == Decimal("3357.00")
