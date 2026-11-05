@@ -234,8 +234,45 @@ def _correct_terms(terms: list[str]) -> list[str]:
         match = difflib.get_close_matches(
             folded, vocabulary, n=1, cutoff=0.88
         )
+        if match:
+            _registrar_correccion(term, match[0])
         corrected.append(match[0] if match else term)
     return corrected
+
+
+def _registrar_correccion(original: str, corregido: str) -> None:
+    """Anota las correcciones para revisarlas después.
+
+    Sirve para decidir con datos si hace falta preguntar "¿quisiste decir…?".
+    Nunca rompe la búsqueda.
+    """
+    try:
+        import json
+        from datetime import datetime, timezone
+        from pathlib import Path as _Path
+
+        archivo = _Path("logs") / "correcciones.jsonl"
+        archivo.parent.mkdir(parents=True, exist_ok=True)
+        with archivo.open("a", encoding="utf-8") as salida:
+            salida.write(
+                json.dumps(
+                    {
+                        "cuando": datetime.now(timezone.utc).isoformat(),
+                        "original": original,
+                        "corregido": corregido,
+                        "parecido": round(
+                            difflib.SequenceMatcher(
+                                None, original, corregido
+                            ).ratio(),
+                            3,
+                        ),
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+    except Exception:  # noqa: BLE001 - registrar no debe romper nada
+        pass
 
 
 def _match_all(
