@@ -193,6 +193,9 @@ async def main() -> int:
     # Sin envíos reales: los contactos son ficticios y Meta los rechaza.
     from app.config import settings
 
+    # La auditoría no debe depender de la hora: fuera de horario cambian las
+    # respuestas de derivación.
+    settings.office_hours_enabled = False
     settings.wa_dry_run = True
 
     parser = argparse.ArgumentParser()

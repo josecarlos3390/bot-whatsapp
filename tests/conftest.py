@@ -19,6 +19,9 @@ def force_mock_sap(monkeypatch):
     monkeypatch.setattr(settings, "memory_auto_summary", False)
     # Sin espera de agrupado: los tests tienen que ser deterministas.
     monkeypatch.setattr(settings, "batching_ms", 0)
+    # El horario de atención cambia las respuestas de derivación: se apaga
+    # para que la suite no dependa de la hora a la que se corre.
+    monkeypatch.setattr(settings, "office_hours_enabled", False)
 
 
 @pytest.fixture
