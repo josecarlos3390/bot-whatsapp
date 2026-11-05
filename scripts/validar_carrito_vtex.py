@@ -243,6 +243,39 @@ async def main() -> int:
         else:
             _ok("sin link: el bot no lo muestra (correcto si checkout_url es null)")
 
+        print("\n6c. El link del cliente")
+        enlace = carrito.vtex_cart_url or ""
+        if not enlace:
+            _mal("no hay link (checkout_url y checkout_host vinieron null)")
+        else:
+            esperado = (
+                f"?orderFormId={carrito.vtex_order_form_id}#/cart" in enlace
+            )
+            if esperado:
+                _ok(f"formato correcto: {enlace[:70]}…")
+            else:
+                _mal(f"formato inesperado: {enlace[:80]}")
+            import httpx
+
+            host = enlace.split("/checkout/")[0]
+            api = (
+                f"{host}/api/checkout/pub/orderForm/"
+                f"{carrito.vtex_order_form_id}"
+            )
+            try:
+                respuesta_api = httpx.get(api, timeout=20)
+                if respuesta_api.status_code == 200:
+                    datos = respuesta_api.json()
+                    items_api = datos.get("items") or []
+                    _ok(
+                        f"la API del carrito devuelve {len(items_api)} ítem(s) "
+                        f"y total {datos.get('value')}"
+                    )
+                else:
+                    _mal(f"la API del carrito respondió {respuesta_api.status_code}")
+            except Exception as exc:  # noqa: BLE001
+                _mal(f"no se pudo consultar la API del carrito: {str(exc)[:80]}")
+
         print("\n6b. Sincronizar otra vez no duplica")
         antes = len(await vtex_cart.consultar(carrito) or {"items": []})
         repetido = await vtex_cart.sincronizar(carrito)
