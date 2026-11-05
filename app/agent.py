@@ -1437,6 +1437,14 @@ class Toolbox:
                 max_price=max_price,
                 only_discount=only_discount,
             )
+        elif query:
+            # Búsqueda libre: si el catálogo local devuelve poco, se completa
+            # con la búsqueda de VTEX (que aplica los sinónimos de la tienda).
+            rows = await catalog.buscar_con_sinonimos(
+                self.session, query, limit=take
+            )
+            if not rows:
+                rows = await self._search_with_hot_cache(query, take)
         else:
             rows = await self._search_with_hot_cache(query, take)
         # La marca que venía de la charla no puede dejar al cliente con una

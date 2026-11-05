@@ -120,6 +120,8 @@ class Settings(BaseSettings):
     vtex_checkout_host: str = ""
     # Piloto: solo estos números reciben el link de pago (vacío = todos).
     vtex_cart_pilot_phones: str = ""
+    # Búsqueda libre con VTEX Intelligent Search (sinónimos de la tienda).
+    vtex_search_enabled: bool = True
     cart_reminder_hours: int = 3
     cart_reminder_enabled: bool = False
     cart_template_name: str = ""

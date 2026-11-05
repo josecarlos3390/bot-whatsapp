@@ -1089,3 +1089,49 @@ def nombra_todos(item: CatalogItem, query: str | None) -> bool:
         if base not in nombre:
             return False
     return True
+
+async def buscar_con_sinonimos(
+    session: AsyncSession,
+    query: str | None,
+    limit: int = 8,
+    **filtros,
+) -> list[CatalogItem]:
+    """Búsqueda local + sinónimos de VTEX cuando hace falta.
+
+    Si la búsqueda local devuelve pocas opciones, se consulta la búsqueda de
+    VTEX (que aplica los sinónimos de la tienda) y se completan los resultados
+    con los productos que ya existen en el catálogo local.
+
+    Los filtros, precios y stock siguen saliendo de la base del bot.
+    """
+    from . import vtex_search
+
+    locales = list(await search_items(session, query, limit=limit, **filtros))
+    if len(locales) >= 3 or not query or filtros:
+        return locales
+    remotos = await vtex_search.buscar(query, limite=max(limit, 8))
+    if not remotos:
+        return locales
+    vistos = {item.sku for item in locales}
+    agregados: list[CatalogItem] = []
+    orden = [item["sku"] for item in remotos if item.get("sku")]
+    if orden:
+        filas = (
+            await session.scalars(
+                select(CatalogItem).where(CatalogItem.sku.in_(orden))
+            )
+        ).all()
+        por_sku = {fila.sku: fila for fila in filas}
+        for sku in orden:
+            if sku in vistos:
+                continue
+            fila = por_sku.get(sku)
+            if fila is None or not fila.active:
+                continue
+            if filtros.get("only_available", True) and (fila.stock or 0) <= 0:
+                continue
+            vistos.add(sku)
+            agregados.append(fila)
+            if len(locales) + len(agregados) >= limit:
+                break
+    return locales + agregados

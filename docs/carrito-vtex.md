@@ -267,3 +267,39 @@ odabo.myvtex.com siguen funcionando.
 2. Agregar un producto y tocar **Finalizar pedido**.
 3. Debe llegar el botón **Terminar mi compra** con el link.
 4. Abrirlo en incógnito: el carrito tiene que estar completo.
+
+## Búsqueda libre con sinónimos (VTEX Intelligent Search)
+
+El PaaS agregó GET /api/vtex/search?q={query}&limit={n}, que usa
+Intelligent Search y **aplica los sinónimos de la tienda** (fumigador →
+pulverizadores, bebote → muñecas) sin replicar los 147 sinónimos en la base.
+
+Cómo quedó integrado en el bot:
+
+`
+1. Se busca en el catálogo local (con sus propias variantes).
+2. Si devuelve menos de 3 opciones, se consulta /api/vtex/search.
+3. Los SKU que existen en la base local se agregan al resultado.
+4. Precios, stock y filtros siguen saliendo de la base del bot.
+`
+
+| Regla | Detalle |
+|---|---|
+| Solo búsquedas libres | Si hay filtros (categoría, marca, precio) no se llama |
+| Solo si hace falta | Con 3 o más resultados locales no se consulta |
+| Sin duplicados | Se descartan los SKU ya mostrados |
+| Ignora SKU desconocidos | Un producto que no está en la base se espera al próximo sync |
+| No insiste | Si el endpoint no existe (404), deja de llamarse 5 minutos |
+
+### Estado
+
+- Implementado y probado con el endpoint simulado.
+- **Falta que el PaaS lo publique en el 5050.**
+- Cuando esté, la validación es:
+
+`powershell
+.\.venv\Scripts\python.exe -m scripts.validar_busqueda_vtex
+`
+
+Prueba «fumigador», «bebote», «muñeca», «taladro» e «hidrolavadora», y avisa
+si la búsqueda de VTEX aporta resultados que el catálogo local no tenía.
