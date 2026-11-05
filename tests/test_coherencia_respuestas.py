@@ -369,3 +369,63 @@ async def test_pedir_una_persona_no_es_busqueda(session):
     texto = respuesta.messages[0].text or ""
     assert "catálogo" not in texto.lower()
     assert "asesor" in texto.lower() or "equipo" in texto.lower()
+
+async def test_finalizar_compra_por_texto(session, monkeypatch):
+    """«Quiero finalizar la compra» debe ofrecer el cierre, no buscar."""
+    from app.config import settings
+    from app.models import CatalogItem
+    from app.services import vtex_cart
+
+    session.add(
+        CatalogItem(
+            sku="FIN-1",
+            name="Producto Cierre",
+            price="100",
+            stock=5,
+            brand="TEST",
+            category="Pintura",
+            active=True,
+        )
+    )
+    await session.commit()
+    contacto = await _contacto(session, "59170086001")
+    agente = Agent()
+
+    monkeypatch.setattr(settings, "vtex_cart_enabled", False)
+    await agente.handle(session, contacto, "add:FIN-1:1")
+
+    monkeypatch.setattr(settings, "vtex_cart_enabled", True)
+    monkeypatch.setattr(settings, "vtex_cart_via", "paas")
+    monkeypatch.setattr(settings, "sap_paas_url", "http://paas.local")
+    monkeypatch.setattr(settings, "sap_paas_api_key", "llave")
+    monkeypatch.setattr(settings, "vtex_cart_pilot_phones", "")
+
+    from app.services import cart as cart_service
+
+    carrito = await cart_service.get_or_create_cart(session, contacto.id)
+    carrito.vtex_cart_url = "https://rodabo.myvtex.com/checkout/?orderFormId=OF-9#/cart"
+    await session.commit()
+
+    async def _vigente(cart):
+        return True
+
+    monkeypatch.setattr(vtex_cart, "asegurar_vigente", _vigente)
+
+    for frase in (
+        "quiero finalizar la compra",
+        "quiero cerrar mi pedido",
+        "pasame el link de mi carrito",
+        "quiero pagar",
+    ):
+        respuesta = await agente.handle(session, contacto, frase)
+        assert respuesta.messages[0].kind == "cta", frase
+
+
+async def test_preguntar_por_cuotas_no_cierra_el_pedido(session):
+    contacto = await _contacto(session, "59170086002")
+
+    respuesta = await Agent().handle(
+        session, contacto, "se puede pagar en cuotas?"
+    )
+
+    assert respuesta.messages[0].kind != "cta"

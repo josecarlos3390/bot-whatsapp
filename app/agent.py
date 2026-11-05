@@ -2554,7 +2554,13 @@ _CONTROL_WORDS = {
 }
 CHECKOUT_RE = re.compile(
     r"\b(confirm(?:o|ar|a|á)|genera(?:r|me)?\s+(?:el\s+)?(?:qr|link)|"
-    r"link\s+de\s+pago|pagar|checkout)\b",
+    r"link\s+de\s+pago|pagar|checkout)\b"
+    # Cerrar el pedido escrito de otras formas.
+    r"|\b(finalizar|terminar|cerrar|completar|concretar)\s+"
+    r"(la\s+|mi\s+|el\s+)?(compra|pedido|carrito|orden)\b"
+    r"|\b(generar|crear|hacer|armar|mandar)\s+(el\s+|mi\s+|un\s+)?"
+    r"(pedido|orden)\b"
+    r"|\b(link|enlace)\s+(de|para|a|del)\s+(mi\s+)?(carrito|pago|pedido)\b",
     re.IGNORECASE,
 )
 PAYMENT_METHOD_RE = re.compile(
@@ -5569,6 +5575,16 @@ class Agent:
                     )
                 ]
             )
+
+        # Cerrar el pedido escrito con palabras ("finalizar la compra",
+        # "quiero pagar"): va antes de cualquier aclaración o búsqueda.
+        if (
+            not _es_accion(normalized)
+            and CHECKOUT_RE.search(raw)
+            and not PAYMENT_METHOD_RE.search(raw)
+        ):
+            self._trace("Cierre de pedido por texto")
+            return await self._checkout_reply(session, contact)
 
         ambiguous_question = intent_guard.detect(raw)
         if ambiguous_question:

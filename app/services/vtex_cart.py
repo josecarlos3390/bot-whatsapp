@@ -395,17 +395,35 @@ async def reconciliar(session, cart: Cart) -> dict:
         # La tienda sin ítems puede ser una lectura rara: no se borra nada.
         return {"cambiado": False, "motivo": "la tienda no devolvió ítems"}
 
+    from . import catalog as catalogo
+
     locales = {item.sku.upper(): item for item in cart.items}
     cambiado = False
     vistos: set[str] = set()
+
+    async def _sku_local(valor: str) -> str:
+        """El integrador puede devolver el id de VTEX: se traduce al RefId."""
+        crudo = (valor or "").strip().upper()
+        if crudo in locales:
+            return crudo
+        traducido = await catalogo.sku_por_vtex_id(session, crudo)
+        return (traducido or "").upper()
+
     for remoto in actual["items"]:
-        sku = remoto["sku"].strip().upper()
+        sku = await _sku_local(remoto["sku"])
         cantidad = int(remoto["quantity"] or 0)
         if cantidad <= 0:
+            continue
+        if not sku:
+            # Sin traducción no se inventa un ítem con un código interno.
             continue
         vistos.add(sku)
         item = locales.get(sku)
         if item is None:
+            # Solo se agrega si el producto existe en el catálogo local: si
+            # no, no hay nombre ni precio que mostrar.
+            if await catalogo.get_item(session, sku) is None:
+                continue
             session.add(
                 CartItem(
                     cart_id=cart.id,
