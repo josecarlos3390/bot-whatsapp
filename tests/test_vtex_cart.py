@@ -321,3 +321,24 @@ async def test_reconciliar_trae_lo_que_agrego_en_la_tienda(
     cantidades = {i.sku: int(i.quantity) for i in carrito.items}
     assert cantidades == {"REF-1": 5, "REF-7": 1}
     assert carrito.vtex_value == Decimal("835.0")
+
+def test_url_de_carrito_compartido(monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(
+        settings, "vtex_checkout_host", "https://rodabo.myvtex.com"
+    )
+
+    enlace = vtex_cart.url_carrito_compartido("ABC123")
+
+    assert enlace == (
+        "https://rodabo.myvtex.com/checkout/?orderFormId=ABC123#/cart"
+    )
+
+
+def test_sin_dominio_no_se_arma_url(monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "vtex_checkout_host", "")
+
+    assert vtex_cart.url_carrito_compartido("ABC123") == ""

@@ -177,3 +177,54 @@ Cliente agrega → carrito del bot → se copia a VTEX → link para pagar
 
 Cualquier duda de formato o de casos borde, escribime y lo ajusto en el día.
 Con estas tres rutas el bot puede cerrar ventas sin intervención humana.
+
+---
+
+## Anexo: el link de checkout (confirmado con la documentación de VTEX)
+
+VTEX tiene **carrito compartido**: el orderFormId viaja en la querystring,
+entre /checkout/ y #/cart.
+
+> «URL del carrito compartido:
+> https://www.{nombredelatienda}.com/checkout/?orderFormId=31155bb8...#/cart»
+
+Fuente: [Qué es el carrito compartido (VTEX Help)](https://help.vtex.com/es/docs/tutorials/que-es-el-carrito-compartido)
+
+### Lo que pedimos
+
+En la respuesta de crear carrito y de agregar ítems:
+
+`json
+{
+  order_form_id: 8f3a...,
+  checkout_url: https://rodabo.myvtex.com/checkout/?orderFormId=8f3a...#/cart
+}
+`
+
+O, si prefieren no armarlo, al menos:
+
+`json
+{
+  order_form_id: 8f3a...,
+  checkout_host: https://rodabo.myvtex.com
+}
+`
+
+Y el bot arma el link con la plantilla documentada.
+
+### Verificado de nuestro lado
+
+| Prueba | Resultado |
+|---|---|
+| GET https://rodabo.myvtex.com/checkout/?orderFormId={id}#/cart | 200 |
+| GET https://rodabo.myvtex.com/api/checkout/pub/orderForm/{id} | 200 con los ítems del carrito |
+| Carrito creado por nosotros con 1 ítem | la API devuelve el ítem y el total |
+
+### Preguntas
+
+1. ¿El dominio para el cliente es 
+odabo.myvtex.com o 
+oho.com.bo?
+2. ¿Confirman que el link abre el carrito correcto en un navegador sin
+   cookies (incógnito, otro teléfono)?
+3. ¿Quién arma la URL: el integrador o el bot?

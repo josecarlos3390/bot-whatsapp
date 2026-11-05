@@ -307,7 +307,9 @@ async def sincronizar(cart: Cart) -> dict:
             if actual is not None:
                 respuesta["checkout_url"] = actual["checkout_url"]
         cart.vtex_cart_url = (
-            respuesta["checkout_url"] or cart.vtex_cart_url or ""
+            respuesta["checkout_url"]
+            or cart.vtex_cart_url
+            or url_carrito_compartido(cart.vtex_order_form_id)
         )
         cart.vtex_value = respuesta["value"]
         cart.vtex_currency = respuesta["currency"]
@@ -428,3 +430,20 @@ async def reconciliar(session, cart: Cart) -> dict:
         await session.refresh(cart, attribute_names=["items"])
         return {"cambiado": True, "motivo": "carrito actualizado desde la tienda"}
     return {"cambiado": False, "motivo": "sin cambios"}
+
+def url_carrito_compartido(order_form_id: str) -> str:
+    """URL de carrito compartido de VTEX.
+
+    VTEX documenta el formato con el id en la querystring, entre `/checkout/`
+    y `#/cart`::
+
+        https://{tienda}/checkout/?orderFormId={id}#/cart
+
+    Solo se usa si hay un dominio de checkout configurado; sin dominio no se
+    arma ninguna URL.
+    """
+    host = (settings.vtex_checkout_host or "").strip().rstrip("/")
+    identificador = (order_form_id or "").strip()
+    if not host or not identificador:
+        return ""
+    return f"{host}/checkout/?orderFormId={identificador}#/cart"
