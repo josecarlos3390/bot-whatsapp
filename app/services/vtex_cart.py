@@ -130,6 +130,7 @@ def normalizar(datos: dict) -> dict:
     return {
         "order_form_id": order_form_id,
         "checkout_url": datos.get("checkout_url") or None,
+        "checkout_host": datos.get("checkout_host") or None,
         "expires_at": _fecha(datos.get("expires_at")),
         "items": items,
         "value": _numero(datos.get("value")),
@@ -294,10 +295,12 @@ async def sincronizar(cart: Cart) -> dict:
         }
 
     try:
+        host_checkout = ""
         if vencido(cart):
             carrito = await crear_carrito(cart)
             cart.vtex_order_form_id = carrito["order_form_id"]
             cart.vtex_cart_url = carrito["checkout_url"] or ""
+            host_checkout = carrito.get("checkout_host") or ""
         respuesta = await agregar_items(cart, _items_locales(cart))
         faltantes = _faltantes(cart, respuesta)
         # El link viene en la creación; si la respuesta de ítems no lo trae
@@ -309,7 +312,10 @@ async def sincronizar(cart: Cart) -> dict:
         cart.vtex_cart_url = (
             respuesta["checkout_url"]
             or cart.vtex_cart_url
-            or url_carrito_compartido(cart.vtex_order_form_id)
+            or url_carrito_compartido(
+                cart.vtex_order_form_id,
+                respuesta.get("checkout_host") or host_checkout,
+            )
         )
         cart.vtex_value = respuesta["value"]
         cart.vtex_currency = respuesta["currency"]
@@ -431,7 +437,9 @@ async def reconciliar(session, cart: Cart) -> dict:
         return {"cambiado": True, "motivo": "carrito actualizado desde la tienda"}
     return {"cambiado": False, "motivo": "sin cambios"}
 
-def url_carrito_compartido(order_form_id: str) -> str:
+def url_carrito_compartido(
+    order_form_id: str, host: str | None = None
+) -> str:
     """URL de carrito compartido de VTEX.
 
     VTEX documenta el formato con el id en la querystring, entre `/checkout/`
@@ -442,7 +450,7 @@ def url_carrito_compartido(order_form_id: str) -> str:
     Solo se usa si hay un dominio de checkout configurado; sin dominio no se
     arma ninguna URL.
     """
-    host = (settings.vtex_checkout_host or "").strip().rstrip("/")
+    host = (host or settings.vtex_checkout_host or "").strip().rstrip("/")
     identificador = (order_form_id or "").strip()
     if not host or not identificador:
         return ""

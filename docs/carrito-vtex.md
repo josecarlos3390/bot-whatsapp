@@ -207,3 +207,32 @@ el dominio, el mensaje es un **botón de enlace** de WhatsApp:
 ⚠️ El link tiene que llevar el orderFormId. …/checkout/#/cart abre el
 carrito del navegador, así que un cliente que viene de WhatsApp vería uno
 vacío.
+
+## Formato del link: confirmado por el PaaS y por VTEX
+
+`
+https://rodabo.myvtex.com/checkout/?orderFormId={id}#/cart
+`
+
+- El orderFormId va en la **querystring**, entre /checkout/ y #/cart.
+- Funciona **sin cookies**: la API devuelve el carrito en incógnito.
+- 
+oho.com.bo todavía responde **503** (página de SeedProd): no se usa.
+- El PaaS devuelve checkout_url **y** checkout_host. Si falta la URL, el
+  bot la arma con el host (de la respuesta o de VTEX_CHECKOUT_HOST).
+
+### Configuración actual
+
+`
+VTEX_CHECKOUT_HOST=https://rodabo.myvtex.com
+VTEX_CART_ENABLED=false        ← hasta que el PaaS despliegue el formato
+`
+
+### Validado
+
+| Prueba | Resultado |
+|---|---|
+| Carrito de 1 ítem | API devuelve el ítem y el total |
+| Carrito de 2 unidades | API devuelve quantity: 2 |
+| Link con ?orderFormId= | 200 |
+| Sin cookies | funciona |

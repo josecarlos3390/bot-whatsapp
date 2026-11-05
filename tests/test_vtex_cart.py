@@ -342,3 +342,36 @@ def test_sin_dominio_no_se_arma_url(monkeypatch):
     monkeypatch.setattr(settings, "vtex_checkout_host", "")
 
     assert vtex_cart.url_carrito_compartido("ABC123") == ""
+
+async def test_usa_checkout_host_de_la_respuesta(session, monkeypatch):
+    """Si el integrador manda checkout_host, el bot arma el link con ese host."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "vtex_checkout_host", "")
+    carrito = await _carrito(session, skus=("REF-1",))
+
+    async def _pedir(metodo, ruta, *, cart=None, json_body=None):
+        if metodo == "POST" and ruta == "/api/vtex/cart":
+            return {
+                "order_form_id": "OF-1",
+                "checkout_url": None,
+                "checkout_host": "https://rodabo.myvtex.com",
+                "items": [],
+                "value": 0,
+                "currency": "BOB",
+            }
+        return {
+            "order_form_id": "OF-1",
+            "items": [{"sku": "REF-1", "quantity": 2, "price": 165.0}],
+            "value": 330.0,
+            "currency": "BOB",
+            "messages": [],
+        }
+
+    monkeypatch.setattr(vtex_cart, "_pedir", _pedir)
+
+    resultado = await vtex_cart.sincronizar(carrito)
+
+    assert resultado["link"] == (
+        "https://rodabo.myvtex.com/checkout/?orderFormId=OF-1#/cart"
+    )
