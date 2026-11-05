@@ -592,3 +592,49 @@ async def test_los_mas_economicos_ordenan_por_precio_final(session, monkeypatch)
     assert "1.499" in texto.replace(",", ".")
     primera = respuesta.messages[1].text or ""
     assert primera.index("Promo") < primera.index("Caro")
+
+def test_los_listados_se_ordenan_por_precio():
+    """El modelo puede devolver desordenado; el texto sale ordenado."""
+    from app.services import listas
+
+    texto = (
+        "Te muestro las opciones:\n\n"
+        "1. TV Tokyo — Bs 1,597.00\n"
+        "2. TV Houce — Bs 1,499.00 (−38%)\n"
+        "3. TV Sony — Bs 1.899,00\n\n"
+        "¿Querés la ficha de alguna?"
+    )
+
+    normalizado = listas.normalizar(texto)
+    lineas = [l for l in normalizado.split("\n") if l[:2] in {"1.", "2.", "3."}]
+
+    assert lineas[0].startswith("1. TV Houce")
+    assert lineas[1].startswith("2. TV Tokyo")
+    assert lineas[2].startswith("3. TV Sony")
+    assert "¿Querés la ficha" in normalizado
+
+
+def test_un_listado_sin_precios_no_se_toca():
+    from app.services import listas
+
+    texto = "1. Lg\n2. Samsung\n3. Sony"
+
+    assert listas.normalizar(texto) == texto
+    assert not listas.tiene_listado(texto)
+
+
+def test_las_tarjetas_van_de_menor_a_mayor_precio():
+    from app.agent import Agent
+
+    productos = [
+        {"sku": "A", "name": "Tele Caro", "price": "1900"},
+        {"sku": "B", "name": "Tele Barato", "price": "1500"},
+        {"sku": "C", "name": "Tele Medio", "promo_price": "1600", "price": "1800"},
+    ]
+
+    tarjetas = Agent._search_cards(productos)
+    filas = tarjetas[-1].sections[0]["rows"]
+
+    assert "Barato" in filas[0]["title"]
+    assert "Medio" in filas[1]["title"]
+    assert "Caro" in filas[2]["title"]

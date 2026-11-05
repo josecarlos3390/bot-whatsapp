@@ -56,6 +56,21 @@ def cards(
     if not seleccionados:
         return []
 
+    # Los listados van de menor a mayor precio: es lo que el cliente espera
+    # cuando compara y lo que evita "1. Bs 1.597 / 2. Bs 1.499".
+    def _orden_precio(producto: dict) -> float:
+        for clave in ("promo_price", "final_price", "price"):
+            valor = producto.get(clave)
+            if valor in (None, ""):
+                continue
+            try:
+                return float(str(valor).replace(",", ""))
+            except (TypeError, ValueError):
+                continue
+        return float("inf")
+
+    seleccionados.sort(key=_orden_precio)
+
     primero = seleccionados[0]
     tema = " ".join(
         [

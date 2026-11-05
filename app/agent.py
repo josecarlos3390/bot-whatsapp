@@ -5128,6 +5128,17 @@ class Agent:
                     )
                 ]
             )
+        # Un listado de productos con precio siempre va ordenado y numerado:
+        # el modelo a veces lo devuelve desordenado o repite el "1".
+        from .services import listas
+
+        for mensaje in reply.messages:
+            if mensaje.text and listas.tiene_listado(mensaje.text):
+                ordenado = listas.normalizar(mensaje.text)
+                if ordenado != mensaje.text:
+                    self._trace("Listado ordenado por precio")
+                    mensaje.text = ordenado
+
         # En un reclamo o un tema delicado se habla sin adornos.
         from .services import emoji_policy
 
