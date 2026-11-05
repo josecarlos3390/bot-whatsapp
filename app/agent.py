@@ -4543,7 +4543,7 @@ class Agent:
                         text=(
                             f"{persona.checkout_failed(error)}\n\n"
                             "Ya dejé tu carrito con un asesor del equipo para "
-                            "que lo confirme y te pase el link de pago 🙌"
+                            "que lo confirme y coordine el pago con vos 🙌"
                         ),
                         buttons=[
                             {"id": "cart", "title": "Ver carrito"},
