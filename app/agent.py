@@ -2596,7 +2596,12 @@ HANDOFF_RE = re.compile(
     r"\b(asesor|humano|persona|agente|hablar\s+con\s+alguien)\b"
     r"|no\s+quiero\s+(hablar\s+con\s+)?(un\s+)?(bot|robot|m[aá]quina)"
     r"|atendeme\s+vos"
-    r"|persona\s+de\s+verdad",
+    r"|persona\s+de\s+verdad"
+    r"|hay\s+alguien"
+    r"|alguien\s+(de|del)\s+(soporte|equipo|sistema|humano)"
+    r"|con\s+qui[eé]n\s+(hablo|estoy\s+hablando)"
+    r"|atenci[oó]n\s+al\s+(cliente|usuario)"
+    r"|quiero\s+(hablar\s+)?con\s+(alguien|una\s+persona)\b",
     re.IGNORECASE,
 )
 COMPLAINT_RE = re.compile(
@@ -3964,6 +3969,32 @@ class Agent:
         products = result.get("products") or []
         # Si no hay nada, se prueba con la familia del producto antes de
         # inventar ideas: un monitor se parece a un televisor, no a una ducha.
+        # Sin resultados: puede que no sea una búsqueda sino un saludo o
+        # charla ("hola, ¿estás?", "buenas, consulta"). El modelo lo lee.
+        if not products and settings.deepseek_api_key:
+            try:
+                leido = await understanding.parse(self._llm(), query)
+            except Exception:  # noqa: BLE001 - interpretar no rompe
+                leido = None
+            if leido and leido.get("intencion") == "humano":
+                self._trace("El modelo dice: humano")
+                return await self._human_fallback(session, contact, query)
+            if leido and leido.get("intencion") == "saludo":
+                self._trace("El modelo dice: saludo")
+                return AgentReply(
+                    [
+                        Outbound(
+                            kind="buttons",
+                            text=persona.welcome(contact.name),
+                            buttons=[
+                                {"id": "catalog", "title": "Buscar productos"},
+                                {"id": "estado", "title": "Consultar mi pedido"},
+                                {"id": "human", "title": "Hablar con un asesor"},
+                            ],
+                        )
+                    ]
+                )
+
         if not products and settings.enable_family_fallback:
             from .services import familia
 
@@ -5729,6 +5760,12 @@ class Agent:
             elegidas = await most_chosen.reply(self, session, contact, raw)
             if elegidas is not None:
                 return elegidas
+
+        # Pedir una persona no es una búsqueda: va antes que cualquier
+        # detección de rubro ("¿hay alguien de soporte?").
+        if not _es_accion(normalized) and HANDOFF_RE.search(raw):
+            self._trace("Pide una persona (temprano)")
+            return await self._human_fallback(session, contact, raw)
 
         # "¿Tienen juguetes?": si el catálogo no lo tiene, se dice de entrada
         # (el modelo inventaba disponibilidad).

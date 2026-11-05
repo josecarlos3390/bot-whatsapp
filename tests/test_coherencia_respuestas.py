@@ -329,3 +329,43 @@ async def test_saludo_con_producto_sigue_buscando(session):
     texto = _todo(respuesta)
     assert "taladro" in texto.lower()
     assert "Soy *Rohi*" not in texto
+
+async def test_no_busca_palabras_de_conversacion(session):
+    """«estas ahi» y «hola» no deben traer productos por parecido."""
+    from app.models import CatalogItem
+    from app.services import catalog
+
+    session.add_all(
+        [
+            CatalogItem(
+                sku="EST-9",
+                name="Estante Alto Merk",
+                price="839",
+                stock=5,
+                category="Muebles",
+                active=True,
+            ),
+            CatalogItem(
+                sku="SIE-9",
+                name="10 Sierras Bimetal",
+                price="200",
+                stock=5,
+                category="Herramientas",
+                active=True,
+            ),
+        ]
+    )
+    await session.commit()
+
+    # "estas" ya no se convierte en "esta" + "estante".
+    assert await catalog.search_items(session, "estas", limit=3) == []
+
+
+async def test_pedir_una_persona_no_es_busqueda(session):
+    contacto = await _contacto(session, "59170085001")
+
+    respuesta = await Agent().handle(session, contacto, "hay alguien de soporte?")
+
+    texto = respuesta.messages[0].text or ""
+    assert "catálogo" not in texto.lower()
+    assert "asesor" in texto.lower() or "equipo" in texto.lower()

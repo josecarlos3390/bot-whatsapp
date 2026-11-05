@@ -122,6 +122,16 @@ QUERY_STOPWORDS = {
     "cuanto", "cuánto", "sale", "cuesta", "precio", "tenes", "tenés",
     "vale", "cotizacion", "cotización",
 }
+# Palabras de conversación que nunca se corrigen a un producto: "estas" no es
+# "estante" ni "hola" es "sierra".
+_NO_CORREGIR = {
+    "hola", "holas", "holis", "buenas", "buenos", "buen", "dia", "dias",
+    "tarde", "tardes", "noche", "noches", "gracias", "chau", "adios",
+    "estas", "estoy", "sigues", "seguis", "ahi", "alguien", "escuchas",
+    "oyes", "leeme", "espera", "esperame", "dale", "listo", "ok", "okay",
+    "perfecto", "genial", "favor", "quien", "donde", "cuando", "como",
+    "porque", "nada", "todo", "bien", "mal",
+}
 TYPO_FIXES = {
     "plaas": "plazas",
     "plasa": "plazas",
@@ -166,6 +176,10 @@ def _plano(column, portable: bool = False):
 def _base_variants(term: str) -> list[str]:
     term = term.lower().strip()
     folded = _fold(term)
+    # Palabras de conversación: no se les quita el plural ni se buscan como
+    # productos ("estas" no debe convertirse en "esta" y traer estantes).
+    if folded in _NO_CORREGIR:
+        return [term] if term else []
     bases = [term]
     if folded != term:
         bases.append(folded)
@@ -212,8 +226,13 @@ def _correct_terms(terms: list[str]) -> list[str]:
         if folded in vocabulary:
             corrected.append(term)
             continue
+        if folded in _NO_CORREGIR:
+            corrected.append(term)
+            continue
+        # Umbral alto: solo errores de tipeo evidentes. Con 0.78 "estas" se
+        # convertía en "estante" y "hola" en "sierra".
         match = difflib.get_close_matches(
-            folded, vocabulary, n=1, cutoff=0.78
+            folded, vocabulary, n=1, cutoff=0.88
         )
         corrected.append(match[0] if match else term)
     return corrected
