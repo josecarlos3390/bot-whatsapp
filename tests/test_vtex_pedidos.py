@@ -105,7 +105,7 @@ async def test_el_bot_avisa_que_el_pedido_ya_existe(session, monkeypatch):
     texto = respuesta.messages[0].text or ""
 
     assert "500195" in texto
-    assert "pago aprobado" in texto
+    assert "pago aprobado" in texto.lower()
 
     await session.refresh(carrito)
     assert carrito.status == "ordered"

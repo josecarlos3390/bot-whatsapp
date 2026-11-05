@@ -4490,13 +4490,31 @@ class Agent:
 
     @staticmethod
     def _texto_pedido(pedido: dict) -> str:
+        from .services import order_tracking
+
         numero = pedido.get("sequence") or pedido.get("order_id") or ""
-        estado = pedido.get("status_legible") or "en proceso"
-        return (
-            f"Tu pedido *{numero}* ya está registrado y quedó *{estado}* ✅\n"
-            "Si querés cambiar algo o saber cuándo llega, decime y lo reviso "
-            "con el equipo."
+        icono, etiqueta = order_tracking.estado_con_icono(
+            pedido.get("status") or ""
         )
+        lineas = [
+            f"{icono} *Pedido {numero}*",
+            "",
+            f"Estado: *{etiqueta}*",
+        ]
+        total = pedido.get("total")
+        if total:
+            try:
+                from decimal import Decimal
+
+                lineas.append(f"💵 Total: Bs {Decimal(str(total)):,.2f}")
+            except Exception:  # noqa: BLE001 - el total es opcional
+                pass
+        lineas.append("")
+        lineas.append(
+            "Si querés cambiar algo o saber cuándo llega, decime y lo reviso "
+            "con el equipo 👇"
+        )
+        return "\n".join(lineas)
 
     async def _asegurar_derivacion(
         self, session: AsyncSession, contact: Contact, reason: str

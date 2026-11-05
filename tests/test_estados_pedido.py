@@ -37,7 +37,7 @@ def test_el_detalle_explica_el_estado():
 
     assert "Listo para preparar" in texto
     assert "espera ser armado" in texto
-    assert "→" in texto
+    assert "→" in texto or "👉" in texto
     assert "HRRAELC030088" in texto
 
 

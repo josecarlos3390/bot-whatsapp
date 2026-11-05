@@ -180,6 +180,17 @@ def extract_order_id(text: str) -> str | None:
     return match.group(1)
 
 
+
+
+def _total(order: dict):
+    """Total del pedido: el integrador lo manda normalizado."""
+    for clave in ("totalValue", "value", "total"):
+        valor = order.get(clave)
+        if valor not in (None, ""):
+            return valor
+    return 0
+
+
 def _money(value) -> str:
     try:
         return f"{Decimal(str(value)):,.2f}"
@@ -239,15 +250,18 @@ def format_order(order: dict) -> str:
     order_id = str(order.get("orderId") or "")
     status = str(order.get("status") or "")
     label = STATUS_LABELS.get(status, order.get("statusDescription") or status)
+    icono = STATUS_EMOJI.get(status, "📋")
     lines = [
-        f"Pedido *{order_id}*",
+        f"{icono} *Pedido {order_id}*",
+        "",
         f"Estado: *{label}*",
-        f"Total: Bs {_money(order.get('value'))}",
+        f"💵 Total: Bs {_money(_total(order))}",
     ]
     guia = STATUS_GUIDE.get(status)
     if guia:
+        lines.append("")
         lines.append(guia[1])
-        lines.append(f"→ {guia[2]}")
+        lines.append(f"👉 {guia[2]}")
     items = order.get("items") or []
     if items:
         lines.append("Productos:")
@@ -430,3 +444,29 @@ async def lookup(
         "needs_handoff": False,
         "order_id": order_id,
     }
+
+# Un icono por estado: el cliente ve de un vistazo en qué anda su pedido.
+STATUS_EMOJI = {
+    "on-order-completed": "🆕",
+    "payment-pending": "⏳",
+    "waiting-for-authorization": "⏳",
+    "payment-approved": "✅",
+    "authorized": "✅",
+    "ready-for-handling": "📦",
+    "handling": "📦",
+    "invoiced": "🧾",
+    "shipped": "🚚",
+    "delivered": "🏠",
+    "canceled": "❌",
+    "cancelled": "❌",
+    "request-cancel": "🟡",
+}
+
+
+def estado_con_icono(status: str) -> tuple[str, str]:
+    """(icono, etiqueta) del estado del pedido."""
+    codigo = (status or "").strip().lower()
+    return (
+        STATUS_EMOJI.get(codigo, "📋"),
+        STATUS_LABELS.get(codigo, codigo or "en proceso"),
+    )

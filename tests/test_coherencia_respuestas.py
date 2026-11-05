@@ -484,3 +484,49 @@ async def test_el_carrito_dice_cuantos_productos_y_unidades(session):
 
     assert "1 producto, 3 unidades" in texto
     assert "Total:" in texto
+
+async def test_el_estado_del_pedido_lleva_icono():
+    """Cada estado del pedido tiene su icono."""
+    from app.services import order_tracking
+
+    assert order_tracking.estado_con_icono("handling") == ("📦", "En preparación")
+    assert order_tracking.estado_con_icono("shipped") == ("🚚", "En camino")
+    assert order_tracking.estado_con_icono("delivered") == ("🏠", "Entregado")
+    assert order_tracking.estado_con_icono("canceled")[0] == "❌"
+
+
+def test_el_pedido_formateado_muestra_total_y_guia():
+    from app.services import order_tracking
+
+    texto = order_tracking.format_order(
+        {
+            "orderId": "1672200500195-01",
+            "status": "shipped",
+            "totalValue": 220.0,
+            "items": [
+                {"name": "Filtro WIX", "quantity": 2, "refId": "FILT-1"}
+            ],
+        }
+    )
+
+    assert "🚚" in texto
+    assert "En camino" in texto
+    assert "Bs 220.00" in texto
+    assert "FILT-1" in texto
+
+
+def test_la_confirmacion_del_pedido_tiene_icono():
+    from app.agent import Agent
+
+    texto = Agent._texto_pedido(
+        {
+            "sequence": "500195",
+            "status": "ready-for-handling",
+            "total": 2583,
+        }
+    )
+
+    assert "📦" in texto
+    assert "Pedido 500195" in texto
+    assert "Listo para preparar" in texto
+    assert "2,583.00" in texto
