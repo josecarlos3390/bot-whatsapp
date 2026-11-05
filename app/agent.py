@@ -441,6 +441,26 @@ _PRESENCIA_RE = re.compile(
 )
 
 
+# Mensajes que apuntan a algo ya mostrado.
+_REFERENCIA_RE = re.compile(
+    r"\b(opci[oó]n|numero|n[uú]mero)\s*\d{1,2}\b"
+    r"|\b(la|el)\s+(primera?|segund[oa]|tercer[oa]|cuart[oa]|quint[oa]|"
+    r"[uú]ltim[oa])\b"
+    r"|\b(la|el|los|las)\s+\d{1,2}\b"
+    r"|^\s*\d{1,2}\s*[.)]?\s*$"
+    r"|\b(ese|esa|eso|el\s+mismo|la\s+misma)\b",
+    re.IGNORECASE,
+)
+
+
+def _parece_referencia(texto: str) -> bool:
+    """¿El mensaje apunta a algo de la lista anterior?"""
+    valor = (texto or "").strip()
+    return bool(valor) and len(valor.split()) <= 6 and bool(
+        _REFERENCIA_RE.search(valor)
+    )
+
+
 def _es_presencia(texto: str, limpiar) -> bool:
     """¿El mensaje es solo un saludo o un "¿estás ahí?"?
 
@@ -4923,6 +4943,14 @@ class Agent:
         text: str,
     ) -> AgentReply | None:
         raw = (text or "").strip()
+
+        # El último listado mostrado manda: es a lo que el cliente se refiere
+        # cuando escribe "la opción 2" o "la primera". Va antes que el
+        # snapshot de recomendaciones, que no siempre existe.
+        elegido = await self._referencia_del_listado(session, contact, raw)
+        if elegido is not None:
+            return await self._product_detail(session, contact, elegido)
+
         snapshot = await recommendations.latest(session, contact.id)
         if snapshot is None or not snapshot.products:
             return None
@@ -4933,6 +4961,7 @@ class Agent:
         ):
             explanation = recommendations.explain(snapshot)
             return AgentReply([Outbound(text=explanation)])
+
         ordinal = re.search(
             r"\b(primer[oa]?|segund[oa]?|tercer[oa]?|cuart[oa]?)\b",
             raw,
@@ -4959,6 +4988,62 @@ class Agent:
                 )
         return None
 
+    async def _referencia_del_listado(
+        self, session: AsyncSession, contact: Contact, raw: str
+    ) -> str | None:
+        """SKU elegido por número o palabra ("la opción 2", "la primera").
+
+        Se apoya en los SKU del último listado, no en una recomendación
+        anterior: es lo que el cliente está viendo en pantalla.
+        """
+        texto = (raw or "").strip()
+        if not texto or len(texto.split()) > 6:
+            return None
+        conversacion = await session.scalar(
+            select(Conversation).where(Conversation.contact_id == contact.id)
+        )
+        if conversacion is None:
+            return None
+        estado = await conversation_state.get_state(session, conversacion.id)
+        mostrados = [str(sku) for sku in (estado.shown_skus or []) if sku]
+        if not mostrados:
+            return None
+
+        indice: int | None = None
+        numero = re.search(
+            r"\b(?:opci[oó]n|n[uú]mero|el|la|los|las)\s+(\d{1,2})\b",
+            texto,
+            re.I,
+        )
+        if numero:
+            indice = int(numero.group(1)) - 1
+        if indice is None:
+            # Un número solo ("2") cuando hay listado y el mensaje es corto.
+            suelto = re.fullmatch(r"\s*(\d{1,2})\s*[.)]?\s*", texto)
+            if suelto:
+                indice = int(suelto.group(1)) - 1
+        if indice is None:
+            palabras = {
+                "primer": 0, "primero": 0, "primera": 0,
+                "segundo": 1, "segunda": 1,
+                "tercero": 2, "tercera": 2,
+                "cuarto": 3, "cuarta": 3,
+                "quinto": 4, "quinta": 4,
+            }
+            for palabra, posicion in palabras.items():
+                if re.search(rf"\b{palabra}\b", texto, re.I):
+                    indice = posicion
+                    break
+        if indice is None and re.search(
+            r"\b(la|el)\s+[uú]ltim[oa]\b", texto, re.I
+        ):
+            indice = len(mostrados) - 1
+        if indice is None:
+            return None
+        if 0 <= indice < len(mostrados):
+            return mostrados[indice]
+        return None
+
     async def postprocess(
         self,
         session: AsyncSession,
@@ -4982,7 +5067,7 @@ class Agent:
             )
         from .services import actions
 
-        accion = actions.es_accion(text)
+        accion = actions.es_accion(text) or _parece_referencia(text)
         answer = "\n".join(
             message.text or "" for message in reply.messages
         ).strip()
@@ -5023,6 +5108,10 @@ class Agent:
         # cosa y volver a mostrar el mismo listado parece que no escucha.
         try:
             actuales = repeat_guard.skus_de(reply)
+            # Una ficha suelta no reemplaza al listado: el cliente sigue
+            # refiriéndose a las opciones que vio.
+            if len(actuales) < 2:
+                actuales = []
             if actuales:
                 conversacion = await session.scalar(
                     select(Conversation).where(
@@ -5495,13 +5584,18 @@ class Agent:
             self._trace("Cierre por despedida")
             return await self._farewell_reply(session, contact)
 
-        guard = await conversation_guard.get_for_contact(session, contact)
-        if guard is not None:
+        # "La opción 2", "la primera", "ese": se resuelve contra el último
+        # listado, haya o no una ranura pendiente.
+        if _parece_referencia(raw):
             reference_reply = await self._resolve_reference(
                 session, contact, raw
             )
             if reference_reply is not None:
                 return reference_reply
+            self._trace("Referencia sin listado previo")
+
+        guard = await conversation_guard.get_for_contact(session, contact)
+        if guard is not None:
             pending_reply = await self._resolve_pending(
                 session, contact, raw, guard
             )

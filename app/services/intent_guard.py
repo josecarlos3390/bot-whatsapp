@@ -90,12 +90,8 @@ AMBIGUOUS: list[tuple[re.Pattern[str], re.Pattern[str], str, str]] = [
         "¿Consultás disponibilidad de un producto o retiro en tienda?",
         "disponible",
     ),
-    (
-        re.compile(r"\bel\s+primero\b", re.I),
-        re.compile(r"$^"),
-        "¿El primero de qué lista? Si querés, decime el producto y te ayudo a ubicarlo.",
-        "primero",
-    ),
+    # "El primero" ya no es ambiguo: lo resuelve el listado anterior. Si no
+    # hay listado, el bot lo pregunta igual por otra vía.
 ]
 
 

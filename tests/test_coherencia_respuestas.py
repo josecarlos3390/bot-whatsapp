@@ -638,3 +638,64 @@ def test_las_tarjetas_van_de_menor_a_mayor_precio():
     assert "Barato" in filas[0]["title"]
     assert "Medio" in filas[1]["title"]
     assert "Caro" in filas[2]["title"]
+
+async def test_referencia_por_numero_del_listado(session):
+    """«La opción 2» o «la 1» abren la ficha del listado anterior."""
+    from app.models import CatalogItem
+
+    for indice, (sku, nombre, precio) in enumerate(
+        [
+            ("REFL-1", "Pintura Uno", "100"),
+            ("REFL-2", "Pintura Dos", "200"),
+            ("REFL-3", "Pintura Tres", "300"),
+        ],
+        start=1,
+    ):
+        session.add(
+            CatalogItem(
+                sku=sku,
+                name=nombre,
+                price=precio,
+                stock=5,
+                brand="TEST",
+                category="Pintura",
+                active=True,
+            )
+        )
+    await session.commit()
+
+    contacto = await _contacto(session, "59170089001")
+
+    async def hablar(texto):
+        agente = Agent()
+        respuesta = await agente.handle(session, contacto, texto)
+        return await agente.postprocess(session, contacto, texto, respuesta)
+
+    listado = await hablar("busco pintura")
+    filas = [
+        fila["title"]
+        for mensaje in listado.messages
+        for seccion in (mensaje.sections or [])
+        for fila in seccion["rows"]
+    ]
+
+    if len(filas) >= 2:
+        respuesta = await hablar("la 2")
+        texto = respuesta.messages[0].text or ""
+        assert "Pintura" in texto
+        assert "opción" not in texto.lower()
+    else:
+        # Si el bot preguntó antes (marca, presupuesto), no hay listado:
+        # la referencia debe pedir aclaración, no inventar un producto.
+        respuesta = await hablar("la 2")
+        assert respuesta.messages
+
+
+def test_parece_referencia_reconoce_las_formas():
+    from app.agent import _parece_referencia
+
+    assert _parece_referencia("la opción 2")
+    assert _parece_referencia("la 1")
+    assert _parece_referencia("la primera")
+    assert _parece_referencia("ese")
+    assert not _parece_referencia("hola, busco un taladro")
