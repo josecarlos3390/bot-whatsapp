@@ -407,6 +407,12 @@ async def reconciliar(session, cart: Cart) -> dict:
         if crudo in locales:
             return crudo
         traducido = await catalogo.sku_por_vtex_id(session, crudo)
+        if traducido:
+            # El integrador ya devuelve el RefId; si hubo que traducir, se
+            # anota para saber cuándo se puede retirar el respaldo.
+            logger.info(
+                "Carrito: se tradujo el id %s al RefId %s", crudo, traducido
+            )
         return (traducido or "").upper()
 
     for remoto in actual["items"]:

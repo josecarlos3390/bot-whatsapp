@@ -223,6 +223,15 @@ async def main() -> int:
             _mal("el carrito no se pudo consultar")
         else:
             _ok(f"consulta ok · {len(actual['items'])} ítem(s)")
+            if actual["items"]:
+                sku = str(actual["items"][0].get("sku") or "")
+                if sku.isdigit():
+                    _mal(
+                        f"el GET devuelve el id interno ({sku}): falta el "
+                        "cambio de contrato en el PaaS"
+                    )
+                else:
+                    _ok(f"el GET devuelve el RefId ({sku})")
             if actual["order_form_id"] == carrito.vtex_order_form_id:
                 _ok("es el mismo carrito que se creó")
             else:

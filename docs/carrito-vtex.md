@@ -303,3 +303,32 @@ Cómo quedó integrado en el bot:
 
 Prueba «fumigador», «bebote», «muñeca», «taladro» e «hidrolavadora», y avisa
 si la búsqueda de VTEX aporta resultados que el catálogo local no tenía.
+
+## Contrato del carrito: sku debe ser el RefId
+
+| Ruta | Devuelve sku |
+|---|---|
+| POST /api/vtex/cart/{id}/items | el RefId que enviamos (eco) |
+| GET /api/vtex/cart/{id} | **id interno de VTEX** (pendiente de corregir) |
+
+El PaaS confirmó el 5/11 que lo corrigió para ADD y GET:
+
+`json
+{sku: JGTDOLL030002, sku_id: 8946, quantity: 1, price: 499}
+`
+
+**Todavía falta desplegarlo en el 5050.** Mientras tanto el bot traduce el id
+interno con CatalogItem.attributes[vtex_sku_id] y, si no lo encuentra,
+descarta el ítem (para no mostrar un código en el carrito).
+
+Cuando el GET devuelva el RefId:
+
+1. Correr scripts/validar_carrito_vtex y ver «el GET devuelve el RefId».
+2. Retirar el respaldo de 
+econciliar (queda anotado en el log cuando se usa).
+
+### Caso borde
+
+Si un SKU no tiene RefId en VTEX, el integrador devuelve el id interno como
+respaldo. En ese caso el bot no puede mostrar nombre ni precio y lo omite del
+carrito hasta el próximo sync.
