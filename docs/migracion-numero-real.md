@@ -280,3 +280,26 @@ Sin él no se puede volver a registrar el número.
 El webhook de la app apunta al túnel de Cloudflare, que **cambia de URL al
 reiniciar**. Para producción hace falta un dominio fijo.
 
+## Publicar la app (para clientes reales)
+
+| Requisito | Valor |
+|---|---|
+| Política de privacidad | https://josecarlos3390.github.io/roho-privacidad/ |
+| Categoría | Compras y comercio minorista |
+| Ícono | ya cargado |
+
+Se cargan en [Configuración básica](https://developers.facebook.com/apps/2438463666347806/settings/basic/).
+
+Después: interruptor **En desarrollo → En producción**.
+
+### Verificar
+
+`powershell
+.\.venv\Scripts\python.exe -m scripts.verificar_produccion
+`
+
+### Testers (mientras está en desarrollo)
+
+[Roles de la app](https://developers.facebook.com/apps/2438463666347806/roles/)
+→ Agregar personas → **Evaluador**. Aceptan la invitación y ya pueden escribir
+al número.
