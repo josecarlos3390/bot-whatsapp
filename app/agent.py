@@ -4373,6 +4373,16 @@ class Agent:
                 if producto.get("sku") and producto.get("image_url")
             ][:10]
             if items:
+                elegidos = [
+                    producto
+                    for producto in products
+                    if producto.get("sku") and producto.get("image_url")
+                ][:10]
+                lineas = [
+                    f"{indice}. {producto.get('name', '')[:60]} — "
+                    f"Bs {Decimal(str(producto.get('price') or 0)):,.2f}"
+                    for indice, producto in enumerate(elegidos, start=1)
+                ]
                 return [
                     Outbound(
                         kind="product_list",
@@ -4380,6 +4390,8 @@ class Agent:
                         header_text="Productos",
                         sections=[{"title": "Opciones", "product_items": items}],
                         catalog_id=settings.wa_catalog_id,
+                        fallback_text="Estos son los que tengo:\n\n"
+                        + "\n".join(lineas),
                     )
                 ]
         return search_flow.cards(products, consulta=consulta)

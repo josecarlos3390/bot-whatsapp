@@ -33,6 +33,9 @@ class Outbound:
     # Formularios nativos (WhatsApp Flows).
     flow_header: str = ""
     flow_parameters: dict = field(default_factory=dict)
+    # Si el mensaje nativo falla (Meta rechaza un producto), se manda este
+    # texto en su lugar: el cliente nunca queda sin respuesta.
+    fallback_text: str = ""
 
 
 def _to_wa_id(phone: str) -> str:

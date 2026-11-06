@@ -357,11 +357,27 @@ async def ingest_inbound(
                     except Exception as segundo:  # noqa: BLE001
                         exc = segundo
                 if exc is not None:
-                    outbox_health.record_failure(str(exc))
-                    logger.exception(
-                        "No se pudo enviar la respuesta a %s", wa_id
-                    )
-                    continue
+                    # Un mensaje nativo rechazado no puede dejar al cliente
+                    # sin respuesta: se manda el texto equivalente.
+                    if outbound.fallback_text:
+                        logger.warning(
+                            "Mensaje nativo rechazado; se manda texto: %s",
+                            str(exc)[:120],
+                        )
+                        try:
+                            outbound_id = await whatsapp.send_text(
+                                wa_id, outbound.fallback_text
+                            )
+                            outbox_health.record_success()
+                            exc = None
+                        except Exception as tercero:  # noqa: BLE001
+                            exc = tercero
+                    if exc is not None:
+                        outbox_health.record_failure(str(exc))
+                        logger.exception(
+                            "No se pudo enviar la respuesta a %s", wa_id
+                        )
+                        continue
         else:
             outbound_id = f"sim-{uuid.uuid4()}"
         session.add(

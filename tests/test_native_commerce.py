@@ -317,3 +317,28 @@ def test_la_lista_nativa_excluye_productos_sin_foto(monkeypatch):
     assert len(salida) == 1
     items = salida[0].sections[0]["product_items"]
     assert [item["product_retailer_id"] for item in items] == ["CON-FOTO"]
+
+def test_la_lista_lleva_texto_de_respaldo(monkeypatch):
+    """Si Meta rechaza la lista, el cliente igual ve los productos."""
+    from app.agent import Agent
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "wa_native_catalog_enabled", True)
+    monkeypatch.setattr(settings, "wa_catalog_id", "cat-1")
+    monkeypatch.setattr(settings, "wa_access_token", "token")
+    monkeypatch.setattr(settings, "wa_phone_number_id", "123")
+
+    productos = [
+        {
+            "sku": "FALL-1",
+            "name": "Auto Spiderman",
+            "price": "199",
+            "image_url": "https://x/1.png",
+        }
+    ]
+
+    salida = Agent._search_cards(productos)[0]
+
+    assert salida.kind == "product_list"
+    assert "Auto Spiderman" in salida.fallback_text
+    assert "199" in salida.fallback_text
