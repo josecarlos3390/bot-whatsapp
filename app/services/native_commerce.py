@@ -187,6 +187,17 @@ async def catalog_feed(
             skipped += 1
             continue
         base = (settings.meta_catalog_link_base or "").rstrip("/")
+        if settings.meta_catalog_link_wa:
+            # wa.me no cambia nunca: el túnel del bot sí.
+            from urllib.parse import quote
+
+            numero = (settings.wa_business_number or "").lstrip("+")
+            enlace = (
+                f"https://wa.me/{numero}?text="
+                + quote(f"Quiero {item.sku}")
+            )
+        else:
+            enlace = f"{base}/{item.sku}" if base else ""
         rows.append(
             {
                 "id": item.sku,
@@ -196,7 +207,7 @@ async def catalog_feed(
                 "availability": "in stock",
                 "condition": "new",
                 "price": f"{Decimal(item.price):.2f} {item.currency}",
-                "link": f"{base}/{item.sku}" if base else "",
+                "link": enlace,
                 "image_link": image,
                 "brand": item.brand or "ROHO",
                 "category": item.category or "",

@@ -56,6 +56,8 @@ class Settings(BaseSettings):
     wa_commerce_account_id: str = ""
     meta_catalog_feed_token: str = ""
     meta_catalog_link_base: str = ""
+    # Enlaces del catálogo a wa.me: no dependen del dominio del bot.
+    meta_catalog_link_wa: bool = True
     meta_catalog_placeholder_image: str = ""
     product_image_placeholder: str = ""
     feedback_after_checkout: bool = False
