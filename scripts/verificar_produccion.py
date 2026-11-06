@@ -85,9 +85,11 @@ async def main() -> int:
     print("\nApp")
     print(f"  {marca(bool(datos_app.get('privacy_policy_url')))} "
           f"política de privacidad: {datos_app.get('privacy_policy_url') or '(falta)'}")
-    print(f"  {marca(bool(datos_app.get('category')))} "
-          f"categoría: {datos_app.get('category') or '(falta)'}")
-    print(f"  {marca(bool(datos_app.get('icon_url')))} ícono")
+    # La categoría ya no se expone por API: se revisa en el panel.
+    print("  · categoría: revisar en el panel (la API no la devuelve)")
+    icono = datos_app.get("icon_url") or ""
+    propio = bool(icono) and "fbcdn.net/rsrc" not in icono
+    print(f"  {marca(propio)} ícono propio")
     print(f"    nombre: {datos_app.get('name')}")
 
     faltan = []
