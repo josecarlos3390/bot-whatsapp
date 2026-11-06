@@ -106,9 +106,10 @@ def main() -> int:
         print("\nSimulación: no se escribió nada. Para aplicar: --aplicar")
         return 0
 
-    respaldo = ENV.with_suffix(
-        f".env.bak-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
-    )
+    # Los respaldos llevan secretos: van a .tools (ignorado por git).
+    carpeta = Path(".tools") / "env-bak"
+    carpeta.mkdir(parents=True, exist_ok=True)
+    respaldo = carpeta / f".env.bak-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
     shutil.copy2(ENV, respaldo)
 
     for clave, valor in cambios.items():

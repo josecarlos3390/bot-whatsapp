@@ -40,3 +40,7 @@ dev.db-wal
 dev.db-shm
 tmpl*
 prueba_es.*
+.env.env.bak-*
+
+
+.env.bak-*
