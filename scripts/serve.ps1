@@ -286,6 +286,18 @@ function Read-TunnelUrl {
     return $matches[$matches.Count - 1].Value
 }
 
+function Sync-Webhook {
+    # El túnel cambia de URL al reiniciar: si Meta no se entera, el bot no
+    # recibe nada. Se actualiza la suscripción de la app con la URL vigente.
+    try {
+        $salida = & $python -m scripts.actualizar_webhook --aplicar 2>&1
+        $ultima = ($salida | Select-Object -Last 1)
+        Log "webhook sincronizado: $ultima"
+    } catch {
+        Log "no se pudo sincronizar el webhook: $($_.Exception.Message)"
+    }
+}
+
 function Sync-TunnelUrl {
     param([string]$CurrentUrl)
 
@@ -361,6 +373,8 @@ while ($true) {
                 if (-not $bot.HasExited) { $bot | Stop-Process -Force }
                 Start-Sleep -Seconds 2
                 $bot = Start-Bot
+                # Meta tiene que apuntar a la URL nueva o el bot queda sordo.
+                Sync-Webhook
             }
         }
     } catch {

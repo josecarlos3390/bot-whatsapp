@@ -677,6 +677,44 @@ async def admin_catalog_feed(
     )
 
 
+@router.get("/feeds/catalog/{token}.csv", response_class=Response)
+async def public_catalog_feed(
+    token: str,
+    session: AsyncSession = Depends(get_session),
+):
+    """Feed para que Meta (Commerce Manager) lea el catálogo.
+
+    Va sin sesión de asesor porque Meta no puede autenticarse: el token de la
+    URL es el secreto.
+    """
+    from fastapi.responses import Response as _Response
+
+    esperado = (settings.meta_catalog_feed_token or "").strip()
+    if not esperado or token != esperado:
+        raise HTTPException(status_code=404, detail="No encontrado")
+
+    import csv
+    import io
+
+    from .services import native_commerce
+
+    filas, omitidos = await native_commerce.catalog_feed(session)
+    buffer = io.StringIO()
+    if filas:
+        writer = csv.DictWriter(buffer, fieldnames=list(filas[0].keys()))
+        writer.writeheader()
+        writer.writerows(filas)
+    return _Response(
+        content=buffer.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "X-Feed-Rows": str(len(filas)),
+            "X-Feed-Skipped": str(omitidos),
+            "Cache-Control": "no-store",
+        },
+    )
+
+
 @router.get(
     "/admin/titles-report.csv",
     dependencies=[Depends(require_supervisor)],

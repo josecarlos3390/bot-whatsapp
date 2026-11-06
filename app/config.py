@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     wa_native_cart_enabled: bool = False
     wa_catalog_id: str = ""
     wa_commerce_account_id: str = ""
+    meta_catalog_feed_token: str = ""
     meta_catalog_link_base: str = ""
     meta_catalog_placeholder_image: str = ""
     product_image_placeholder: str = ""

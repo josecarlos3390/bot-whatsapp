@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import date, timedelta
 
@@ -203,3 +203,23 @@ async def test_search_filters_and_native_catalog(session, monkeypatch):
     assert toolbox.last_catalog is not None
     assert toolbox.last_catalog["kind"] in {"product", "product_list"}
     assert toolbox.last_catalog["sections"]
+
+
+async def test_el_feed_publico_exige_token(session, monkeypatch):
+    """Meta lee el catálogo por una URL con token, sin sesión de asesor."""
+    import pytest
+    from fastapi import HTTPException
+
+    from app.api import public_catalog_feed
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "meta_catalog_feed_token", "abc123")
+
+    with pytest.raises(HTTPException):
+        await public_catalog_feed("otro-token", session=session)
+
+    respuesta = await public_catalog_feed("abc123", session=session)
+    cuerpo = respuesta.body.decode("utf-8")
+
+    assert respuesta.status_code == 200
+    assert "id,title,description" in cuerpo
