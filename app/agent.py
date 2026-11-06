@@ -4107,41 +4107,13 @@ class Agent:
         # La intro ya confirmó lo que se entendió: el listado no repite.
         # Si el resultado quedó cortado por el tope, se ofrece "ver más".
         hay_mas = len(products) >= int(limit)
-        # Con el catálogo de Meta conectado, los resultados van en una sola
-        # lista nativa: foto y precio de cada producto, y al tocar se abre la
-        # ficha con el botón de agregar al carrito.
-        if native_commerce.is_ready():
-            items = [
-                {"product_retailer_id": producto["sku"]}
-                for producto in products[:10]
-                if producto.get("sku")
-            ]
-            if items:
-                self._trace("Búsqueda con lista nativa")
-                return AgentReply(
-                    [
-                        Outbound(text=intro),
-                        Outbound(
-                            kind="product_list",
-                            text=(
-                                "Tocá un producto para ver la foto y "
-                                "agregarlo al carrito 👇"
-                            ),
-                            header_text="Productos",
-                            sections=[
-                                {"title": "Opciones", "product_items": items}
-                            ],
-                            catalog_id=settings.wa_catalog_id,
-                        ),
-                    ]
-                )
-
-        return AgentReply(
-            [
-                Outbound(text=intro),
-                *search_flow.cards(products, hay_mas=hay_mas),
-            ]
+        # _search_cards ya decide entre lista nativa y tarjetas de texto.
+        listado = (
+            self._search_cards(products)
+            if native_commerce.is_ready()
+            else search_flow.cards(products, hay_mas=hay_mas)
         )
+        return AgentReply([Outbound(text=intro), *listado])
 
     async def _mas_opciones(
         self, session: AsyncSession, contact: Contact, consulta: str
@@ -4387,7 +4359,27 @@ class Agent:
     def _search_cards(
         products: list[dict], consulta: str = ""
     ) -> list[Outbound]:
-        """Tarjetas de producto (flows/search.py)."""
+        """Resultados de una búsqueda.
+
+        Con el catálogo de Meta conectado se manda **una sola lista nativa**
+        (foto y precio); si no, las tarjetas de texto de siempre.
+        """
+        if native_commerce.is_ready():
+            items = [
+                {"product_retailer_id": producto["sku"]}
+                for producto in products[:10]
+                if producto.get("sku")
+            ]
+            if items:
+                return [
+                    Outbound(
+                        kind="product_list",
+                        text="Tocá un producto para ver la foto y agregarlo 👇",
+                        header_text="Productos",
+                        sections=[{"title": "Opciones", "product_items": items}],
+                        catalog_id=settings.wa_catalog_id,
+                    )
+                ]
         return search_flow.cards(products, consulta=consulta)
 
     @staticmethod
@@ -5478,6 +5470,21 @@ class Agent:
         # Formularios nativos (WhatsApp Flows): la respuesta y la elección de
         # entrega se atienden antes que cualquier interpretación del texto.
         from .services import flows
+
+        if normalized == "ver_catalogo" and native_commerce.is_ready():
+            self._trace("Catálogo nativo")
+            return AgentReply(
+                [
+                    Outbound(
+                        kind="catalog",
+                        text=(
+                            "Este es nuestro catálogo ROHO. Tocá un producto "
+                            "para ver la foto y agregarlo al carrito."
+                        ),
+                        catalog_id=settings.wa_catalog_id,
+                    )
+                ]
+            )
 
         if normalized == "confirmar_pedido":
             pedido = flows.mensaje_elegir_entrega()

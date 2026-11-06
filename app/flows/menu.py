@@ -16,6 +16,12 @@ from ..whatsapp import Outbound
 async def categories(agent, session: AsyncSession, contact: Contact) -> AgentReply:
     """Lista de ambientes para arrancar la conversación."""
     from ..agent import FRIENDLY_CATEGORIES, Toolbox, persona
+    from ..services import native_commerce
+
+    # WhatsApp admite 10 filas por lista: si agregamos el catálogo nativo,
+    # una categoría se deja afuera.
+    nativo = native_commerce.is_ready()
+    categorias = FRIENDLY_CATEGORIES[:8] if nativo else FRIENDLY_CATEGORIES
 
     return AgentReply(
         [
@@ -32,8 +38,19 @@ async def categories(agent, session: AsyncSession, contact: Contact) -> AgentRep
                                 "title": agent._truncate(row["label"], 24),
                                 "description": (row.get("hint") or "")[:72],
                             }
-                            for row in FRIENDLY_CATEGORIES
+                            for row in categorias
                         ]
+                        + (
+                            [
+                                {
+                                    "id": "ver_catalogo",
+                                    "title": "Ver catálogo completo",
+                                    "description": "Fotos y precios de todo",
+                                }
+                            ]
+                            if nativo
+                            else []
+                        )
                         + [
                             {
                                 "id": "search",
