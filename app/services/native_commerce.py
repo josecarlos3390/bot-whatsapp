@@ -136,6 +136,9 @@ def summary_text(summary: dict, errors: list[str] | None = None) -> str:
 
 CAMPOS_FEED = (
     "id",
+    # WhatsApp busca los productos del carrito nativo por este campo: si
+    # falta, el mensaje falla con "product not found".
+    "retailer_id",
     "title",
     "description",
     "availability",
@@ -187,6 +190,7 @@ async def catalog_feed(
         rows.append(
             {
                 "id": item.sku,
+                "retailer_id": item.sku,
                 "title": item.name[:200],
                 "description": (item.description or item.name)[:5000],
                 "availability": "in stock",
