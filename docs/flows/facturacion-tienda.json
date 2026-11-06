@@ -1,0 +1,57 @@
+{
+  "version": "7.0",
+  "screens": [
+    {
+      "id": "FACTURACION",
+      "title": "Datos de facturación",
+      "terminal": true,
+      "data": {
+        "nombre_factura": {
+          "type": "string",
+          "required": true,
+          "__example__": "Ana Pérez"
+        },
+        "documento": {
+          "type": "string",
+          "required": false,
+          "__example__": "7654321"
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextBody",
+            "text": "Estos datos van en la factura. La entrega es en tienda."
+          },
+          {
+            "type": "TextInput",
+            "name": "nombre_factura",
+            "label": "Nombre y apellido para facturación",
+            "input-type": "text",
+            "required": true
+          },
+          {
+            "type": "TextInput",
+            "name": "documento",
+            "label": "CI o NIT para la factura (opcional)",
+            "input-type": "text",
+            "required": false
+          },
+          {
+            "type": "Footer",
+            "label": "Enviar datos",
+            "on-click-action": {
+              "name": "complete",
+              "payload": {
+                "metodo": "tienda",
+                "nombre_factura": "${form.nombre_factura}",
+                "documento": "${form.documento}"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

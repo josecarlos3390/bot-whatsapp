@@ -1,0 +1,96 @@
+{
+  "version": "7.0",
+  "screens": [
+    {
+      "id": "ENTREGA",
+      "title": "Datos de entrega y facturación",
+      "terminal": true,
+      "data": {
+        "nombre_recibe": {
+          "type": "string",
+          "required": true,
+          "__example__": "Ana Pérez"
+        },
+        "direccion": {
+          "type": "string",
+          "required": true,
+          "__example__": "Av. Cristo Redentor 1234"
+        },
+        "referencia": {
+          "type": "string",
+          "required": false,
+          "__example__": "Portón negro, frente a la plaza"
+        },
+        "nombre_factura": {
+          "type": "string",
+          "required": true,
+          "__example__": "Ana Pérez"
+        },
+        "documento": {
+          "type": "string",
+          "required": false,
+          "__example__": "7654321"
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextBody",
+            "text": "Completá los datos de entrega y de facturación."
+          },
+          {
+            "type": "TextInput",
+            "name": "nombre_recibe",
+            "label": "Nombre y apellido de la persona que recibe",
+            "input-type": "text",
+            "required": true
+          },
+          {
+            "type": "TextInput",
+            "name": "direccion",
+            "label": "Dirección de entrega",
+            "input-type": "text",
+            "required": true
+          },
+          {
+            "type": "TextInput",
+            "name": "referencia",
+            "label": "Referencia (opcional)",
+            "input-type": "text",
+            "required": false
+          },
+          {
+            "type": "TextInput",
+            "name": "nombre_factura",
+            "label": "Nombre y apellido para facturación",
+            "input-type": "text",
+            "required": true
+          },
+          {
+            "type": "TextInput",
+            "name": "documento",
+            "label": "CI o NIT para la factura (opcional)",
+            "input-type": "text",
+            "required": false
+          },
+          {
+            "type": "Footer",
+            "label": "Enviar datos",
+            "on-click-action": {
+              "name": "complete",
+              "payload": {
+                "metodo": "domicilio",
+                "nombre_recibe": "${form.nombre_recibe}",
+                "direccion": "${form.direccion}",
+                "referencia": "${form.referencia}",
+                "nombre_factura": "${form.nombre_factura}",
+                "documento": "${form.documento}"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

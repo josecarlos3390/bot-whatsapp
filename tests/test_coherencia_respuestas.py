@@ -850,9 +850,10 @@ async def test_los_datos_del_formulario_nativo_se_guardan(session):
     contacto = await _contacto(session, "59170092001")
     respuesta = json.dumps(
         {
-            "nombre": "Ana Pérez",
+            "nombre_recibe": "Ana Pérez",
             "direccion": "Av. Cristo 123",
             "referencia": "Portón negro",
+            "nombre_factura": "Ana Pérez",
             "documento": "7654321",
         }
     )
@@ -875,4 +876,42 @@ def test_un_texto_cualquiera_no_es_respuesta_de_flow():
 
     assert not flows.es_respuesta("hola")
     assert not flows.es_respuesta("bs 1499")
-    assert flows.es_respuesta('{"nombre": "Ana"}')
+    assert flows.es_respuesta('{"nombre_factura": "Ana"}')
+
+async def test_la_eleccion_de_entrega_abre_el_formulario(session):
+    """Tienda y domicilio abren formularios distintos."""
+    from app.config import settings
+
+    settings.wa_flow_facturacion = "flow-tienda"
+    settings.wa_flow_entrega = "flow-domicilio"
+    contacto = await _contacto(session, "59170093001")
+
+    tienda = await Agent().handle(session, contacto, "entrega:tienda")
+    mensaje = tienda.messages[0]
+    assert mensaje.kind == "flow"
+    assert mensaje.flow_parameters["flow_id"] == "flow-tienda"
+    assert mensaje.flow_header == "Datos de facturación"
+
+    domicilio = await Agent().handle(session, contacto, "entrega:domicilio")
+    mensaje = domicilio.messages[0]
+    assert mensaje.flow_parameters["flow_id"] == "flow-domicilio"
+    assert "entrega y facturación" in mensaje.flow_header.lower()
+
+
+async def test_el_retiro_en_tienda_muestra_las_sucursales(session):
+    import json
+
+    contacto = await _contacto(session, "59170093002")
+    respuesta = await Agent().handle(
+        session,
+        contacto,
+        json.dumps(
+            {"metodo": "tienda", "nombre_factura": "Ana", "documento": "123"}
+        ),
+    )
+    texto = " ".join(m.text or "" for m in respuesta.messages)
+
+    assert "Guardé tus datos" in texto
+    assert "Zona Norte" in texto
+    assert "Zona Este" in texto
+    assert "Las Palmas" in texto

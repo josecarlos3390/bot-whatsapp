@@ -47,6 +47,11 @@ class Settings(BaseSettings):
     wa_dry_run: bool = True
     wa_native_catalog_enabled: bool = False
     wa_native_cart_enabled: bool = False
+    # WhatsApp Flows del checkout (IDs que devuelve Meta al publicarlos).
+    wa_flow_facturacion: str = ""
+    wa_flow_entrega: str = ""
+    # Ruta del PaaS que crea el pedido en VTEX (vacío = simulado).
+    vtex_order_path: str = ""
     wa_catalog_id: str = ""
     wa_commerce_account_id: str = ""
     meta_catalog_feed_token: str = ""

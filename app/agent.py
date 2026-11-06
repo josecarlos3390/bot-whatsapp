@@ -4985,24 +4985,33 @@ class Agent:
         self._trace("Datos de entrega guardados")
 
         mensajes = [Outbound(text=flows.confirmacion(actuales))]
+
+        # El pago se da por confirmado: se genera la venta con estos datos.
+        from .services import vtex_order
+
         carro = await cart_service.get_or_create_cart(session, contact.id)
         resumen = await cart_service.summary(session, carro)
         if resumen.get("lines"):
+            pedido = await vtex_order.crear_pedido(
+                session, contact, carro, actuales
+            )
             total = f"{Decimal(resumen['total']):,.2f}"
+            encabezado = "✅ *Pago confirmado*" if pedido["ok"] else "⚠️ *Atención*"
             mensajes.append(
                 Outbound(
-                    kind="buttons",
                     text=(
-                        f"🛒 Tu pedido va en *Bs {total}*.\n"
-                        "¿Lo cerramos con estos datos?"
-                    ),
-                    buttons=[
-                        {"id": "checkout", "title": "Finalizar compra"},
-                        {"id": "cart", "title": "Ver mi carrito"},
-                        {"id": "catalog", "title": "Seguir comprando"},
-                    ],
+                        f"{encabezado}\n\n"
+                        f"🛒 Total: *Bs {total}*\n"
+                        f"{pedido['mensaje']}"
+                    )
                 )
             )
+            if pedido.get("numero"):
+                mensajes.append(
+                    Outbound(text=f"🧾 Número de pedido: *{pedido['numero']}*")
+                )
+        if actuales.get("metodo") == flows.TIENDA:
+            mensajes.append(Outbound(text=flows.texto_tiendas()))
         return AgentReply(mensajes)
 
     async def _saludo_reply(
@@ -5416,6 +5425,43 @@ class Agent:
         # haga creer que el cliente ya está identificado.
         await session.refresh(contact)
 
+        # Formularios nativos (WhatsApp Flows): la respuesta y la elección de
+        # entrega se atienden antes que cualquier interpretación del texto.
+        from .services import flows
+
+        if normalized.startswith("entrega:"):
+            metodo = normalized.split(":", 1)[1].strip()
+            pedido = flows.mensaje_pedir_datos(metodo)
+            if pedido is not None:
+                self._trace(f"Entrega: {metodo}")
+                return AgentReply(
+                    [
+                        Outbound(
+                            kind=pedido["kind"],
+                            text=pedido["text"],
+                            flow_header=pedido["flow_header"],
+                            flow_parameters=pedido["flow_parameters"],
+                        )
+                    ]
+                )
+            return AgentReply(
+                [
+                    Outbound(
+                        kind="text",
+                        text=(
+                            "Todavía no tengo el formulario configurado. "
+                            "¿Te pido los datos uno por uno?"
+                        ),
+                    )
+                ]
+            )
+
+        if flows.es_respuesta(raw):
+            datos = flows.leer(raw)
+            if datos:
+                return await self._guardar_datos_entrega(session, contact, datos)
+
+
         # El botón "asesor" tiene que funcionar siempre, incluso dentro de
         # un flujo (seguimiento de pedido, devolución): era el caso donde el
         # bot seguía pidiendo el ID en lugar de derivar.
@@ -5689,17 +5735,6 @@ class Agent:
         if FAREWELL_RE.search(raw):
             self._trace("Cierre por despedida")
             return await self._farewell_reply(session, contact)
-
-        # Respuesta de un formulario nativo (WhatsApp Flows): se guarda y se
-        # confirma; no es una búsqueda ni una consulta de catálogo.
-        from .services import flows
-
-        if flows.es_respuesta(raw):
-            datos = flows.leer(raw)
-            if datos:
-                return await self._guardar_datos_entrega(
-                    session, contact, datos
-                )
 
         # "La opción 2", "la primera", "ese": se resuelve contra el último
         # listado, haya o no una ranura pendiente.

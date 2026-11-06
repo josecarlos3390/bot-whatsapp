@@ -30,6 +30,9 @@ class Outbound:
     template_lang: str = "es"
     template_parameters: list[str] = field(default_factory=list)
     button_text: str = ""
+    # Formularios nativos (WhatsApp Flows).
+    flow_header: str = ""
+    flow_parameters: dict = field(default_factory=dict)
 
 
 def _to_wa_id(phone: str) -> str:
@@ -384,6 +387,30 @@ class WhatsAppClient:
                 payload["interactive"]["header"] = {
                     "type": "text",
                     "text": message.header_text[:60],
+                }
+            if message.footer_text:
+                payload["interactive"]["footer"] = {
+                    "text": message.footer_text[:60]
+                }
+            return payload
+        if message.kind == "flow":
+            # Formulario nativo (WhatsApp Flows).
+            payload = {
+                **base,
+                "type": "interactive",
+                "interactive": {
+                    "type": "flow",
+                    "body": {"text": message.text[:1024]},
+                    "action": {
+                        "name": "flow",
+                        "parameters": message.flow_parameters,
+                    },
+                },
+            }
+            if message.flow_header:
+                payload["interactive"]["header"] = {
+                    "type": "text",
+                    "text": message.flow_header[:60],
                 }
             if message.footer_text:
                 payload["interactive"]["footer"] = {
