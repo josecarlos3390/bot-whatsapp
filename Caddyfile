@@ -1,0 +1,40 @@
+# Bot de WhatsApp de ROHO Homecenter.
+#
+# Caddy obtiene y renueva el certificado solo (Let's Encrypt) y hace de
+# frente para el bot, que escucha en local.
+#
+# Requisitos:
+#   - DNS: bot.roho.bo -> A -> IP publica del servidor
+#   - Puertos 80 y 443 abiertos hacia el servidor
+#   - El bot corriendo en 127.0.0.1:8010
+
+bot.roho.bo {
+	encode gzip
+
+	# Todo el trafico va al bot; el HTTPS lo termina Caddy.
+	reverse_proxy 127.0.0.1:8010 {
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Real-IP {remote_host}
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	log {
+		output file {
+			filename "C:\ProyectosPython\chatbot-whatsapp\.tools\caddy-access.log"
+			roll_size 20mb
+			roll_keep 5
+		}
+	}
+}
+
+# Redirige el apex al subdominio (evita confusiones con el ecommerce).
+www.bot.roho.bo {
+	redir https://bot.roho.bo{uri} permanent
+}

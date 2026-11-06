@@ -149,3 +149,29 @@ Frecuencia: cada 6 horas
 
 **El dominio fijo no es un requisito para probar**, sí para operar sin
 sorpresas.
+
+## Aviso sobre 	est.roho.bo
+
+**	est.roho.bo NO está libre**: resuelve a 	est.roho.bo.cdn.vtex.com
+(CloudFront) y sirve los assets del ecommerce. Cambiarlo rompe las imágenes del
+sitio.
+
+Para el bot se usa **ot.roho.bo**.
+
+Requisitos que habilita redes:
+
+| # | Requisito |
+|---|---|
+| 1 | IP pública fija del servidor |
+| 2 | Puertos 80 y 443 abiertos |
+| 3 | Registro A ot.roho.bo → esa IP |
+
+## Instalación en un comando
+
+`powershell
+# Como administrador, con el DNS ya apuntando
+.\\.venv\\Scripts\\python.exe -m scripts.instalar_caddy --aplicar
+`
+
+El script descarga Caddy, valida el Caddyfile, lo instala como servicio y lo
+arranca. El certificado se emite en el primer acceso.
