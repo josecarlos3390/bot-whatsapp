@@ -1,68 +1,113 @@
-# Migrar el bot del número de prueba al número real
+# Migración del número de prueba al número real
 
-## Quién guía qué
+## Quién hace qué
 
-| Tema | Lo lleva | Por qué |
-|---|---|---|
-| **Meta / WhatsApp** | **Equipo del bot** | Es la cuenta de WhatsApp Business: número, token, webhook, plantillas |
-| **PaaS / VTEX** | Solo avisar | No depende del número; el carrito y el catálogo no cambian |
-| **Infraestructura** (servicio, túnel, `.env`) | Equipo del bot | La configuración vive en el servidor del bot |
-
-**Respuesta corta:** lo guía el **equipo del bot**. El PaaS solo necesita
-enterarse (y confirmar que no filtra por número).
-
-## Diferencia entre el número de prueba y el real
-
-| | Número de prueba | Número real |
-|---|---|---|
-| Destinatarios | Solo **5 números** autorizados | Cualquier cliente |
-| Nombre visible | Genérico | **Requiere aprobación de Meta** |
-| Verificación | No | Verificación del negocio |
-| Límite de mensajes | Bajo | Según calidad del número |
-| Plantillas | Igual | Igual (siguen siendo obligatorias fuera de 24 h) |
-| Costo | Gratis | **Se factura por conversación** |
-
-## Antes de empezar: lo que hay que tener
-
-| Requisito | Detalle |
+| Tema | Equipo |
 |---|---|
-| Número | Que **no esté en WhatsApp** (ni normal ni Business). Si tiene WhatsApp, hay que borrar la cuenta primero |
-| Tipo de número | Fijo o móvil, con capacidad de recibir SMS o llamada (para el código) |
-| Meta Business Manager | Cuenta verificada del negocio |
-| Nombre visible | El que verán los clientes (ej. *ROHO Homecenter*) |
-| Método de pago | Tarjeta para la facturación de Meta |
-| Acceso de administrador | Al Business Manager y a la app de Meta |
+| Cuenta de WhatsApp Business, número, token, webhook, plantillas | **Bot** |
+| Dominio fijo (DNS) | Infraestructura / Bot |
+| Carrito, catálogo, checkout | **PaaS** (solo se avisa) |
 
-## Pasos
+**En corto:** lo guía el equipo del bot. El PaaS solo recibe un aviso.
 
-### 1. Registrar el número (Meta)
+## Antes de empezar: 3 definiciones
 
-1. Business Manager → **Cuentas de WhatsApp** → agregar número.
-2. Elegir el número y el nombre visible.
-3. Verificar por SMS o llamada.
-4. Esperar la aprobación del nombre (puede tardar minutos u horas).
+| # | Definición | Ejemplo |
+|---|---|---|
+| 1 | **Número** (fijo o móvil boliviano) | `+591 3xxxxxxx` |
+| 2 | **Nombre visible** que verá el cliente | `ROHO Homecenter` |
+| 3 | **Dominio fijo** para el webhook | `bot.roho.com.bo` |
 
-### 2. Obtener los datos nuevos
+⚠️ El número **no debe tener WhatsApp activo**. Si lo tiene, hay que borrar esa
+cuenta primero (WhatsApp normal o Business).
+
+⚠️ El túnel actual (`*.trycloudflare.com`) **cambia al reiniciar**. Con un
+dominio fijo eso deja de ser un problema.
+
+---
+
+## Parte 1 · En Meta (lo hacemos acá)
+
+### 1.1 Agregar el número
+
+[WhatsApp Manager → Números de teléfono](https://business.facebook.com/wa/manage/phone-numbers/)
+→ **Agregar número de teléfono**
+
+- Nombre visible: el definido
+- Categoría: Retail / Comercio
+- Descripción: “Productos para el hogar”
+- Verificación: SMS o llamada
+
+### 1.2 Aprobar el nombre
+
+Meta revisa el nombre visible. Puede tardar minutos u horas.
+[Guía oficial](https://developers.facebook.com/docs/whatsapp/cloud-api/phone-numbers)
+
+### 1.3 Método de pago
+
+[Configuración del negocio → Facturación](https://business.facebook.com/settings/)
+Sin método de pago, el número queda limitado.
+
+### 1.4 Obtener los datos del número
+
+[App de Meta → WhatsApp → Configuración de la API](https://developers.facebook.com/apps/)
 
 | Dato | Dónde |
 |---|---|
-| `WA_PHONE_NUMBER_ID` | WhatsApp → Configuración de la API |
-| `WA_WABA_ID` | WhatsApp → Configuración de la cuenta |
-| `WA_BUSINESS_NUMBER` | El número en formato internacional |
-| `WA_ACCESS_TOKEN` | Token **permanente** (no el temporal de 24 h) |
+| `WA_PHONE_NUMBER_ID` | “Identificador del número de teléfono” |
+| `WA_WABA_ID` | “Identificador de la cuenta de WhatsApp Business” |
+| `WA_BUSINESS_NUMBER` | El número en formato `+591…` |
 
-### 3. Configurar el webhook
+### 1.5 Token permanente
 
-```
-URL:      https://{dominio}/webhooks/whatsapp
-Token:    el mismo WA_VERIFY_TOKEN del .env
-Suscribir: messages
-```
+[Configuración del negocio → Usuarios del sistema](https://business.facebook.com/settings/system-users)
 
-**Ojo:** el túnel de prueba cambia de URL al reiniciar. Para producción hace
-falta un **dominio fijo**.
+1. Crear un usuario del sistema (o usar uno existente).
+2. **Generar token** con estos permisos:
+   - `whatsapp_business_messaging`
+   - `whatsapp_business_management`
+3. Copiarlo. **Es el `WA_ACCESS_TOKEN`.**
+   [Guía de tokens](https://developers.facebook.com/documentation/business-messaging/whatsapp/access-tokens)
 
-### 4. Actualizar el `.env` y reiniciar
+⚠️ El token de “Configuración de la API” dura **24 horas**. Para producción
+hace falta el del usuario del sistema.
+
+### 1.6 Webhook
+
+[App → WhatsApp → Configuración](https://developers.facebook.com/apps/)
+
+| Campo | Valor |
+|---|---|
+| URL de devolución | `https://{dominio}/webhooks/whatsapp` |
+| Token de verificación | el `WA_VERIFY_TOKEN` del `.env` |
+| Campos suscritos | **`messages`** |
+
+### 1.7 Plantillas
+
+[WhatsApp Manager → Plantillas de mensajes](https://business.facebook.com/wa/manage/message-templates/)
+
+Las del número de prueba **no se heredan**. Hay que recrear:
+
+| Plantilla | Texto |
+|---|---|
+| `carrito_sin_terminar` | ver `docs/plantilla-carrito-abandonado.md` |
+| Encuesta de satisfacción | la que ya usa el bot |
+
+---
+
+## Parte 2 · En el servidor (lo hacemos acá)
+
+### 2.1 Dominio fijo
+
+Opciones, de mejor a peor:
+
+| Opción | Ventaja |
+|---|---|
+| Subdominio del dominio propio (`bot.roho.com.bo`) | Estable, HTTPS, sin costo |
+| Túnel nombrado de Cloudflare | Estable, requiere cuenta |
+| Túnel rápido (hoy) | Cambia en cada reinicio ❌ |
+
+### 2.2 Actualizar `.env`
 
 ```env
 WA_PHONE_NUMBER_ID=...
@@ -71,62 +116,90 @@ WA_BUSINESS_NUMBER=+591...
 WA_ACCESS_TOKEN=...
 WA_VERIFY_TOKEN=...        # puede quedar el mismo
 WA_DRY_RUN=false
+PUBLIC_BASE_URL=https://{dominio}
 ```
+
+### 2.3 Reiniciar y verificar
 
 ```powershell
 Restart-Service RohoBot
-```
-
-### 5. Verificar
-
-```powershell
-# Estado del número y un envío de prueba
 .\.venv\Scripts\python.exe -m scripts.diagnostico_whatsapp
 ```
 
-Debe devolver:
+Debe mostrar:
 
-- `status` del número en `CONNECTED`
-- `code_verification_status` en `VERIFIED`
-- el envío de prueba llega al teléfono
+- `status` del número en **CONNECTED**
+- `code_verification_status` en **VERIFIED**
+- el mensaje de prueba llega al teléfono
 
-### 6. Plantillas
+### 2.4 Probar de punta a punta
 
-Las plantillas aprobadas en el **número de prueba no se heredan**: hay que
-volver a crearlas en la cuenta nueva.
+1. Escribir al número nuevo desde tu celular.
+2. Pedir un producto, agregarlo al carrito y cerrar el pedido.
+3. Verificar el link de VTEX.
+4. Revisar que el caso llegue a la consola.
 
-| Plantilla | Uso |
-|---|---|
-| `carrito_sin_terminar` | Recordatorio de carrito |
-| La de encuesta (`feedback`) | Satisfacción |
+### 2.5 Vigilar
 
-### 7. Avisar al PaaS
+```powershell
+Get-Content logs\envios-alerta.txt -Tail 5
+```
 
-> Migramos el bot al número real `+591...`. No hay cambios de contrato: mismo
-> carrito, mismo catálogo. Solo avisamos por si su integración filtra por
-> número de WhatsApp.
+Si dice “el bot lleva 3 envíos fallidos seguidos”, el token o el número están
+mal.
+
+---
+
+## Parte 3 · Aviso al PaaS
+
+Mensaje corto, sin pedir cambios:
+
+> Migramos el bot al número real `+591…` (`phone_number_id …`).
+> No hay cambios de contrato: mismo carrito, mismo catálogo, mismo checkout.
+> Solo avisamos por si su integración filtra por número de WhatsApp.
+
+**Lo único que podría necesitar el PaaS:** confirmar que no filtra por
+`wa_id` ni por `phone_number_id`.
+
+---
 
 ## Qué se rompe si falta un paso
 
 | Falta | Síntoma |
 |---|---|
-| Token permanente | El bot deja de enviar a las 24 h |
-| Webhook sin `messages` | El bot recibe pero no responde |
-| Nombre no aprobado | Los clientes ven un nombre genérico |
-| Plantillas no recreadas | Los recordatorios fallan con `131047` |
-| Dominio fijo | El túnel cambia y Meta deja de entregar |
+| Token permanente | Deja de enviar a las 24 h (`131047`/401) |
+| Webhook sin `messages` | Recibe pero no responde |
+| Nombre sin aprobar | Los clientes ven un nombre genérico |
+| Plantillas no recreadas | Los recordatorios fallan |
+| Dominio fijo | Tras un reinicio Meta deja de entregar |
+| Método de pago | Límite de conversaciones |
 
-## Durante la migración
+## Checklist
 
-1. **No borres el número de prueba** hasta que el real funcione.
-2. Probá con tu propio número primero.
-3. Revisá `logs/envios-alerta.txt`: si hay fallos seguidos, algo quedó mal.
-4. Los chats existentes **no se migran**: es un número nuevo, con otra bandeja.
-   Si se necesita el historial, hay que exportarlo aparte.
+```
+Antes
+[ ] Número definido y sin WhatsApp activo
+[ ] Nombre visible definido
+[ ] Dominio fijo definido
 
-## Lo que no cambia
+Meta
+[ ] Número agregado y verificado
+[ ] Nombre aprobado
+[ ] Método de pago cargado
+[ ] Phone number ID y WABA ID anotados
+[ ] Token permanente generado
+[ ] Webhook con URL, token y campo messages
+[ ] Plantillas recreadas
 
-- El código del bot.
-- El carrito, catálogo, precios y políticas.
-- La consola y los asesores.
-- La base de datos (los contactos nuevos entran con otro `wa_id`).
+Servidor
+[ ] .env actualizado
+[ ] Servicio reiniciado
+[ ] diagnostico_whatsapp en verde
+[ ] Prueba real desde un celular
+[ ] logs/envios-alerta.txt sin errores
+
+Cierre
+[ ] PaaS avisado
+[ ] Testers avisados del número nuevo
+[ ] Número de prueba conservado una semana
+```
