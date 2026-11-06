@@ -4107,12 +4107,38 @@ class Agent:
         # La intro ya confirmó lo que se entendió: el listado no repite.
         # Si el resultado quedó cortado por el tope, se ofrece "ver más".
         hay_mas = len(products) >= int(limit)
-        # Si el catálogo de Meta está conectado, los primeros resultados van
-        # también como producto nativo: foto y botón "Agregar al carrito".
+        # Con el catálogo de Meta conectado, los resultados van en una sola
+        # lista nativa: foto y precio de cada producto, y al tocar se abre la
+        # ficha con el botón de agregar al carrito.
+        if native_commerce.is_ready():
+            items = [
+                {"product_retailer_id": producto["sku"]}
+                for producto in products[:10]
+                if producto.get("sku")
+            ]
+            if items:
+                self._trace("Búsqueda con lista nativa")
+                return AgentReply(
+                    [
+                        Outbound(text=intro),
+                        Outbound(
+                            kind="product_list",
+                            text=(
+                                "Tocá un producto para ver la foto y "
+                                "agregarlo al carrito 👇"
+                            ),
+                            header_text="Productos",
+                            sections=[
+                                {"title": "Opciones", "product_items": items}
+                            ],
+                            catalog_id=settings.wa_catalog_id,
+                        ),
+                    ]
+                )
+
         return AgentReply(
             [
                 Outbound(text=intro),
-                *self._tarjetas_nativas(products, maximo=3),
                 *search_flow.cards(products, hay_mas=hay_mas),
             ]
         )

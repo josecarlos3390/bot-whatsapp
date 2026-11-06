@@ -255,3 +255,43 @@ def test_la_ficha_publica_muestra_el_producto(session, monkeypatch):
     assert "Taladro Página" in cuerpo
     assert "450" in cuerpo
     assert "wa.me" in cuerpo
+
+async def test_la_busqueda_usa_la_lista_nativa(session, monkeypatch):
+    """Con catálogo conectado, los resultados van en una sola lista."""
+    from app.config import settings
+    from app.models import CatalogItem
+
+    monkeypatch.setattr(settings, "wa_native_catalog_enabled", True)
+    monkeypatch.setattr(settings, "wa_catalog_id", "cat-1")
+    monkeypatch.setattr(settings, "wa_access_token", "token")
+    monkeypatch.setattr(settings, "wa_phone_number_id", "123")
+    session.add(
+        CatalogItem(
+            sku="LISTA-1",
+            name="Zapatilla Unica Lista",
+            price="500",
+            stock=3,
+            brand="T",
+            category="Herramientas",
+            active=True,
+        )
+    )
+    await session.commit()
+    from app.agent import Agent
+    from app.models import Contact, Conversation
+
+    contacto = Contact(
+        wa_id="59170094001", phone_e164="+59170094001", name="Prueba"
+    )
+    session.add(contacto)
+    await session.flush()
+    session.add(Conversation(contact_id=contacto.id))
+    await session.commit()
+
+    respuesta = await Agent().handle(session, contacto, "zapatilla unica lista")
+
+    tipos = [mensaje.kind for mensaje in respuesta.messages]
+    assert "product_list" in tipos
+    lista = next(m for m in respuesta.messages if m.kind == "product_list")
+    items = lista.sections[0]["product_items"]
+    assert items[0]["product_retailer_id"] == "LISTA-1"
