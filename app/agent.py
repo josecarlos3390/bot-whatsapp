@@ -4966,6 +4966,45 @@ class Agent:
         await conversation_guard.clear_pending(session, contact)
         return None
 
+    async def _guardar_datos_entrega(
+        self, session: AsyncSession, contact: Contact, datos: dict
+    ) -> AgentReply:
+        """Guarda lo que devolvió el formulario nativo y sigue el flujo."""
+        from .services import conversation_state, flows
+
+        conversacion = await session.scalar(
+            select(Conversation).where(Conversation.contact_id == contact.id)
+        )
+        if conversacion is None:
+            return AgentReply([Outbound(text=flows.confirmacion(datos))])
+        estado = await conversation_state.get_state(session, conversacion.id)
+        actuales = dict(estado.delivery_data or {})
+        actuales.update(datos)
+        estado.delivery_data = actuales
+        await session.commit()
+        self._trace("Datos de entrega guardados")
+
+        mensajes = [Outbound(text=flows.confirmacion(actuales))]
+        carro = await cart_service.get_or_create_cart(session, contact.id)
+        resumen = await cart_service.summary(session, carro)
+        if resumen.get("lines"):
+            total = f"{Decimal(resumen['total']):,.2f}"
+            mensajes.append(
+                Outbound(
+                    kind="buttons",
+                    text=(
+                        f"🛒 Tu pedido va en *Bs {total}*.\n"
+                        "¿Lo cerramos con estos datos?"
+                    ),
+                    buttons=[
+                        {"id": "checkout", "title": "Finalizar compra"},
+                        {"id": "cart", "title": "Ver mi carrito"},
+                        {"id": "catalog", "title": "Seguir comprando"},
+                    ],
+                )
+            )
+        return AgentReply(mensajes)
+
     async def _saludo_reply(
         self, session: AsyncSession, contact: Contact
     ) -> AgentReply:
@@ -5650,6 +5689,17 @@ class Agent:
         if FAREWELL_RE.search(raw):
             self._trace("Cierre por despedida")
             return await self._farewell_reply(session, contact)
+
+        # Respuesta de un formulario nativo (WhatsApp Flows): se guarda y se
+        # confirma; no es una búsqueda ni una consulta de catálogo.
+        from .services import flows
+
+        if flows.es_respuesta(raw):
+            datos = flows.leer(raw)
+            if datos:
+                return await self._guardar_datos_entrega(
+                    session, contact, datos
+                )
 
         # "La opción 2", "la primera", "ese": se resuelve contra el último
         # listado, haya o no una ranura pendiente.

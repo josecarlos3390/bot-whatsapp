@@ -80,6 +80,9 @@ class ConversationState(Base):
     # SKUs que se mostraron en la última respuesta: sirve para no repetir
     # el mismo listado cuando el cliente pide otra cosa.
     shown_skus: Mapped[list | None] = mapped_column(JSON, default=list)
+    # Datos que devuelve el formulario nativo (WhatsApp Flows): nombre,
+    # direccion, referencia, documento.
+    delivery_data: Mapped[dict | None] = mapped_column(JSON)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )

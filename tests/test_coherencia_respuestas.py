@@ -837,3 +837,42 @@ async def test_un_producto_corto_sigue_buscando(session):
     respuesta = await Agent().handle(session, contacto, "silla plegable")
 
     assert "Silla" in " ".join(m.text or "" for m in respuesta.messages)
+
+async def test_los_datos_del_formulario_nativo_se_guardan(session):
+    """La respuesta de un WhatsApp Flow se guarda y se confirma."""
+    import json
+
+    from sqlalchemy import select
+
+    from app.models import Conversation
+    from app.services import conversation_state, flows
+
+    contacto = await _contacto(session, "59170092001")
+    respuesta = json.dumps(
+        {
+            "nombre": "Ana Pérez",
+            "direccion": "Av. Cristo 123",
+            "referencia": "Portón negro",
+            "documento": "7654321",
+        }
+    )
+
+    salida = await Agent().handle(session, contacto, respuesta)
+    texto = " ".join(m.text or "" for m in salida.messages)
+
+    assert "Guardé tus datos" in texto
+    assert "Ana Pérez" in texto
+
+    conversacion = await session.scalar(
+        select(Conversation).where(Conversation.contact_id == contacto.id)
+    )
+    estado = await conversation_state.get_state(session, conversacion.id)
+    assert estado.delivery_data["direccion"] == "Av. Cristo 123"
+
+
+def test_un_texto_cualquiera_no_es_respuesta_de_flow():
+    from app.services import flows
+
+    assert not flows.es_respuesta("hola")
+    assert not flows.es_respuesta("bs 1499")
+    assert flows.es_respuesta('{"nombre": "Ana"}')
