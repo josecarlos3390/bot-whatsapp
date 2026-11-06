@@ -751,10 +751,9 @@ async def admin_catalog_feed(
 
     filas, omitidos = await native_commerce.catalog_feed(session)
     buffer = io.StringIO()
-    if filas:
-        writer = csv.DictWriter(buffer, fieldnames=list(filas[0].keys()))
-        writer.writeheader()
-        writer.writerows(filas)
+    writer = csv.DictWriter(buffer, fieldnames=list(native_commerce.CAMPOS_FEED))
+    writer.writeheader()
+    writer.writerows(filas)
     cabecera = {"X-Feed-Rows": str(len(filas)), "X-Feed-Skipped": str(omitidos)}
     return Response(
         content=buffer.getvalue(),
@@ -786,10 +785,9 @@ async def public_catalog_feed(
 
     filas, omitidos = await native_commerce.catalog_feed(session)
     buffer = io.StringIO()
-    if filas:
-        writer = csv.DictWriter(buffer, fieldnames=list(filas[0].keys()))
-        writer.writeheader()
-        writer.writerows(filas)
+    writer = csv.DictWriter(buffer, fieldnames=list(native_commerce.CAMPOS_FEED))
+    writer.writeheader()
+    writer.writerows(filas)
     return _Response(
         content=buffer.getvalue(),
         media_type="text/csv; charset=utf-8",

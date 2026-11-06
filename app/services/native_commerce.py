@@ -134,6 +134,20 @@ def summary_text(summary: dict, errors: list[str] | None = None) -> str:
     return "\n".join(lines)
 
 
+CAMPOS_FEED = (
+    "id",
+    "title",
+    "description",
+    "availability",
+    "condition",
+    "price",
+    "link",
+    "image_link",
+    "brand",
+    "category",
+)
+
+
 async def catalog_feed(
     session: AsyncSession, limit: int | None = None
 ) -> tuple[list[dict], int]:
@@ -163,11 +177,9 @@ async def catalog_feed(
     rows: list[dict] = []
     skipped = 0
     for item in items:
-        image = (
-            item.image_url
-            or imagenes.get(item.sku)
-            or settings.meta_catalog_placeholder_image
-        )
+        # Meta rechaza productos sin foto real: el placeholder sirve para la
+        # ficha del bot, no para el catálogo.
+        image = item.image_url or imagenes.get(item.sku)
         if not image:
             skipped += 1
             continue
