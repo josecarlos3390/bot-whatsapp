@@ -22,6 +22,11 @@ def force_mock_sap(monkeypatch):
     # El horario de atención cambia las respuestas de derivación: se apaga
     # para que la suite no dependa de la hora a la que se corre.
     monkeypatch.setattr(settings, "office_hours_enabled", False)
+    # El catálogo nativo se enciende en los tests que lo prueban: si queda
+    # encendido por el .env, cambia el comportamiento del resto.
+    monkeypatch.setattr(settings, "wa_native_catalog_enabled", False)
+    monkeypatch.setattr(settings, "wa_native_cart_enabled", False)
+    monkeypatch.setattr(settings, "wa_catalog_id", "")
 
 
 @pytest.fixture
