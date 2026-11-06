@@ -626,6 +626,22 @@ async def search_items(
                 )
             ).all()
         )
+    if not rows and len(terms) >= 2:
+        # "spider man" contra "Spiderman": el nombre viene junto en el
+        # catálogo y la búsqueda por palabras separadas no lo encontraba.
+        junto = "".join(terms)
+        if junto and junto not in terms:
+            stmt = base().where(
+                *_match_all([junto], portable=portable)
+            )
+            rows = list(
+                (
+                    await session.scalars(
+                        stmt.order_by(CatalogItem.name).limit(fetch_limit)
+                    )
+                ).all()
+            )
+
     # "sofá gris de cuero": si el cliente nombra color o material, se filtra
     # por ese atributo. Si el filtro deja la lista vacía, se muestra igual lo
     # que había (mejor eso que nada).
