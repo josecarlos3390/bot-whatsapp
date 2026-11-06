@@ -203,3 +203,39 @@ Cierre
 [ ] Testers avisados del número nuevo
 [ ] Número de prueba conservado una semana
 ```
+
+## Número asignado
+
+**+591 69114625** (nombre visible: *ROHO Homecenter*).
+
+Estado al 6/11/2026: nombre **en revisión** y número **pendiente**. No se puede
+usar hasta que pase a **CONNECTED**.
+
+Mientras espera:
+
+| Tarea | Quién | ¿Se puede ahora? |
+|---|---|---|
+| Dominio fijo para el webhook | Bot / sistemas | ✅ |
+| Método de pago | Negocio | ✅ |
+| Token permanente | Bot | ✅ |
+| Plantillas recreadas | Bot | ✅ |
+| Cambiar el .env | Bot | ⏸ espera el phone_number_id y el estado CONNECTED |
+
+### Verificar el estado
+
+`powershell
+# El número del .env
+.\.venv\Scripts\python.exe -m scripts.verificar_numero
+
+# Uno puntual (por ejemplo el nuevo)
+.\.venv\Scripts\python.exe -m scripts.verificar_numero --id 123456789
+`
+
+El script falla (exit 1) si el número todavía no sirve y dice qué falta.
+
+### El otro número
+
++591 72104406 (ROHO Homecenter entregas) está conectado y con calidad alta,
+pero su nombre visible fue **rechazado**. No se usa para el bot salvo que se
+decida lo contrario; si se usa, primero hay que corregir el nombre y darlo de
+baja de la app de WhatsApp del teléfono.
