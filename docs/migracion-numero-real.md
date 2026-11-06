@@ -239,3 +239,44 @@ El script falla (exit 1) si el número todavía no sirve y dice qué falta.
 pero su nombre visible fue **rechazado**. No se usa para el bot salvo que se
 decida lo contrario; si se usa, primero hay que corregir el nombre y darlo de
 baja de la app de WhatsApp del teléfono.
+
+## Estado real de la migración (6/11/2026)
+
+| Paso | Estado |
+|---|---|
+| Número dado de alta | ✅ `+591 69114625` |
+| Verificación por SMS | ✅ `VERIFIED` |
+| **Registro en la API** (PIN) | ✅ `CONNECTED` |
+| Nombre visible | ✅ ROHO Homecenter |
+| Token permanente | ✅ usuario del sistema `bot-whatsapp` |
+| Token guardado en `.env` | ✅ |
+| `WA_PHONE_NUMBER_ID` | ✅ `1448102138378768` |
+| `WA_WABA_ID` | ✅ `106975815570848` |
+| Cuenta suscrita a la app | ✅ `subscribed_apps` |
+| Servicio reiniciado | ⏳ |
+| Prueba desde un celular | ⏳ |
+
+### Números de la misma cuenta
+
+| Número | Nombre | Estado |
+|---|---|---|
+| `+591 69114625` | ROHO Homecenter | CONNECTED (el del bot) |
+| `+591 72100717` | ROHO Homecenter | CONNECTED |
+| `+591 67706000` | MAESTRO Constructor | CONNECTED |
+| `+591 72104406` | ROHO Homecenter entregas | nombre rechazado |
+
+### Cómo se registró
+
+```bash
+POST /1448102138378768/register
+{"messaging_product": "whatsapp", "pin": "<6 dígitos>"}
+```
+
+El PIN queda como verificación en dos pasos del número: hay que guardarlo.
+Sin él no se puede volver a registrar el número.
+
+### Pendiente crítico
+
+El webhook de la app apunta al túnel de Cloudflare, que **cambia de URL al
+reiniciar**. Para producción hace falta un dominio fijo.
+
