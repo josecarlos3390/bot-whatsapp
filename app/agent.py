@@ -4107,9 +4107,12 @@ class Agent:
         # La intro ya confirmó lo que se entendió: el listado no repite.
         # Si el resultado quedó cortado por el tope, se ofrece "ver más".
         hay_mas = len(products) >= int(limit)
+        # Si el catálogo de Meta está conectado, los primeros resultados van
+        # también como producto nativo: foto y botón "Agregar al carrito".
         return AgentReply(
             [
                 Outbound(text=intro),
+                *self._tarjetas_nativas(products, maximo=3),
                 *search_flow.cards(products, hay_mas=hay_mas),
             ]
         )
@@ -4332,6 +4335,27 @@ class Agent:
         return await search_flow.price_reply(
             self, session, contact, raw, direction, base_hint
         )
+
+    def _tarjetas_nativas(
+        self, products: list[dict], maximo: int = 3
+    ) -> list[Outbound]:
+        """Productos nativos (foto + botón Agregar) del catálogo de Meta."""
+        if not native_commerce.is_ready():
+            return []
+        tarjetas: list[Outbound] = []
+        for producto in products[:maximo]:
+            sku = producto.get("sku")
+            if not sku:
+                continue
+            tarjetas.append(
+                Outbound(
+                    kind="product",
+                    text=(producto.get("name") or "")[:200],
+                    catalog_id=settings.wa_catalog_id,
+                    product_retailer_id=sku,
+                )
+            )
+        return tarjetas
 
     @staticmethod
     def _search_cards(
