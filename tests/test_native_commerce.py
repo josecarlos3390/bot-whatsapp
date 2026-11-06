@@ -271,6 +271,7 @@ async def test_la_busqueda_usa_la_lista_nativa(session, monkeypatch):
             name="Zapatilla Unica Lista",
             price="500",
             stock=3,
+            image_url="https://rodabo.vteximg.com.br/x.png",
             brand="T",
             category="Herramientas",
             active=True,
@@ -295,3 +296,24 @@ async def test_la_busqueda_usa_la_lista_nativa(session, monkeypatch):
     lista = next(m for m in respuesta.messages if m.kind == "product_list")
     items = lista.sections[0]["product_items"]
     assert items[0]["product_retailer_id"] == "LISTA-1"
+
+def test_la_lista_nativa_excluye_productos_sin_foto(monkeypatch):
+    """Un SKU sin foto en el catalogo de Meta hace fallar todo el mensaje."""
+    from app.agent import Agent
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "wa_native_catalog_enabled", True)
+    monkeypatch.setattr(settings, "wa_catalog_id", "cat-1")
+    monkeypatch.setattr(settings, "wa_access_token", "token")
+    monkeypatch.setattr(settings, "wa_phone_number_id", "123")
+
+    productos = [
+        {"sku": "CON-FOTO", "name": "Con foto", "image_url": "https://x/1.png"},
+        {"sku": "SIN-FOTO", "name": "Sin foto", "image_url": None},
+    ]
+
+    salida = Agent._search_cards(productos)
+
+    assert len(salida) == 1
+    items = salida[0].sections[0]["product_items"]
+    assert [item["product_retailer_id"] for item in items] == ["CON-FOTO"]

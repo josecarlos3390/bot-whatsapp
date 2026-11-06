@@ -4365,11 +4365,13 @@ class Agent:
         (foto y precio); si no, las tarjetas de texto de siempre.
         """
         if native_commerce.is_ready():
+            # Solo entran los que tienen foto: el feed de Meta excluye a los
+            # demás y un SKU ausente hace fallar TODO el mensaje (131009).
             items = [
                 {"product_retailer_id": producto["sku"]}
-                for producto in products[:10]
-                if producto.get("sku")
-            ]
+                for producto in products
+                if producto.get("sku") and producto.get("image_url")
+            ][:10]
             if items:
                 return [
                     Outbound(
