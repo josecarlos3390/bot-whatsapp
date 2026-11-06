@@ -648,6 +648,92 @@ async def admin_readiness(
     return {"ok": True, **(await readiness.readiness(session))}
 
 
+@router.get("/p/{sku}", response_class=HTMLResponse, include_in_schema=False)
+async def public_product_page(
+    sku: str,
+    session: AsyncSession = Depends(get_session),
+):
+    """Ficha pública de producto.
+
+    Es el link que Meta exige para el catálogo nativo: abre sin sesión, muestra
+    la foto y el precio del catálogo (sincronizado de VTEX) y ofrece comprar
+    por WhatsApp.
+    """
+    from html import escape
+    from decimal import Decimal
+
+    from .models import CatalogItem
+
+    item = await session.scalar(
+        select(CatalogItem).where(CatalogItem.sku == sku.strip().upper())
+    )
+    if item is None or not item.active:
+        return HTMLResponse(
+            "<h1>Producto no disponible</h1>"
+            "<p>Ese artículo ya no está en el catálogo.</p>",
+            status_code=404,
+        )
+
+    try:
+        precio = f"{Decimal(item.price):,.2f}"
+    except Exception:  # noqa: BLE001 - precio ya formateado
+        precio = str(item.price)
+
+    disponible = "Disponible" if (item.stock or 0) > 0 else "Sin stock"
+    enlace = f"https://wa.me/{settings.wa_business_number.lstrip('+')}"
+    mensaje = (
+        f"{enlace}?text="
+        + escape(f"Hola, quiero comprar {item.name} ({item.sku})")
+    )
+    foto = item.image_url or settings.meta_catalog_placeholder_image
+
+    html = f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{escape(item.name)} · ROHO Homecenter</title>
+<meta property="og:title" content="{escape(item.name)}">
+<meta property="og:image" content="{escape(foto or '')}">
+<meta property="og:description" content="{escape(precio)} Bs · ROHO Homecenter">
+<style>
+  body {{ margin:0; font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+         background:#f6f7f9; color:#1f2328; }}
+  .caja {{ max-width:720px; margin:0 auto; background:#fff; min-height:100vh; }}
+  img {{ width:100%; aspect-ratio:1/1; object-fit:contain; background:#fff; }}
+  .cuerpo {{ padding:20px; }}
+  h1 {{ font-size:1.25rem; margin:0 0 8px; line-height:1.35; }}
+  .marca {{ color:#57606a; font-size:.9rem; margin-bottom:14px; }}
+  .precio {{ font-size:1.6rem; font-weight:700; color:#c8102e; }}
+  .estado {{ display:inline-block; font-size:.8rem; padding:2px 8px;
+            border-radius:999px; background:#e8f5e9; color:#1b5e20;
+            margin-left:8px; }}
+  .sku {{ color:#57606a; font-size:.85rem; margin-top:6px; }}
+  .desc {{ margin-top:16px; color:#30363d; line-height:1.6; }}
+  .boton {{ display:block; text-align:center; margin-top:24px;
+           background:#25d366; color:#fff; text-decoration:none;
+           padding:14px; border-radius:10px; font-weight:600; }}
+  .nota {{ color:#57606a; font-size:.8rem; margin-top:14px; text-align:center; }}
+</style>
+</head>
+<body>
+<div class="caja">
+  <img src="{escape(foto or '')}" alt="{escape(item.name)}">
+  <div class="cuerpo">
+    <h1>{escape(item.name)}</h1>
+    <div class="marca">{escape(item.brand or '')}</div>
+    <div class="precio">Bs {precio}<span class="estado">{disponible}</span></div>
+    <div class="sku">Código: {escape(item.sku)}</div>
+    <div class="desc">{escape((item.description or '')[:600])}</div>
+    <a class="boton" href="{mensaje}">Comprar por WhatsApp</a>
+    <div class="nota">Precio y stock según ROHO Homecenter.</div>
+  </div>
+</div>
+</body>
+</html>"""
+    return HTMLResponse(html)
+
+
 @router.get(
     "/admin/catalog-feed.csv",
     dependencies=[Depends(require_supervisor)],

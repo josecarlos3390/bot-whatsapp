@@ -223,3 +223,35 @@ async def test_el_feed_publico_exige_token(session, monkeypatch):
 
     assert respuesta.status_code == 200
     assert "id,title,description" in cuerpo
+
+def test_la_ficha_publica_muestra_el_producto(session, monkeypatch):
+    """La página /p/{sku} es el link que Meta exige para el catálogo."""
+    import asyncio
+
+    from fastapi.testclient import TestClient
+
+    from app.api import public_product_page
+    from app.main import app
+    from app.models import CatalogItem
+
+    session.add(
+        CatalogItem(
+            sku="PAG-1",
+            name="Taladro Página",
+            price="450",
+            stock=2,
+            brand="BOSCH",
+            category="Herramientas",
+            active=True,
+            image_url="https://rodabo.vteximg.com.br/x.png",
+        )
+    )
+    asyncio.run(session.commit())
+
+    respuesta = asyncio.run(public_product_page("PAG-1", session=session))
+
+    assert respuesta.status_code == 200
+    cuerpo = respuesta.body.decode()
+    assert "Taladro Página" in cuerpo
+    assert "450" in cuerpo
+    assert "wa.me" in cuerpo
