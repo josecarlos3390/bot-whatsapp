@@ -32,6 +32,7 @@ PREFIJOS = (
     "checkout",
     "pay:",
     "confirm:",
+    "confirmar_pedido",
     "cancel:",
 )
 

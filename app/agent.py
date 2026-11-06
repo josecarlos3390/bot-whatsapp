@@ -5453,6 +5453,19 @@ class Agent:
         # entrega se atienden antes que cualquier interpretación del texto.
         from .services import flows
 
+        if normalized == "confirmar_pedido":
+            pedido = flows.mensaje_elegir_entrega()
+            self._trace("Pedido confirmado: elegir entrega")
+            return AgentReply(
+                [
+                    Outbound(
+                        kind=pedido["kind"],
+                        text=pedido["text"],
+                        buttons=pedido["buttons"],
+                    )
+                ]
+            )
+
         if normalized.startswith("entrega:"):
             metodo = normalized.split(":", 1)[1].strip()
             pedido = flows.mensaje_pedir_datos(metodo)

@@ -226,7 +226,15 @@ async def ingest_inbound(
             [
                 Outbound(
                     text=native_commerce.summary_text(summary, errors)
-                )
+                ),
+                Outbound(
+                    kind="buttons",
+                    text="¿Seguimos?",
+                    buttons=[
+                        {"id": "confirmar_pedido", "title": "Confirmar pedido"},
+                        {"id": "cart", "title": "Ver mi carrito"},
+                    ],
+                ),
             ]
         )
     else:

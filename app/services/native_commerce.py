@@ -130,7 +130,8 @@ def summary_text(summary: dict, errors: list[str] | None = None) -> str:
     lines.append(f"Total: Bs {Decimal(summary['total']):,.2f}")
     if errors:
         lines.append("No pude agregar: " + "; ".join(errors))
-    lines.append("¿Confirmas el pedido para generar el QR?")
+    # El QR es la integración de pago que viene después: no se promete.
+    lines.append("¿Confirmás el pedido para coordinar la entrega?")
     return "\n".join(lines)
 
 
